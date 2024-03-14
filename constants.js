@@ -22,6 +22,7 @@ const STR = {
   SUPERADMIN: "superadmin",
   TEACHER: "teacher",
   URL_404: "URL not found!",
+  UNKNOWN: "unknown",
   VALUE_NOT_SUP: "{VALUE} is not supported!",
   VALUE_NOT_SUP_AT_IDX: "%V% is not supported at index: %I%",
 };

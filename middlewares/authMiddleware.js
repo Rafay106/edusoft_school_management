@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const User = require("../models/system/userModel");
 const C = require("../constants");
-const Student = require("../models/studentModel");
+const Student = require("../models/academics/studentModel");
 const School = require("../models/schoolModel");
 
 const authenticate = asyncHandler(async (req, res, next) => {

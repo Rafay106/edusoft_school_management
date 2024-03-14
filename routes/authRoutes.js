@@ -4,7 +4,7 @@ const bcrypt = require("bcrypt");
 const User = require("../models/system/userModel");
 const C = require("../constants");
 const { generateToken } = require("../utils/fn_jwt");
-const Student = require("../models/studentModel");
+const Student = require("../models/academics/studentModel");
 
 // @desc    Register User
 // @route   POST /api/login

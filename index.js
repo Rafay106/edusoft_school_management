@@ -3,15 +3,8 @@ require("dotenv").config();
 // Connect to db
 require("./config/db")();
 
-// // Register schemas
-// fs.readdirSync("./models").forEach(function (file) {
-//   if (~file.indexOf(".js")) require(`./models/${file}`);
-// });
-// fs.readdirSync("./models/user").forEach(function (file) {
-//   if (~file.indexOf(".js")) require(`./models/user/${file}`);
-// });
-
 const express = require("express");
+const morgan = require("morgan");
 const path = require("node:path");
 const cron = require("node-cron");
 const asyncHandler = require("express-async-handler");
@@ -48,45 +41,43 @@ app.use(function (req, res, next) {
   next();
 });
 
+app.use(morgan("dev"));
+
 app.use(express.static(path.join(__dirname, "uploads")));
 
-app.post("/api/listener/gps", listenDeviceData);
-app.post("/api/listener/mobile", listenMobileData);
+app.post("/api/listener", listenDeviceData);
+// app.post("/api/listener/mobile", listenMobileData);
 
-app.post(
-  "/api/create-superadmin",
-  asyncHandler(async (req, res) => {
-    const key = req.body.key;
-
-    if (await User.any({ type: C.SUPERADMIN })) {
-      res.status(400);
-      throw new Error("Superadmin already exists");
-    }
-
-    if (key !== process.env.SECRET) {
-      res.status(400);
-      throw new Error("Invalid Key");
-    }
-
-    const superadmin = await User.create({
-      email: req.body.email,
-      password: req.body.password,
-      name: req.body.name,
-      mobile: req.body.mobile,
-      type: C.SUPERADMIN,
-    });
-
-    res.status(201).json({ success: true, msg: superadmin._id });
-  })
-);
+app.use("/api/system", require("./routes/systemRoutes"));
 
 app.use("/api/login", require("./routes/authRoutes"));
+
+app.use(
+  "/api/util",
+  authenticate,
+  adminPanelAuthorize,
+  require("./routes/utilRoutes")
+);
 
 app.use(
   "/api/admin-panel",
   authenticate,
   adminPanelAuthorize,
   require("./routes/adminRoutes")
+);
+
+app.use(
+  "/api/transport",
+  authenticate,
+  adminPanelAuthorize,
+  require("./routes/transportRoutes")
+);
+
+app.use(
+  "/api/academic",
+  authenticate,
+  adminPanelAuthorize,
+  require("./routes/academicRoutes")
 );
 
 app.use("/api/parent", parentAuthenticate, require("./routes/parentRoutes"));

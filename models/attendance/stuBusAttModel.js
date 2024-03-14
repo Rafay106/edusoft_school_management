@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const C = require("../constants");
-const { any } = require("../plugins/schemaPlugins");
+const C = require("../../constants");
+const { any } = require("../../plugins/schemaPlugins");
 
 const attendanceTypeSchema = new mongoose.Schema(
   {
@@ -8,7 +8,7 @@ const attendanceTypeSchema = new mongoose.Schema(
       type: String,
       required: [true, C.FIELD_IS_REQ],
       enum: {
-        values: [C.M_ENTRY, C.M_EXIT, C.A_ENTRY, C.A_EXIT],
+        values: [C.M_ENTRY, C.M_EXIT, C.A_ENTRY, C.A_EXIT, C.UNKNOWN],
         message: C.VALUE_NOT_SUP,
       },
     },
@@ -23,6 +23,10 @@ const attendanceTypeSchema = new mongoose.Schema(
 const schema = new mongoose.Schema(
   {
     date: { type: Date, required: [true, C.FIELD_IS_REQ] },
+    bus_stop_fee: {
+      pickup: { type: Number, default: 0 },
+      drop: { type: Number, default: 0 },
+    },
     student: {
       type: mongoose.SchemaTypes.ObjectId,
       required: [true, C.FIELD_IS_REQ],
@@ -52,5 +56,5 @@ schema.pre("updateOne", function (next) {
 
 schema.plugin(any);
 
-const Attendance = mongoose.model("attendances", schema);
-module.exports = Attendance;
+const StuBusAtt = mongoose.model("attendance_student_buses", schema);
+module.exports = StuBusAtt;

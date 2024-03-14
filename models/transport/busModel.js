@@ -40,7 +40,10 @@ const schema = new mongoose.Schema(
       value: { type: String, default: "none" },
       dt: { type: Date, default: 0 },
     },
-    alternate: { type: mongoose.SchemaTypes.ObjectId, ref: "buses" },
+    alternate: {
+      enabled: { type: Boolean, default: false },
+      bus: { type: mongoose.SchemaTypes.ObjectId, ref: "buses" },
+    },
     device: deviceSchema,
     stops: [{ type: mongoose.SchemaTypes.ObjectId, ref: "bus_stops" }],
     driver: {
@@ -53,12 +56,12 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "bus_staffs",
     },
-    user: {
+    manager: {
       type: mongoose.SchemaTypes.ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "users",
     },
-    manager: {
+    school: {
       type: mongoose.SchemaTypes.ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "users",

@@ -46,12 +46,12 @@ const schema = new mongoose.Schema(
         },
       },
     },
-    user: {
+    manager: {
       type: mongoose.Schema.Types.ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "users",
     },
-    manager: {
+    school: {
       type: mongoose.Schema.Types.ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "users",

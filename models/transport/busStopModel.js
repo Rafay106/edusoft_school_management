@@ -7,12 +7,13 @@ const schema = new mongoose.Schema({
   address: { type: String, required: [true, C.FIELD_IS_REQ] },
   lat: { type: Number, required: [true, C.FIELD_IS_REQ] },
   lon: { type: Number, required: [true, C.FIELD_IS_REQ] },
-  user: {
+  fees: { type: Number, required: [true, C.FIELD_IS_REQ] },
+  manager: {
     type: mongoose.SchemaTypes.ObjectId,
     required: [true, C.FIELD_IS_REQ],
     ref: "users",
   },
-  manager: {
+  school: {
     type: mongoose.SchemaTypes.ObjectId,
     required: [true, C.FIELD_IS_REQ],
     ref: "users",

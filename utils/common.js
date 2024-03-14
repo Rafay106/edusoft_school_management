@@ -5,7 +5,7 @@ const xlsx = require("xlsx");
 const C = require("../constants");
 const School = require("../models/schoolModel");
 const Bus = require("../models/transport/busModel");
-const Student = require("../models/studentModel");
+const Student = require("../models/academics/studentModel");
 const { isUsernameValid } = require("./validators");
 
 const createSearchQuery = (fields, value) => {

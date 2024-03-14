@@ -25,6 +25,27 @@ const upload = multer({
 
 const maxSize = 2 * 1024 * 1024; // 2MB
 
+const busStaffPhotoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const filePath = path.join("uploads", "bus_staff");
+      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
+      cb(null, filePath);
+    },
+    filename: (req, file, cb) => {
+      const ext = mimeTypes[file.mimetype];
+      cb(null, `${req.user._id}_${Date.now()}.${ext}`);
+    },
+  }),
+  limits: { fileSize: maxSize },
+  fileFilter: (req, file, cb) => {
+    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+      return cb(new Error("Only jpg, jpeg, or png files are allowed"));
+    }
+    cb(null, true);
+  },
+});
+
 const studentPhotoUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -68,6 +89,7 @@ const studentBulkImportUpload = multer({
 module.exports = {
   upload,
   memoryUpload,
+  busStaffPhotoUpload,
   studentPhotoUpload,
   studentBulkImportUpload,
 };

@@ -3,7 +3,7 @@ const getDeviceHistoryModel = require("../models/deviceHistoryModel");
 const UnusedDevice = require("../models/unusedDeviceModel");
 const { getAngle, getLenBtwPointsInKm, writeLog } = require("../utils/common");
 const { isAlphaNumeric } = require("../utils/validators");
-const { checkAttendance } = require("./attendance");
+const { checkStuBusAttendance } = require("./attendance");
 
 const insert_db_loc = async (loc) => {
   // Format Data
@@ -177,7 +177,7 @@ const insert_db_loc = async (loc) => {
   writeLog("insert", `${loc.imei}: ${loc.params}`);
   if (!loc.params.io78) return;
 
-  await checkAttendance(loc);
+  await checkStuBusAttendance(loc);
 };
 
 const insert_db_unused = async (loc) => {
@@ -235,11 +235,11 @@ const updateDeviceLocData = async (loc, locPrev) => {
             "device.dt_tracker": loc.dt_tracker,
             "device.lat": loc.lat,
             "device.lon": loc.lon,
+            "device.speed": loc.speed,
             "device.altitude": loc.altitude,
             "device.angle": loc.angle,
-            "device.speed": loc.speed,
-            "device.loc_valid": true,
             "device.params": loc.params,
+            "device.loc_valid": true,
           },
         }
       );
@@ -258,11 +258,11 @@ const updateDeviceLocData = async (loc, locPrev) => {
               "device.dt_tracker": loc.dt_tracker,
               "device.lat": loc.lat,
               "device.lon": loc.lon,
+              "device.speed": loc.speed,
               "device.altitude": loc.altitude,
               "device.angle": loc.angle,
-              "device.speed": loc.speed,
-              "device.loc_valid": false,
               "device.params": loc.params,
+              "device.loc_valid": false,
             },
           }
         );
@@ -278,8 +278,8 @@ const updateDeviceLocData = async (loc, locPrev) => {
               "device.dt_server": loc.dt_server,
               "device.dt_tracker": loc.dt_tracker,
               "device.speed": loc.speed,
-              "device.loc_valid": false,
               "device.params": loc.params,
+              "device.loc_valid": false,
             },
           }
         );

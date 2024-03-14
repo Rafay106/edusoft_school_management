@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const C = require("../constants");
-const { any } = require("../plugins/schemaPlugins");
+const C = require("../../constants");
+const { any } = require("../../plugins/schemaPlugins");
 
 const schema = new mongoose.Schema(
   {
@@ -11,7 +11,7 @@ const schema = new mongoose.Schema(
     },
     rollNo: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      default: "",
       uppercase: true,
     },
     name: {
@@ -41,11 +41,6 @@ const schema = new mongoose.Schema(
         message: C.VALUE_NOT_SUP,
       },
     },
-    school: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "schools",
-      required: [true, C.FIELD_IS_REQ],
-    },
     bus: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "buses",
@@ -62,12 +57,12 @@ const schema = new mongoose.Schema(
       ref: "sections",
       required: [true, C.FIELD_IS_REQ],
     },
-    user: {
+    manager: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "users",
       required: [true, C.FIELD_IS_REQ],
     },
-    manager: {
+    school: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "users",
       required: [true, C.FIELD_IS_REQ],

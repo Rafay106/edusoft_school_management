@@ -5,12 +5,12 @@ const { any } = require("../../plugins/schemaPlugins");
 const schema = new mongoose.Schema(
   {
     name: { type: String, required: [true, C.FIELD_IS_REQ] },
-    user: {
+    manager: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "users",
       required: [true, C.FIELD_IS_REQ],
     },
-    manager: {
+    school: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "users",
       required: [true, C.FIELD_IS_REQ],

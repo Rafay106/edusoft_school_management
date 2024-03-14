@@ -25,12 +25,12 @@ const schema = new mongoose.Schema(
       number: { type: String, default: "" },
       expiry_date: { type: Date, default: 0 },
     },
-    user: {
+    manager: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "users",
       required: [true, C.FIELD_IS_REQ],
     },
-    manager: {
+    school: {
       type: mongoose.SchemaTypes.ObjectId,
       ref: "users",
       required: [true, C.FIELD_IS_REQ],
