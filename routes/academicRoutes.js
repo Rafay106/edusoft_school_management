@@ -7,6 +7,17 @@ const AC = require("../controllers/academicController");
 
 const academicRouter = express.Router();
 
+// 1. Academic Year Routes
+const academicYearRouter = express.Router();
+
+academicYearRouter.route("/").get(AC.getAcademicYears).post(AC.addAcademicYear);
+
+academicYearRouter
+  .route("/:id")
+  .get(AC.getAcademicYear)
+  .patch(AC.updateAcademicYear)
+  .delete(AC.deleteAcademicYear);
+
 // 1. Class Routes
 const classRouter = express.Router();
 
@@ -54,6 +65,7 @@ studentRouter
   .post(AC.addPickupLocation)
   .delete(AC.removePickupLocation);
 
+academicRouter.use("/academic-year", academicYearRouter);
 academicRouter.use("/class", classRouter);
 academicRouter.use("/section", sectionRouter);
 academicRouter.use("/student", studentRouter);

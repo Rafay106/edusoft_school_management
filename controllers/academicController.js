@@ -1,13 +1,205 @@
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
+const AcademicYear = require("../models/academics/academicYearModel");
 const Class = require("../models/academics/classModel");
 const User = require("../models/system/userModel");
 const Section = require("../models/academics/sectionModel");
 const Student = require("../models/academics/studentModel");
 const Bus = require("../models/transport/busModel");
 
-/** 6. Class */
+/** 1. Academic Year */
+
+// @desc    Get all academic-years
+// @route   GET /api/academics/academic-year
+// @access  Private
+const getAcademicYears = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const searchField = req.query.sf;
+  const searchValue = req.query.sv;
+
+  const query = {};
+
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+
+  if (searchField && searchValue) {
+    if (searchField === "all") {
+      const fields = ["year", "title"];
+
+      const searchQuery = UC.createSearchQuery(fields, searchValue);
+      query["$or"] = searchQuery["$or"];
+    } else {
+      const searchQuery = UC.createSearchQuery([searchField], searchValue);
+      query["$or"] = searchQuery["$or"];
+    }
+  }
+
+  const results = await UC.paginatedQuery(
+    AcademicYear,
+    query,
+    {},
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a academic-year
+// @route   GET /api/academics/academic-year/:id
+// @access  Private
+const getAcademicYear = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  const academicYear = await AcademicYear.findOne(query)
+    .populate("manager school", "name")
+    .lean();
+
+  if (!academicYear) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("AcademicYear", req.params.id));
+  }
+
+  res.status(200).json(academicYear);
+});
+
+// @desc    Add a academic-year
+// @route   POST /api/academics/academic-year
+// @access  Private
+const addAcademicYear = asyncHandler(async (req, res) => {
+  let manager = req.body.manager;
+  let school = req.body.school;
+
+  if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const year = req.body.year;
+  let starting_date = req.body.starting_date;
+  let ending_date = req.body.ending_date;
+
+  if (year.length > 4) {
+    res.status(400);
+    throw new Error("The year must be 4 digits.");
+  }
+
+  if (isNaN(parseInt(year))) {
+    res.status(400);
+    throw new Error("The year must be a number.");
+  }
+
+  starting_date = new Date(starting_date).setUTCHours(0, 0, 0, 0);
+  ending_date = new Date(ending_date).setUTCHours(0, 0, 0, 0);
+
+  const academicYear = await AcademicYear.create({
+    year,
+    title: req.body.title,
+    starting_date,
+    ending_date,
+    manager,
+    school,
+  });
+
+  res.status(201).json({ msg: academicYear._id });
+});
+
+// @desc    Update a academic-year
+// @route   PUT /api/academics/academic-year/:id
+// @access  Private
+const updateAcademicYear = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) {
+    query.user = req.user._id;
+    query.manager = req.user.manager;
+  }
+
+  if (C.isManager(req.user.type)) {
+    query.manager = req.user._id;
+  }
+
+  if (!(await AcademicYear.any(query))) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("AcademicYear", req.params.id));
+  }
+
+  const year = req.body.year;
+  let starting_date = req.body.starting_date;
+  let ending_date = req.body.ending_date;
+
+  if (year) {
+    if (year.length > 4) {
+      res.status(400);
+      throw new Error("The year must be 4 digits.");
+    }
+
+    if (isNaN(parseInt(year))) {
+      res.status(400);
+      throw new Error("The year must be a number.");
+    }
+  }
+
+  if (starting_date) {
+    starting_date = new Date(starting_date).setUTCHours(0, 0, 0, 0);
+  }
+
+  if (ending_date) {
+    ending_date = new Date(ending_date).setUTCHours(0, 0, 0, 0);
+  }
+
+  const result = await AcademicYear.updateOne(query, {
+    $set: {
+      year,
+      title: req.body.title,
+      starting_date,
+      ending_date,
+    },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a academic-year
+// @route   DELETE /api/academics/academic-year/:id
+// @access  Private
+const deleteAcademicYear = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) {
+    query.user = req.user._id;
+    query.manager = req.user.manager;
+  }
+
+  if (C.isManager(req.user.type)) {
+    query.manager = req.user._id;
+  }
+
+  const result = await AcademicYear.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
+/** 2. Class */
 
 // @desc    Get all classes
 // @route   GET /api/admin-panel/class
@@ -683,6 +875,12 @@ const removePickupLocation = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAcademicYears,
+  getAcademicYear,
+  addAcademicYear,
+  updateAcademicYear,
+  deleteAcademicYear,
+
   getClasses,
   getClass,
   addClass,

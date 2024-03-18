@@ -7,23 +7,18 @@ const express = require("express");
 const morgan = require("morgan");
 const path = require("node:path");
 const cron = require("node-cron");
-const asyncHandler = require("express-async-handler");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const {
   authenticate,
   parentAuthenticate,
   adminPanelAuthorize,
 } = require("./middlewares/authMiddleware");
-const { listenDeviceData, listenMobileData } = require("./services/listener");
-const { sendPushNotification } = require("./tools/notifyPush");
-const User = require("./models/system/userModel");
-const C = require("./constants");
-const { default: mongoose } = require("mongoose");
+const { listenDeviceData } = require("./services/listener");
 const { serviceClearHistory } = require("./services/service");
 const { writeLog } = require("./utils/common");
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8001;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -74,13 +69,16 @@ app.use(
 );
 
 app.use(
-  "/api/academic",
+  "/api/academics",
   authenticate,
   adminPanelAuthorize,
   require("./routes/academicRoutes")
 );
 
 app.use("/api/parent", parentAuthenticate, require("./routes/parentRoutes"));
+
+// Razorpay
+app.use("/api/razorpay", require("./tools/razorpay"));
 
 /*************
  * Cron Jobs *
@@ -107,10 +105,16 @@ cron.schedule("* * * * * *", async () => {
 // test routes
 app.use("/api/test", authenticate, require("./routes/testRoutes"));
 
+app.use(express.static(path.join(__dirname, "dist")));
+
+app.get("*", (req, res) =>
+  res.sendFile(path.resolve(__dirname, "dist", "index.html"))
+);
+
 app.all("*", (req, res) => res.status(404).json({ msg: "Url not found!" }));
 
 app.use(errorHandler);
 
 app.listen(process.env.PORT, () =>
-  console.log(`attendance.edusoft.in running on port: ${PORT}`)
+  console.log(`Edusoft running on port: ${PORT}`)
 );
