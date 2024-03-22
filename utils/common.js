@@ -3,7 +3,7 @@ const path = require("node:path");
 const xlsx = require("xlsx");
 
 const C = require("../constants");
-const School = require("../models/schoolModel");
+const School = require("../models/system/schoolModel");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/academics/studentModel");
 const { isUsernameValid } = require("./validators");

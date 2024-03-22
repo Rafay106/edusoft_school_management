@@ -69,6 +69,8 @@ const staffSchema = new mongoose.Schema({
   driving_license_ex_date: { type: String, default: "" },
 });
 
+staffSchema.index({ email: 1 }, { unique: true });
+
 staffSchema.plugin(any);
 
 const Accountant = mongoose.model("accountants", staffSchema);

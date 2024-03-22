@@ -3,9 +3,10 @@ const crypto = require("node:crypto");
 const asyncHandler = require("express-async-handler");
 const Razorpay = require("razorpay");
 const RazorpayPayment = require("../models/fees/razorPayModel");
-const C = require("../constants");
 const User = require("../models/system/userModel");
 const Student = require("../models/academics/studentModel");
+const C = require("../constants");
+const UC = require("../utils/common");
 
 const { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_EMAIL } = process.env;
 
@@ -19,12 +20,12 @@ const razorpay = new Razorpay({
 const HOST = "http://localhost:8001";
 
 const createOrder = asyncHandler(async (req, res) => {
-  let admissionNo = "TEST";
+  let admNo = "TEST";
   const amount = req.body.amount;
 
-  if (!admissionNo) {
+  if (!admNo) {
     res.status(400);
-    throw new Error(C.getFieldIsReq("admissionNo"));
+    throw new Error(C.getFieldIsReq("admNo"));
   }
 
   if (!amount) {
@@ -32,10 +33,10 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("amount"));
   }
 
-  admissionNo = admissionNo.toUpperCase();
+  admNo = admNo.toUpperCase();
 
-  const student = await Student.findOne({ admissionNo })
-    .select("manager school")
+  const student = await Student.findOne({ admission_no: admNo })
+    .select("name email phone address manager school")
     .lean();
 
   if (!student) {
@@ -49,23 +50,33 @@ const createOrder = asyncHandler(async (req, res) => {
     receipt: RAZORPAY_EMAIL,
   };
 
-  // try {
-  const order = await razorpay.orders.create(options);
+  try {
+    const order = await razorpay.orders.create(options);
 
-  order.name = "Edusoft";
-  order.description = "Student Fee Payment";
+    order.razorpay_key = RAZORPAY_KEY_ID;
+    order.name = "Edusoft";
+    order.description = "Student Fee Payment";
 
-  await RazorpayPayment.create({
-    order,
-    student,
-    manager: student.manager,
-    school: student.school,
-  });
+    let stuName = student.name.f;
+    if (student.name.m) stuName += ` ${student.name.m}`;
+    stuName += ` ${student.name.l}`;
 
-  res.status(200).json(order);
-  // } catch (err) {
-  //   res.status(400).json({ success: false, msg: "Something went wrong!" });
-  // }
+    order.stuName = stuName;
+    order.stuPhone = student.phone;
+    order.stuEmail = student.email;
+    order.stuAddress = student.address || "NA";
+
+    await RazorpayPayment.create({
+      order,
+      student,
+      manager: student.manager,
+      school: student.school,
+    });
+
+    res.status(200).json(order);
+  } catch (err) {
+    res.status(400).json({ success: false, msg: "Something went wrong!" });
+  }
 });
 
 const verifyPayment = asyncHandler(async (req, res) => {
@@ -79,7 +90,21 @@ const verifyPayment = asyncHandler(async (req, res) => {
 
   const isAuth = expSignature === razorpay_signature;
 
-  if (!isAuth) return res.status(400).json({ success: false });
+  if (!isAuth) {
+    const metadata = JSON.parse(req.body["error[metadata]"]);
+    const orderId = metadata.order_id;
+    const paymentId = metadata.payment_id;
+
+    const order = await razorpay.orders.fetch(orderId);
+    const payment = await razorpay.payments.fetch(paymentId);
+
+    await RazorpayPayment.updateOne(
+      { "order.id": orderId },
+      { $set: { order: order, payment, signature: razorpay_signature } }
+    );
+
+    return res.redirect(`${HOST}/failure?msg=SIGNATURE_VERIFICATION_FAILED`);
+  }
 
   const order = await razorpay.orders.fetch(razorpay_order_id);
   const payment = await razorpay.payments.fetch(razorpay_payment_id);
@@ -113,6 +138,8 @@ const checkPaymentStatus = asyncHandler(async (req, res) => {
   const payment = await razorpay.payments.fetch(payment_id);
 
   res.status(200).json(payment);
+
+  UC.writeLog("verifyPayment", "END");
 });
 
 router.post("/pay", createOrder);
@@ -124,5 +151,13 @@ router.get("/key", (req, res) => {
 });
 
 router.get("/check-status", checkPaymentStatus);
+
+router.get(
+  "/payment-cancel",
+  asyncHandler(async (req, res) => {
+    console.log("req.body :>>", req.body);
+    res.redirect(`${HOST}/payment-cancel`);
+  })
+);
 
 module.exports = router;

@@ -7,10 +7,11 @@ const ObjectId = mongoose.SchemaTypes.ObjectId;
 const schema = new mongoose.Schema(
   {
     name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    section: {
-      type: ObjectId,
+    code: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+    type: {
+      type: String,
       required: [true, C.FIELD_IS_REQ],
-      ref: "sections",
+      enum: { values: ["T", "P"], message: C.VALUE_NOT_SUP },
     },
     academic_year: {
       type: ObjectId,
@@ -24,7 +25,8 @@ const schema = new mongoose.Schema(
 );
 
 schema.index({ name: 1, school: 1 }, { unique: true });
+schema.index({ code: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
-const Class = mongoose.model("classes", schema);
-module.exports = Class;
+const Subject = mongoose.model("subjects", schema);
+module.exports = Subject;

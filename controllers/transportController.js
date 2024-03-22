@@ -5,6 +5,7 @@ const BusStaff = require("../models/transport/busStaffModel");
 const BusStop = require("../models/transport/busStopModel");
 const Bus = require("../models/transport/busModel");
 const User = require("../models/system/userModel");
+const Student = require("../models/academics/studentModel");
 
 /** 1. BusStaff */
 
@@ -125,7 +126,7 @@ const updateBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) {
-    query.user = req.user._id;
+    query.school = req.user._id;
     query.manager = req.user.manager;
   }
 
@@ -150,6 +151,7 @@ const updateBusStaff = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// TODO
 // @desc    Delete a busStaff
 // @route   DELETE /api/transport/bus-staff/:id
 // @access  Private
@@ -157,12 +159,22 @@ const deleteBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) {
-    query.user = req.user._id;
+    query.school = req.user._id;
     query.manager = req.user.manager;
+  } else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  const staff = await BusStaff.findOne(query).select("_id").lean();
+
+  if (!staff) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
   }
 
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
+  if (
+    await Bus.any({ $or: [{ driver: staff._id }, { conductor: staff._id }] })
+  ) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("BusStaff", "Bus"));
   }
 
   const result = await BusStaff.deleteOne(query);
@@ -244,11 +256,7 @@ const addBusStop = asyncHandler(async (req, res) => {
   if (C.isSchool(req.user.type)) {
     school = req.user._id;
     manager = req.user.manager;
-  }
-
-  if (C.isManager(req.user.type)) {
-    manager = req.user._id;
-  }
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
 
   if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
     res.status(400);
@@ -263,9 +271,9 @@ const addBusStop = asyncHandler(async (req, res) => {
   const busStop = await BusStop.create({
     name: req.body.name,
     address: req.body.address,
+    fare: req.body.fare,
     lat: parseFloat(req.body.lat).toFixed(6),
     lon: parseFloat(req.body.lon).toFixed(6),
-    fees: req.body.fees,
     manager,
     school,
   });
@@ -307,6 +315,18 @@ const deleteBusStop = asyncHandler(async (req, res) => {
 
   if (C.isSchool(req.user.type)) query.school = req.user._id;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  const stop = await BusStop.findOne(query).select("_id").lean();
+
+  if (!stop) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+  }
+
+  if (await Bus.any({ stops: stop._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("BusStop", "Bus"));
+  }
 
   const result = await BusStop.deleteOne(query);
 
@@ -445,7 +465,7 @@ const updateBus = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) {
-    query.user = req.user._id;
+    query.school = req.user._id;
     query.manager = req.user.manager;
   }
 
@@ -476,13 +496,19 @@ const updateBus = asyncHandler(async (req, res) => {
 const deleteBus = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.user = req.user._id;
-    query.manager = req.user.manager;
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  const bus = await Bus.findOne(query).select("_id").lean();
+
+  if (!bus) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Bus", req.params.id));
   }
 
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
+  if (await Student.any({ bus: bus._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("Bus", "Student"));
   }
 
   const result = await Bus.deleteOne(query);

@@ -1,100 +1,51 @@
 const express = require("express");
-const asyncHandler = require("express-async-handler");
-const C = require("../constants");
 const SC = require("../controllers/systemController");
-const User = require("../models/system/userModel");
-const Privilege = require("../models/system/privilegeModel");
+const { memoryUpload } = require("../middlewares/multerMiddleware");
 
-const router = express.Router();
+const systemRouter = express.Router();
 
-router.route("/privilege").get(SC.getPrivileges).post(SC.addPrivilege);
-router
-  .route("/privilege/:id")
-  .get(SC.getPrivilege)
-  .patch(SC.updatePrivilege)
-  .delete(SC.deletePrivilege);
+// 1. Template Privilege Routes
+const templatePrivilegeRouter = express.Router();
 
-router.post(
-  "/init",
-  asyncHandler(async (req, res) => {
-    const key = req.body.key;
+templatePrivilegeRouter
+  .route("/")
+  .get(SC.getTemplatePrivileges)
+  .post(SC.createTemplatePrivilege);
+templatePrivilegeRouter
+  .route("/:id")
+  .get(SC.getTemplatePrivilege)
+  .patch(SC.updateTemplatePrivilege)
+  .delete(SC.deleteTemplatePrivilege);
 
-    if (await User.any({ type: C.SUPERADMIN })) {
-      res.status(400);
-      throw new Error("Superadmin already exists");
-    }
+// 2. User Routes
+const userRouter = express.Router();
 
-    if (key !== process.env.SECRET) {
-      res.status(400);
-      throw new Error("Invalid Key");
-    }
+userRouter.route("/").get(SC.getUsers).post(SC.createUser);
+userRouter.get("/required-data", SC.requiredDataUser);
+userRouter
+  .route("/:id")
+  .get(SC.getUser)
+  .patch(SC.updateUser)
+  .delete(SC.deleteUser);
 
-    // // Superadmin
-    // await Privilege.create({
-    //   type: C.SUPERADMIN,
-    //   privileges: {
-    //     user: { read: true, write: true, update: true, delete: true },
-    //     school: { read: true, write: true, update: true, delete: true },
-    //     busStaff: { read: true, write: true, update: true, delete: true },
-    //     busStop: { read: true, write: true, update: true, delete: true },
-    //     bus: { read: true, write: true, update: true, delete: true },
-    //     student: { read: true, write: true, update: true, delete: true },
-    //     util: { read: true, write: true, update: true, delete: true },
-    //   },
-    // });
+// 3. School Routes
+const schoolRouter = express.Router();
 
-    // // Admin
-    // await Privilege.create({
-    //   type: C.ADMIN,
-    //   privileges: {
-    //     user: { read: true, write: true, update: true, delete: true },
-    //     school: { read: true, write: true, update: true, delete: true },
-    //     busStaff: { read: true, write: true, update: true, delete: true },
-    //     busStop: { read: true, write: true, update: true, delete: true },
-    //     bus: { read: true, write: true, update: true, delete: true },
-    //     student: { read: true, write: true, update: true, delete: true },
-    //     util: { read: true, write: true, update: true, delete: true },
-    //   },
-    // });
+schoolRouter.route("/").get(SC.getSchools).post(SC.addSchool);
+schoolRouter
+  .route("/:id")
+  .get(SC.getSchool)
+  .patch(SC.updateSchool)
+  .delete(SC.deleteSchool);
 
-    // // Manager
-    // await Privilege.create({
-    //   type: C.MANAGER,
-    //   privileges: {
-    //     user: { read: true, write: true, update: true, delete: true },
-    //     school: { read: true, write: true, update: true, delete: true },
-    //     busStaff: { read: true, write: true, update: true, delete: true },
-    //     busStop: { read: true, write: true, update: true, delete: true },
-    //     bus: { read: true, write: true, update: true, delete: true },
-    //     student: { read: true, write: true, update: true, delete: true },
-    //     util: { read: true, write: true, update: true, delete: true },
-    //   },
-    // });
-
-    // // School
-    // await Privilege.create({
-    //   type: C.SCHOOL,
-    //   privileges: {
-    //     user: { read: true, write: true, update: true, delete: true },
-    //     school: { read: true, write: true, update: true, delete: true },
-    //     busStaff: { read: true, write: true, update: true, delete: true },
-    //     busStop: { read: true, write: true, update: true, delete: true },
-    //     bus: { read: true, write: true, update: true, delete: true },
-    //     student: { read: true, write: true, update: true, delete: true },
-    //     util: { read: true, write: true, update: true, delete: true },
-    //   },
-    // });
-
-    const superadmin = await User.create({
-      email: req.body.email,
-      password: req.body.password,
-      name: req.body.name,
-      phone: req.body.phone,
-      type: C.SUPERADMIN,
-    });
-
-    res.status(201).json({ success: true, msg: superadmin._id });
-  })
+schoolRouter.post(
+  "/bulk",
+  memoryUpload.single("school-file"),
+  SC.bulkOpsSchool
 );
 
-module.exports = router;
+systemRouter.use("/user", userRouter);
+systemRouter.use("/school", schoolRouter);
+systemRouter.use("/template-privilege", templatePrivilegeRouter);
+
+module.exports = systemRouter;

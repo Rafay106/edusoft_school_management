@@ -18,7 +18,7 @@ academicYearRouter
   .patch(AC.updateAcademicYear)
   .delete(AC.deleteAcademicYear);
 
-// 1. Class Routes
+// 2. Class Routes
 const classRouter = express.Router();
 
 classRouter.route("/").get(AC.getClasses).post(AC.addClass);
@@ -29,7 +29,7 @@ classRouter
   .patch(AC.updateClass)
   .delete(AC.deleteClass);
 
-// 2. Section Routes
+// 3. Section Routes
 const sectionRouter = express.Router();
 
 sectionRouter.route("/").get(AC.getSections).post(AC.addSection);
@@ -40,7 +40,18 @@ sectionRouter
   .patch(AC.updateSection)
   .delete(AC.deleteSection);
 
-// 3. Student Routes
+// 3. Subject Routes
+const subjectRouter = express.Router();
+
+subjectRouter.route("/").get(AC.getSubjects).post(AC.addSubject);
+
+subjectRouter
+  .route("/:id")
+  .get(AC.getSubject)
+  .patch(AC.updateSubject)
+  .delete(AC.deleteSubject);
+
+// . Student Routes
 const studentRouter = express.Router();
 
 studentRouter
@@ -60,14 +71,10 @@ studentRouter.post(
   AC.bulkOpsStudent
 );
 
-studentRouter
-  .route("/pik-loc/:id")
-  .post(AC.addPickupLocation)
-  .delete(AC.removePickupLocation);
-
 academicRouter.use("/academic-year", academicYearRouter);
 academicRouter.use("/class", classRouter);
 academicRouter.use("/section", sectionRouter);
+academicRouter.use("/subject", subjectRouter);
 academicRouter.use("/student", studentRouter);
 
 module.exports = academicRouter;

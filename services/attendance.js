@@ -11,7 +11,7 @@ const {
 } = require("../utils/common");
 
 const { notifyPushQueue } = require("../tools/notifyPush");
-const School = require("../models/schoolModel");
+const School = require("../models/system/schoolModel");
 const BusStop = require("../models/transport/busStopModel");
 
 const checkStuBusAttendance = async (loc) => {

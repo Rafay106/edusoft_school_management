@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/system/userModel");
 const C = require("../constants");
 const Student = require("../models/academics/studentModel");
-const School = require("../models/schoolModel");
+const School = require("../models/system/schoolModel");
 
 const authenticate = asyncHandler(async (req, res, next) => {
   let token;

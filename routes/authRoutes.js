@@ -26,12 +26,12 @@ router.post(
       throw new Error(C.INVALID_CREDENTIALS);
     }
 
+    const token = generateToken(user._id);
+
     delete user.password;
     delete user.__v;
 
-    const token = generateToken(user);
-
-    res.status(200).json(token);
+    res.status(200).json({ ...user, token });
   })
 );
 

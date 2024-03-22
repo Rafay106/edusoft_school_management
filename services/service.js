@@ -1,5 +1,5 @@
 const Bus = require("../models/transport/busModel");
-const getDeviceHistoryModel = require("../models/deviceHistoryModel");
+const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
 
 const serviceClearHistory = async () => {
   const days = parseInt(process.env.HISTORY_PERIOD);

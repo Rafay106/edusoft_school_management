@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const { any } = require("../plugins/schemaPlugins");
-const { isIMEIValid } = require("../utils/validators");
+const { any } = require("../../plugins/schemaPlugins");
+const { isIMEIValid } = require("../../utils/validators");
 
 const schema = new mongoose.Schema(
   {

@@ -3,10 +3,11 @@ const C = require("../constants");
 const User = require("../models/system/userModel");
 const Bus = require("../models/transport/busModel");
 const BusStop = require("../models/transport/busStopModel");
-const School = require("../models/schoolModel");
+const School = require("../models/system/schoolModel");
 const BusStaff = require("../models/transport/busStaffModel");
 const Class = require("../models/academics/classModel");
 const Section = require("../models/academics/sectionModel");
+const AcademicYear = require("../models/academics/academicYearModel");
 
 // @desc    Get managers
 // @route   GET /api/util/manager-list
@@ -337,6 +338,47 @@ const getBusList = asyncHandler(async (req, res) => {
   res.status(200).json(buses);
 });
 
+// @desc    Get academic year
+// @route   GET /api/util/academic-year-list
+// @access  Private
+const getAcademicYearList = asyncHandler(async (req, res) => {
+  let manager = req.query.manager;
+  let school = req.query.school;
+
+  if (C.isManager(req.user.type)) {
+    manager = req.user._id;
+  } else if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  }
+
+  if (!manager) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("manager"));
+  }
+
+  if (!school) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("school"));
+  }
+
+  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const years = await AcademicYear.find({ manager, school })
+    .select("title")
+    .lean();
+
+  res.status(200).json(years);
+});
+
 // @desc    Get classes
 // @route   GET /api/util/class-list
 // @access  Private
@@ -410,7 +452,9 @@ const getSectionList = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Error("school", school));
   }
 
-  const sections = await Section.find({ manager, school }).select("name").lean();
+  const sections = await Section.find({ manager, school })
+    .select("name")
+    .lean();
 
   res.status(200).json(sections);
 });
@@ -422,6 +466,7 @@ module.exports = {
   getConductorList,
   getBusList,
   getBusStopList,
+  getAcademicYearList,
   getClassList,
   getSectionList,
 };

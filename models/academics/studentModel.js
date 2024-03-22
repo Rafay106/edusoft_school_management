@@ -2,18 +2,16 @@ const mongoose = require("mongoose");
 const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+
 const schema = new mongoose.Schema(
   {
-    admissionNo: {
+    admission_no: {
       type: String,
       required: [true, C.FIELD_IS_REQ],
       uppercase: true,
     },
-    rollNo: {
-      type: String,
-      default: "",
-      uppercase: true,
-    },
+    roll_no: { type: String, default: "", uppercase: true },
     name: {
       f: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
       m: { type: String, default: "", uppercase: true },
@@ -41,37 +39,21 @@ const schema = new mongoose.Schema(
         message: C.VALUE_NOT_SUP,
       },
     },
-    bus: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "buses",
+    academic_year: {
+      type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
+      ref: "academic_years",
     },
-    busStops: [{ type: mongoose.SchemaTypes.ObjectId, ref: "bus_stops" }],
-    class: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "classes",
-      required: [true, C.FIELD_IS_REQ],
-    },
-    section: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "sections",
-      required: [true, C.FIELD_IS_REQ],
-    },
-    manager: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "users",
-      required: [true, C.FIELD_IS_REQ],
-    },
-    school: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "users",
-      required: [true, C.FIELD_IS_REQ],
-    },
+    class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
+    bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
+    bus_stop: { type: ObjectId, ref: "bus_stops" },
+    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true }
 );
 
-schema.index({ admissionNo: 1 }, { unique: true });
+schema.index({ admission_no: 1 }, { unique: true });
 schema.index({ rfid: 1 }, { unique: true });
 
 schema.pre("updateOne", function (next) {

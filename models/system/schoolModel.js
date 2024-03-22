@@ -1,7 +1,13 @@
 const mongoose = require("mongoose");
-const C = require("../constants");
-const { isEmailValid, timeValidator } = require("../utils/validators");
-const { any } = require("../plugins/schemaPlugins");
+const C = require("../../constants");
+const { isEmailValid, timeValidator } = require("../../utils/validators");
+const { any } = require("../../plugins/schemaPlugins");
+
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+
+const timingErr = (props) => {
+  return `${props.value} is not a valid 24-hour time format (HH:MM)!`;
+};
 
 const schema = new mongoose.Schema(
   {
@@ -29,39 +35,22 @@ const schema = new mongoose.Schema(
       morning: {
         type: String,
         required: [true, C.FIELD_IS_REQ],
-        validate: {
-          validator: timeValidator,
-          message: (props) =>
-            `${props.value} is not a valid 24-hour time format (HH:MM)!`,
-        },
+        validate: { validator: timeValidator, message: timingErr },
       },
       afternoon: {
         type: String,
         required: [true, C.FIELD_IS_REQ],
-        validate: {
-          validator: timeValidator,
-          message: (prop) => {
-            return `${prop.value} is not a valid 24-hour time format (HH:MM)!`;
-          },
-        },
+        validate: { validator: timeValidator, message: timingErr },
       },
     },
-    manager: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
-    school: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
+    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true }
 );
 
 schema.index({ email: 1 }, { unique: true });
-schema.index({ user: 1 }, { unique: true });
+schema.index({ school: 1 }, { unique: true });
 
 schema.pre("updateOne", function (next) {
   this.setOptions({ runValidators: true });

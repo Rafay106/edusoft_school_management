@@ -40,40 +40,17 @@ app.use(morgan("dev"));
 
 app.use(express.static(path.join(__dirname, "uploads")));
 
+app.post("/api/init", require("./controllers/systemController").init);
+
+app.use("/api/system", authenticate, require("./routes/systemRoutes"));
+app.use("/api/login", require("./routes/authRoutes"));
+app.use("/api/util", authenticate, require("./routes/utilRoutes"));
+app.use("/api/transport", authenticate, require("./routes/transportRoutes"));
+app.use("/api/academics", authenticate, require("./routes/academicRoutes"));
+app.use("/api/fee", authenticate, require("./routes/feeRoutes"));
+
 app.post("/api/listener", listenDeviceData);
 // app.post("/api/listener/mobile", listenMobileData);
-
-app.use("/api/system", require("./routes/systemRoutes"));
-
-app.use("/api/login", require("./routes/authRoutes"));
-
-app.use(
-  "/api/util",
-  authenticate,
-  adminPanelAuthorize,
-  require("./routes/utilRoutes")
-);
-
-app.use(
-  "/api/admin-panel",
-  authenticate,
-  adminPanelAuthorize,
-  require("./routes/adminRoutes")
-);
-
-app.use(
-  "/api/transport",
-  authenticate,
-  adminPanelAuthorize,
-  require("./routes/transportRoutes")
-);
-
-app.use(
-  "/api/academics",
-  authenticate,
-  adminPanelAuthorize,
-  require("./routes/academicRoutes")
-);
 
 app.use("/api/parent", parentAuthenticate, require("./routes/parentRoutes"));
 
@@ -105,11 +82,11 @@ cron.schedule("* * * * * *", async () => {
 // test routes
 app.use("/api/test", authenticate, require("./routes/testRoutes"));
 
-app.use(express.static(path.join(__dirname, "dist")));
+// app.use(express.static(path.join(__dirname, "dist")));
 
-app.get("*", (req, res) =>
-  res.sendFile(path.resolve(__dirname, "dist", "index.html"))
-);
+// app.get("*", (req, res) =>
+//   res.sendFile(path.resolve(__dirname, "dist", "index.html"))
+// );
 
 app.all("*", (req, res) => res.status(404).json({ msg: "Url not found!" }));
 

@@ -1,6 +1,6 @@
 const Bus = require("../models/transport/busModel");
-const getDeviceHistoryModel = require("../models/deviceHistoryModel");
-const UnusedDevice = require("../models/unusedDeviceModel");
+const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
+const UnusedDevice = require("../models/system/unusedDeviceModel");
 const { getAngle, getLenBtwPointsInKm, writeLog } = require("../utils/common");
 const { isAlphaNumeric } = require("../utils/validators");
 const { checkStuBusAttendance } = require("./attendance");

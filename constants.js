@@ -22,6 +22,7 @@ const STR = {
   SUPERADMIN: "superadmin",
   TEACHER: "teacher",
   URL_404: "URL not found!",
+  UNABLE_TO_DEL: "Unable to delete: %A% assigned to %B%!",
   UNKNOWN: "unknown",
   VALUE_NOT_SUP: "{VALUE} is not supported!",
   VALUE_NOT_SUP_AT_IDX: "%V% is not supported at index: %I%",
@@ -36,6 +37,8 @@ const FUNCTIONS = {
     STR.FIELD_IS_REQ_AT_IDX.replace("%F%", field).replace("%I%", idx),
   getResourse404Error: (resource, id) =>
     STR.RESOURSE_404.replace("%R%", resource).replace("%ID%", id),
+  getUnableToDel: (a, b) =>
+    STR.UNABLE_TO_DEL.replace("%A%", a).replace("%B%", b),
   getValueNotSup: (val) => STR.VALUE_NOT_SUP.replace("{VALUE}", val),
   getValueNotSupAtIdx: (val, idx) =>
     STR.VALUE_NOT_SUP_AT_IDX.replace("%V%", val).replace("%I%", idx),

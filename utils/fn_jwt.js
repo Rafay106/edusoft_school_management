@@ -1,10 +1,10 @@
 const jwt = require("jsonwebtoken");
 
-const generateToken = (data) => {
+const generateToken = (userId) => {
   const expiresIn = String(15 * 1000);
 
   const payload = {
-    ...data,
+    _id: userId,
     iat: Math.floor(Date.now() / 1000),
   };
 

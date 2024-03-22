@@ -7,6 +7,7 @@ router.get("/driver-list", Util.getDriverList);
 router.get("/conductor-list", Util.getConductorList);
 router.get("/bus-stop-list", Util.getBusStopList);
 router.get("/bus-list", Util.getBusList);
+router.get("/academic-year-list", Util.getAcademicYearList);
 router.get("/class-list", Util.getClassList);
 router.get("/section-list", Util.getSectionList);
 
