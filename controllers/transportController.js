@@ -5,7 +5,7 @@ const BusStaff = require("../models/transport/busStaffModel");
 const BusStop = require("../models/transport/busStopModel");
 const Bus = require("../models/transport/busModel");
 const User = require("../models/system/userModel");
-const Student = require("../models/academics/studentModel");
+const Student = require("../models/system/studentModel");
 
 /** 1. BusStaff */
 
@@ -365,10 +365,11 @@ const getBuses = asyncHandler(async (req, res) => {
   const results = await UC.paginatedQuery(
     Bus,
     query,
-    "name device.imei mobile.device_id",
+    "name device.imei driver conductor",
     page,
     limit,
-    sort
+    sort,
+    ["driver conductor", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });

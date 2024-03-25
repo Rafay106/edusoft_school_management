@@ -1,6 +1,6 @@
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
 const Bus = require("../models/transport/busModel");
-const Student = require("../models/academics/studentModel");
+const Student = require("../models/system/studentModel");
 const C = require("../constants");
 const {
   isPointInCircle,

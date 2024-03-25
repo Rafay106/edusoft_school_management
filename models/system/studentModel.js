@@ -19,6 +19,11 @@ const schema = new mongoose.Schema(
     },
     dob: { type: Date, required: [true, C.FIELD_IS_REQ] },
     cast: { type: String, default: "" },
+    type: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "student_types",
+    },
     email: { type: String, required: [true, C.FIELD_IS_REQ] },
     phone: { type: String, required: [true, C.FIELD_IS_REQ] },
     doa: { type: Date, required: [true, C.FIELD_IS_REQ] },
@@ -45,6 +50,11 @@ const schema = new mongoose.Schema(
       ref: "academic_years",
     },
     class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
+    section: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "sections",
+    },
     bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
     bus_stop: { type: ObjectId, ref: "bus_stops" },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },

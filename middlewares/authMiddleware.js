@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const User = require("../models/system/userModel");
 const C = require("../constants");
-const Student = require("../models/academics/studentModel");
+const Student = require("../models/system/studentModel");
 const School = require("../models/system/schoolModel");
 
 const authenticate = asyncHandler(async (req, res, next) => {
@@ -20,11 +20,11 @@ const authenticate = asyncHandler(async (req, res, next) => {
       req.user = await User.findById(decode._id).select("-password").lean();
 
       if (C.isSchool(req.user.type)) {
-        const school = await School.findOne({ user: req.user._id })
+        const school = await School.findOne({ school: req.user._id })
           .select("_id")
           .lean();
 
-        req.user = { ...req.user, school: school._id };
+        if (school) req.user = { ...req.user, school: school._id };
       }
 
       if (!req.user) {
@@ -97,8 +97,7 @@ const adminPanelAuthorize = asyncHandler(async (req, res, next) => {
     else if (req.url.includes("/student")) next();
     else if (req.url.includes("/attendance")) next();
     else {
-      res.status(404);
-      throw new Error(C.URL_404);
+      next();
     }
   } else {
     res.status(404);

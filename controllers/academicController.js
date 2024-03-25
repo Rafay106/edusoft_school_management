@@ -5,9 +5,10 @@ const AcademicYear = require("../models/academics/academicYearModel");
 const Class = require("../models/academics/classModel");
 const User = require("../models/system/userModel");
 const Section = require("../models/academics/sectionModel");
-const Student = require("../models/academics/studentModel");
+const Student = require("../models/system/studentModel");
 const Bus = require("../models/transport/busModel");
 const Subject = require("../models/academics/subjectModel");
+const BusStop = require("../models/transport/busStopModel");
 
 /** 1. Academic Year */
 
@@ -399,9 +400,29 @@ const getClasses = asyncHandler(async (req, res) => {
     }
   }
 
-  const results = await UC.paginatedQuery(Class, query, {}, page, limit, sort);
+  const results = await UC.paginatedQuery(
+    Class,
+    query,
+    "name section",
+    page,
+    limit,
+    sort,
+    ["sections", "name"]
+  );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  for (const class_ of results.result) {
+    for (const section of class_.sections) {
+      const students = await Student.countDocuments({ class: class_, section });
+      section.students = students;
+      // console.log("students :>> ", students);
+    }
+  }
+
+  for (const class_ of results.result) {
+    console.log("class_ :>> ", class_);
+  }
 
   res.status(200).json(results);
 });
@@ -431,7 +452,7 @@ const getClass = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/class
 // @access  Private
 const addClass = asyncHandler(async (req, res) => {
-  const section = req.body.section;
+  const sections = req.body.sections;
   const ayear = req.body.ayear;
   let manager = req.body.manager;
   let school = req.body.school;
@@ -452,14 +473,16 @@ const addClass = asyncHandler(async (req, res) => {
   }
 
   // Validate Section
-  if (!section) {
+  if (!sections || sections.length === 0) {
     res.status(400);
-    throw new Error(C.getFieldIsReq("section"));
+    throw new Error(C.getFieldIsReq("sections"));
   }
 
-  if (!(await Section.any({ _id: section, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("section", section));
+  for (const s of sections) {
+    if (!(await Section.any({ _id: s, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("section", s));
+    }
   }
 
   // Validate AcademicYear
@@ -475,7 +498,7 @@ const addClass = asyncHandler(async (req, res) => {
 
   const class_ = await Class.create({
     name: req.body.name,
-    section,
+    // sections,
     academic_year: ayear,
     manager,
     school,
@@ -500,9 +523,11 @@ const updateClass = asyncHandler(async (req, res) => {
 
   const section = req.body.section;
 
-  if (!(await Section.any({ ...query, _id: section }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("Section", section));
+  if (section) {
+    if (!(await Section.any({ ...query, _id: section }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("Section", section));
+    }
   }
 
   const result = await Class.updateOne(query, {
@@ -804,6 +829,7 @@ const addStudent = asyncHandler(async (req, res) => {
   let school = req.body.school;
   const ayear = req.body.ayear;
   const class_ = req.body.class;
+  const section = req.body.section;
 
   if (C.isSchool(req.user.type)) {
     school = req.user._id;
@@ -864,7 +890,18 @@ const addStudent = asyncHandler(async (req, res) => {
 
   if (!(await Class.any({ _id: class_, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("class", class_));
+    throw new Error(C.getResourse404Error("Class", class_));
+  }
+
+  // Validate section
+  if (!section) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("section"));
+  }
+
+  if (!(await Section.any({ _id: section, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Section", section));
   }
 
   // Validate bus
@@ -879,7 +916,7 @@ const addStudent = asyncHandler(async (req, res) => {
 
   if (!bus) {
     res.status(400);
-    throw new Error(C.getResourse404Error("bus", req.body.bus));
+    throw new Error(C.getResourse404Error("Bus", req.body.bus));
   }
 
   // Validate bus-stop
@@ -890,7 +927,7 @@ const addStudent = asyncHandler(async (req, res) => {
 
   if (!bus.stops.find((s) => s.toString() === req.body.busStop)) {
     res.status(400);
-    throw new Error(C.getResourse404Error("busStop", req.body.busStop));
+    throw new Error(C.getResourse404Error("BusStop", req.body.busStop));
   }
 
   const student = await Student.create({
@@ -910,8 +947,9 @@ const addStudent = asyncHandler(async (req, res) => {
     rfid: req.body.rfid,
     gender: req.body.gender,
     academic_year: req.body.ayear,
-    class: req.body.class,
-    bus: req.body.bus,
+    class: class_,
+    section,
+    bus,
     bus_stop: req.body.busStop,
     manager,
     school,
@@ -924,38 +962,69 @@ const addStudent = asyncHandler(async (req, res) => {
 // @route   PUT /api/academics/student/:id
 // @access  Private
 const updateStudent = asyncHandler(async (req, res) => {
-  const query = [C.SUPERADMIN, C.ADMIN].includes(req.user.type)
-    ? { _id: req.params.id }
-    : { _id: req.params.id, manager: req.user._id };
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await Student.any(query))) {
     res.status(400);
     throw new Error(C.getResourse404Error("Student", req.params.id));
   }
 
-  let manager = req.body.manager;
-  const isAdmins = [C.SUPERADMIN, C.ADMIN].includes(req.user.type);
-  if (isAdmins && manager) {
-    if (!(await User.any({ _id: manager }))) {
-      res.status(400);
-      throw new Error(C.getResourse404Error("User", manager));
-    }
-  } else manager = req.user._id;
+  const photo = req.file
+    ? req.file.path.toString().replace("uploads\\", "").replace("\\", "/")
+    : undefined;
+
+  const class_ = req.body.class;
+
+  if (class_ && !(await Class.any({ ...query, _id: class_ }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Class", class_));
+  }
+
+  const section = req.body.section;
+
+  if (section && !(await Section.any({ ...query, _id: section }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Section", section));
+  }
+
+  const bus = req.body.bus;
+
+  if (bus && !(await Bus.any({ ...query, _id: bus }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Bus", bus));
+  }
+
+  const bus_stop = req.body.bus_stop;
+
+  if (bus_stop && !(await BusStop.any({ ...query, _id: bus_stop }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("BusStop", bus_stop));
+  }
 
   const result = await Student.updateOne(query, {
     $set: {
+      admission_no: req.body.admission_no,
+      roll_no: req.body.roll_no,
       name: req.body.name,
+      dob: req.body.dob,
+      cast: req.body.cast,
       email: req.body.email,
       phone: req.body.phone,
+      doa: req.body.doa,
+      photo,
+      age: req.body.age,
+      height: req.body.height,
+      weight: req.body.weight,
       address: req.body.address,
-      country: req.body.country,
-      state: req.body.state,
-      city: req.body.city,
-      pincode: req.body.pincode,
-      lat: parseFloat(req.body.lat).toFixed(6),
-      lon: parseFloat(req.body.lon).toFixed(6),
-      radius: req.body.radius,
-      manager,
+      rfid: req.body.rfid,
+      gender: req.body.gender,
+      class: class_,
+      section,
+      bus,
+      bus_stop,
     },
   });
 

@@ -6,10 +6,13 @@ const ObjectId = mongoose.SchemaTypes.ObjectId;
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    sections: [
-      { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "sections" },
-    ],
+    name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    description: { type: String, default: "" },
+    fee_group: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "fee_groups",
+    },
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
@@ -21,8 +24,8 @@ const schema = new mongoose.Schema(
   { timestamps: true }
 );
 
-schema.index({ name: 1, school: 1 }, { unique: true });
+schema.index({ name: 1, fee_group: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
-const Class = mongoose.model("classes", schema);
-module.exports = Class;
+const FeeType = mongoose.model("fee_types", schema);
+module.exports = FeeType;

@@ -5,8 +5,9 @@ const xlsx = require("xlsx");
 const C = require("../constants");
 const School = require("../models/system/schoolModel");
 const Bus = require("../models/transport/busModel");
-const Student = require("../models/academics/studentModel");
+const Student = require("../models/system/studentModel");
 const { isUsernameValid } = require("./validators");
+const User = require("../models/system/userModel");
 
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
@@ -75,6 +76,11 @@ const getUsernameFromEmail = (email) => {
 
   return username;
 };
+
+const managerExists = async (_id) => await User.any({ _id, type: C.MANAGER });
+
+const schoolAccExists = async (_id, manager) =>
+  await User.any({ _id, type: C.SCHOOL, manager });
 
 // ************************
 // USER FUNCTIONS END
@@ -432,7 +438,10 @@ module.exports = {
   createSearchQuery,
   paginatedQuery,
   excelToJson,
+
   getUsernameFromEmail,
+  managerExists,
+  schoolAccExists,
 
   addMultipleSchools,
 

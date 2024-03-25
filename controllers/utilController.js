@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
+const UC = require("../utils/common");
 const User = require("../models/system/userModel");
 const Bus = require("../models/transport/busModel");
 const BusStop = require("../models/transport/busStopModel");
@@ -8,6 +9,7 @@ const BusStaff = require("../models/transport/busStaffModel");
 const Class = require("../models/academics/classModel");
 const Section = require("../models/academics/sectionModel");
 const AcademicYear = require("../models/academics/academicYearModel");
+const FeeGroup = require("../models/fees/feeGroupModel");
 
 // @desc    Get managers
 // @route   GET /api/util/manager-list
@@ -63,7 +65,7 @@ const getSchoolList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("manager"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
@@ -130,12 +132,12 @@ const getBusStopList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("school"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -173,12 +175,12 @@ const getDriverList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("school"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -249,12 +251,12 @@ const getConductorList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("school"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -323,12 +325,12 @@ const getBusList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("school"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -362,12 +364,12 @@ const getAcademicYearList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("school"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -379,51 +381,13 @@ const getAcademicYearList = asyncHandler(async (req, res) => {
   res.status(200).json(years);
 });
 
-// @desc    Get classes
-// @route   GET /api/util/class-list
-// @access  Private
-const getClassList = asyncHandler(async (req, res) => {
-  let manager = req.query.manager;
-  let school = req.query.school;
-
-  if (C.isManager(req.user.type)) {
-    manager = req.user._id;
-  } else if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  }
-
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const classes = await Class.find({ manager, school }).select("name").lean();
-
-  res.status(200).json(classes);
-});
-
 // @desc    Get sections
 // @route   GET /api/util/section-list
 // @access  Private
 const getSectionList = asyncHandler(async (req, res) => {
   let manager = req.query.manager;
   let school = req.query.school;
+  const academic_year = req.query.ayear;
 
   if (C.isManager(req.user.type)) {
     manager = req.user._id;
@@ -442,21 +406,121 @@ const getSectionList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("school"));
   }
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!academic_year) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
 
-  const sections = await Section.find({ manager, school })
+  const sections = await Section.find({ manager, school, academic_year })
     .select("name")
+    .sort("name")
     .lean();
 
   res.status(200).json(sections);
+});
+
+// @desc    Get classes
+// @route   GET /api/util/class-list
+// @access  Private
+const getClassList = asyncHandler(async (req, res) => {
+  let manager = req.query.manager;
+  let school = req.query.school;
+  const academic_year = req.query.ayear;
+
+  if (C.isManager(req.user.type)) {
+    manager = req.user._id;
+  } else if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  }
+
+  if (!manager) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("manager"));
+  }
+
+  if (!school) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("school"));
+  }
+
+  if (!academic_year) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await UC.managerExists(manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await UC.schoolAccExists(school, manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const classes = await Class.find({ manager, school, academic_year })
+    .select("name")
+    .sort("name")
+    .lean();
+
+  res.status(200).json(classes);
+});
+
+// @desc    Get fee-groups
+// @route   GET /api/util/fee-group-list
+// @access  Private
+const getFeeGroupList = asyncHandler(async (req, res) => {
+  let manager = req.query.manager;
+  let school = req.query.school;
+  const academic_year = req.query.ayear;
+
+  if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!manager) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("manager"));
+  }
+
+  if (!school) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("school"));
+  }
+
+  if (!academic_year) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await UC.managerExists(manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await UC.schoolAccExists(school, manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const groups = await FeeGroup.find({ manager, school, academic_year })
+    .select("name")
+    .sort("name")
+    .lean();
+
+  res.status(200).json(groups);
 });
 
 module.exports = {
@@ -469,4 +533,5 @@ module.exports = {
   getAcademicYearList,
   getClassList,
   getSectionList,
+  getFeeGroupList,
 };

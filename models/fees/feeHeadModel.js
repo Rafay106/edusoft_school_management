@@ -6,10 +6,14 @@ const ObjectId = mongoose.SchemaTypes.ObjectId;
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    sections: [
-      { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "sections" },
-    ],
+    name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    alias: { type: String, required: [true, C.FIELD_IS_REQ] },
+    fee_type: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "fee_types",
+    },
+    ledger: { type: String, required: [true, C.FIELD_IS_REQ] },
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
@@ -21,8 +25,7 @@ const schema = new mongoose.Schema(
   { timestamps: true }
 );
 
-schema.index({ name: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
-const Class = mongoose.model("classes", schema);
-module.exports = Class;
+const FeeHead = mongoose.model("fee_heads", schema);
+module.exports = FeeHead;

@@ -62,7 +62,7 @@ studentRouter
 studentRouter
   .route("/:id")
   .get(AC.getStudent)
-  .patch(AC.updateStudent)
+  .patch(studentPhotoUpload.single("photo"), AC.updateStudent)
   .delete(AC.deleteStudent);
 
 studentRouter.post(

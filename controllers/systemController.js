@@ -6,7 +6,8 @@ const UC = require("../utils/common");
 const School = require("../models/system/schoolModel");
 const User = require("../models/system/userModel");
 const TemplatePrivilege = require("../models/system/templatePrivilegeModel");
-const Student = require("../models/academics/studentModel");
+const Student = require("../models/system/studentModel");
+const StudentType = require("../models/system/studentTypeModel");
 
 const init = asyncHandler(async (req, res) => {
   const key = req.body.key;
@@ -790,6 +791,128 @@ const bulkOpsSchool = asyncHandler(async (req, res) => {
   }
 });
 
+/** 4. StudentType */
+
+// @desc    Get StudentTypes
+// @route   GET /api/system/student-type
+// @access  Private
+const getStudentTypes = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const searchField = req.query.sf;
+  const searchValue = req.query.sv;
+
+  const query = {};
+
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+
+  if (searchField && searchValue) {
+    if (searchField === "all") {
+      const fields = ["name"];
+
+      const searchQuery = UC.createSearchQuery(fields, searchValue);
+      query["$or"] = searchQuery["$or"];
+    } else {
+      const searchQuery = UC.createSearchQuery([searchField], searchValue);
+      query["$or"] = searchQuery["$or"];
+    }
+  }
+
+  const results = await UC.paginatedQuery(
+    StudentType,
+    query,
+    "name",
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a StudentType
+// @route   GET /api/system/student-type/:id
+// @access  Private
+const getStudentType = asyncHandler(async (req, res) => {
+  const type = await StudentType.findOne({
+    _id: req.params.id,
+  }).lean();
+
+  if (!type) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("StudentType", req.params.id));
+  }
+
+  res.status(200).json(type);
+});
+
+// @desc    Add a StudentType
+// @route   POST /api/system/student-type
+// @access  Private
+const addStudentType = asyncHandler(async (req, res) => {
+  let manager = req.body.manager;
+  let school = req.body.school;
+
+  if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!(await UC.managerExists(manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await UC.schoolAccExists(school, manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const type = await StudentType.create({
+    name: req.body.name,
+    manager,
+    school,
+  });
+
+  res.status(201).json({ msg: type._id });
+});
+
+// @desc    Update a StudentType
+// @route   PATCH /api/system/student-type/:id
+// @access  Private
+const updateStudentType = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  if (!(await StudentType.any(query))) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("StudentType", req.params.id));
+  }
+
+  const result = await StudentType.updateOne(query, {
+    $set: { name: req.body.name },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a StudentType
+// @route   DELETE /api/system/student-type/:id
+// @access  Private
+const deleteStudentType = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const result = await StudentType.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
 module.exports = {
   init,
 
@@ -812,4 +935,10 @@ module.exports = {
   updateSchool,
   deleteSchool,
   bulkOpsSchool,
+
+  getStudentTypes,
+  getStudentType,
+  addStudentType,
+  updateStudentType,
+  deleteStudentType,
 };
