@@ -23,10 +23,6 @@ const attendanceTypeSchema = new mongoose.Schema(
 const schema = new mongoose.Schema(
   {
     date: { type: Date, required: [true, C.FIELD_IS_REQ] },
-    bus_stop_fee: {
-      pickup: { type: Number, default: 0 },
-      drop: { type: Number, default: 0 },
-    },
     student: {
       type: mongoose.SchemaTypes.ObjectId,
       required: [true, C.FIELD_IS_REQ],

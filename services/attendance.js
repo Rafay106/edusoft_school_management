@@ -1,6 +1,6 @@
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
 const Bus = require("../models/transport/busModel");
-const Student = require("../models/system/studentModel");
+const Student = require("../models/studentInfo/studentModel");
 const C = require("../constants");
 const {
   isPointInCircle,
@@ -18,22 +18,34 @@ const checkStuBusAttendance = async (loc) => {
   try {
     const student = await Student.findOne({ rfid: loc.params.io78 })
       .select({
-        admissionNo: 1,
+        admission_no: 1,
         name: 1,
         email: 1,
         phone: 1,
         bus: 1,
-        busStops: 1,
+        bus_stop: 1,
         manager: 1,
         school: 1,
       })
-      .populate({ path: "bus", select: "_id name status alternate" })
+      .populate("bus_stop")
       .lean();
 
     if (!student) return false;
 
-    const bus = await Bus.findById(student.bus)
-      .select("name status alternate device stop")
+    const locBus = await Bus.findOne({ "device.imei": loc.imei })
+      .select("_id")
+      .lean();
+
+    if (!locBus) return false;
+
+    let busToFetch = student.bus;
+    if (locBus._id !== student.bus) {
+      busToFetch = locBus._id;
+      await switchBus(student.bus, locBus._id);
+    }
+
+    const bus = await Bus.findById(busToFetch)
+      .select("name status device stop")
       .populate({ path: "stops", select: "address lat lon fees" })
       .lean();
 
@@ -100,17 +112,17 @@ const checkMorningEntryAttendance = async (loc, student, school, bus) => {
 
   if (!isMorningTime(loc.dt_tracker, morningTime)) return false;
 
-  const busStops = bus.stops;
-  if (!busStops || busStops.length == 0) {
-    await takeAttendance(loc, student, C.UNKNOWN, "NA", 0);
-    return true;
-  }
+  const bs = student.bus_stop;
+  const radius = process.env.BUS_STOP_RADIUS;
 
-  for (const bs of busStops) {
-    if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, bs.radius)) {
-      await takeAttendance(loc, student, C.M_ENTRY, bs.address, bs.fees);
-      return true;
-    }
+  // if (!busStops || busStops.length == 0) {
+  //   await takeAttendance(loc, student, C.UNKNOWN, "NA", 0);
+  //   return true;
+  // }
+
+  if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, radius)) {
+    await takeAttendance(loc, student, C.M_ENTRY, bs.address);
+    return true;
   }
 
   return false;
@@ -151,11 +163,12 @@ const checkAfternoonExitAttendance = async (loc, student, school, bus) => {
 
   if (!isAfternoonTime(loc.dt_tracker, afternoonTime)) return false;
 
-  for (const pl of student.pickupLocations) {
-    if (isPointInCircle(loc.lat, loc.lon, pl.lat, pl.lon, pl.radius)) {
-      await takeAttendance(loc, student, C.A_EXIT, pl.address);
-      return true;
-    }
+  const bs = student.bus_stop;
+  const radius = process.env.BUS_STOP_RADIUS;
+
+  if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, radius)) {
+    await takeAttendance(loc, student, C.A_EXIT, bs.address);
+    return true;
   }
 
   return false;
@@ -181,14 +194,10 @@ const isAfternoonTime = (currDT, afternoonTime) => {
   );
 };
 
-const takeAttendance = async (loc, student, tag, address, fees = 0) => {
+const takeAttendance = async (loc, student, tag, address) => {
   const bus = await Bus.findOne({ "device.imei": loc.imei })
     .select("_id name")
     .lean();
-
-  const bus_stop_fee = {};
-  if (tag === C.M_ENTRY) bus_stop_fee.pickup = fees;
-  else if (tag === C.A_EXIT) bus_stop_fee.drop = fees;
 
   const attendanceDetail = {
     tag,
@@ -201,7 +210,6 @@ const takeAttendance = async (loc, student, tag, address, fees = 0) => {
   if (!(await StuBusAtt.any({ date: loc.today, student: student._id }))) {
     const attendance = await StuBusAtt.create({
       date: loc.today,
-      bus_stop_fee,
       student: student._id,
       bus: bus._id,
       list: [attendanceDetail],
@@ -210,7 +218,7 @@ const takeAttendance = async (loc, student, tag, address, fees = 0) => {
     const result = await StuBusAtt.updateOne(
       { date: loc.today, student: student._id },
       {
-        $set: { bus_stop_fee, bus: bus._id },
+        $set: { bus: bus._id },
         $push: { list: attendanceDetail },
       }
     );
@@ -256,6 +264,13 @@ const takeAttendance = async (loc, student, tag, address, fees = 0) => {
   }
 
   await notifyPushQueue(msg, student._id);
+};
+
+const switchBus = async (oldBusId, newBusId) => {
+  await Bus.updateOne(
+    { _id: oldBusId },
+    { $set: { alternate: { enabled: true, bus: newBusId } } }
+  );
 };
 
 module.exports = {

@@ -14,7 +14,10 @@ const {
   adminPanelAuthorize,
 } = require("./middlewares/authMiddleware");
 const { listenDeviceData } = require("./services/listener");
-const { serviceClearHistory } = require("./services/service");
+const {
+  serviceClearHistory,
+  serviceResetAlternateBus,
+} = require("./services/service");
 const { writeLog } = require("./utils/common");
 
 const app = express();
@@ -45,8 +48,14 @@ app.post("/api/init", require("./controllers/systemController").init);
 app.use("/api/system", authenticate, require("./routes/systemRoutes"));
 app.use("/api/login", require("./routes/authRoutes"));
 app.use("/api/util", authenticate, require("./routes/utilRoutes"));
-app.use("/api/transport", authenticate, require("./routes/transportRoutes"));
 app.use("/api/academics", authenticate, require("./routes/academicRoutes"));
+app.use(
+  "/api/student-info",
+  authenticate,
+  require("./routes/studentInfoRoutes")
+);
+app.use("/api/transport", authenticate, require("./routes/transportRoutes"));
+app.use("/api/hr", authenticate, require("./routes/hrRoutes"));
 app.use("/api/fee", authenticate, require("./routes/feeRoutes"));
 
 app.post("/api/listener", listenDeviceData);
@@ -67,9 +76,10 @@ app.use("/api/razorpay", require("./tools/razorpay"));
 //   console.timeEnd("sendPush");
 // });
 
-cron.schedule("* * * * * *", async () => {
+cron.schedule("0 0 * * *", async () => {
   try {
     await serviceClearHistory();
+    await serviceResetAlternateBus();
   } catch (err) {
     writeLog("errors", `${err.stack}`);
   }

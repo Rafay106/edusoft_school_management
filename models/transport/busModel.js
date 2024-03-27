@@ -3,6 +3,8 @@ const C = require("../../constants");
 const { isIMEIValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+
 const deviceSchema = new mongoose.Schema(
   {
     imei: {
@@ -14,7 +16,7 @@ const deviceSchema = new mongoose.Schema(
       },
       uppercase: true,
     },
-    name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    // name: { type: String, required: [true, C.FIELD_IS_REQ] },
     protocol: { type: String, default: "" },
     net_protocol: { type: String, default: "" },
     ip: { type: String, default: "" },
@@ -42,30 +44,22 @@ const schema = new mongoose.Schema(
     },
     alternate: {
       enabled: { type: Boolean, default: false },
-      bus: { type: mongoose.SchemaTypes.ObjectId, ref: "buses" },
+      bus: { type: ObjectId, ref: "buses" },
     },
     device: deviceSchema,
-    stops: [{ type: mongoose.SchemaTypes.ObjectId, ref: "bus_stops" }],
+    stops: [{ type: ObjectId, ref: "bus_stops" }],
     driver: {
-      type: mongoose.SchemaTypes.ObjectId,
+      type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "bus_staffs",
     },
     conductor: {
-      type: mongoose.SchemaTypes.ObjectId,
+      type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "bus_staffs",
     },
-    manager: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
-    school: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
+    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true, minimize: false }
 );

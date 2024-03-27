@@ -4,7 +4,7 @@ const asyncHandler = require("express-async-handler");
 const Razorpay = require("razorpay");
 const RazorpayPayment = require("../models/fees/razorPayModel");
 const User = require("../models/system/userModel");
-const Student = require("../models/system/studentModel");
+const Student = require("../models/studentInfo/studentModel");
 const C = require("../constants");
 const UC = require("../utils/common");
 

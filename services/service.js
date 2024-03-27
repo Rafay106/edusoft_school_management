@@ -21,4 +21,11 @@ const serviceClearHistory = async () => {
   }
 };
 
-module.exports = { serviceClearHistory };
+const serviceResetAlternateBus = async () => {
+  await Bus.updateMany(
+    { "alternate.enabled": true },
+    { $set: { "alternate.enabled": false } }
+  );
+};
+
+module.exports = { serviceClearHistory, serviceResetAlternateBus };

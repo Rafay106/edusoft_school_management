@@ -5,7 +5,7 @@ const xlsx = require("xlsx");
 const C = require("../constants");
 const School = require("../models/system/schoolModel");
 const Bus = require("../models/transport/busModel");
-const Student = require("../models/system/studentModel");
+const Student = require("../models/studentInfo/studentModel");
 const { isUsernameValid } = require("./validators");
 const User = require("../models/system/userModel");
 
@@ -452,6 +452,8 @@ module.exports = {
   getLenBtwPointsInKm,
   isPointInCircle,
   isPointInPolygon,
+
+  getAppRootDir,
   writeLog,
 
   convUTCTo0530,

@@ -8,8 +8,10 @@ const FeeType = require("../models/fees/feeTypeModel");
 const FeeTerm = require("../models/fees/feeTermModel");
 const FeeHead = require("../models/fees/feeHeadModel");
 const Class = require("../models/academics/classModel");
-const StudentType = require("../models/system/studentTypeModel");
+const StudentType = require("../models/studentInfo/studentTypeModel");
 const FeeStructure = require("../models/fees/feeStructureModel");
+const FeeFine = require("../models/fees/feeFineModel");
+const FeeConcession = require("../models/fees/feeConcessionModel");
 
 /** 1. Fee Group */
 
@@ -883,14 +885,16 @@ const addFeeStructure = asyncHandler(async (req, res) => {
   // Validate feeTypes
   for (const fees of feeTypes) {
     // Validate FeeHead
-    if (!fees.head) {
+    if (!fees.fee_head) {
       res.status(400);
-      throw new Error(C.getFieldIsReq("types.head"));
+      throw new Error(C.getFieldIsReq("fee_types.fee_head"));
     }
 
-    if (!(await FeeHead.any({ _id: fees.head, manager, school }))) {
+    if (!(await FeeHead.any({ _id: fees.fee_head, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("types.head", fees.head));
+      throw new Error(
+        C.getResourse404Error("fee_types.fee_head", fees.fee_head)
+      );
     }
 
     // Validate amounts
@@ -898,12 +902,14 @@ const addFeeStructure = asyncHandler(async (req, res) => {
       // Validate studentType
       if (!amt.type) {
         res.status(400);
-        throw new Error(C.getFieldIsReq("types.head"));
+        throw new Error(C.getFieldIsReq("fee_types.amounts.type"));
       }
 
       if (!(await StudentType.any({ _id: amt.type, manager, school }))) {
         res.status(400);
-        throw new Error(C.getResourse404Error("amounts.type", amt.type));
+        throw new Error(
+          C.getResourse404Error("fee_types.amounts.type", amt.type)
+        );
       }
     }
   }
@@ -1025,6 +1031,495 @@ const deleteFeeStructure = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+/** 6. Fee Fine */
+
+// @desc    Get all fee-fines
+// @route   GET /api/fee/fee-fine
+// @access  Private
+const getFeeFines = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const searchField = req.query.sf;
+  const searchValue = req.query.sv;
+
+  const query = {};
+
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+
+  if (searchField && searchValue) {
+    if (searchField === "all") {
+      const fields = ["name"];
+
+      const searchQuery = UC.createSearchQuery(fields, searchValue);
+      query["$or"] = searchQuery["$or"];
+    } else {
+      const searchQuery = UC.createSearchQuery([searchField], searchValue);
+      query["$or"] = searchQuery["$or"];
+    }
+  }
+
+  const results = await UC.paginatedQuery(
+    FeeFine,
+    query,
+    {},
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a fee-fine
+// @route   GET /api/fee/fee-fine/:id
+// @access  Private
+const getFeeFine = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  const feeFine = await FeeFine.findOne(query)
+    .populate("manager school", "name")
+    .lean();
+
+  if (!feeFine) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("FeeFine", req.params.id));
+  }
+
+  res.status(200).json(feeFine);
+});
+
+// @desc    Add a fee-fine
+// @route   POST /api/fee/fee-fine
+// @access  Private
+const addFeeFine = asyncHandler(async (req, res) => {
+  let manager = req.body.manager;
+  let school = req.body.school;
+  const class_ = req.body.class;
+  const feeTerm = req.body.fee_term;
+  const stuType = req.body.stu_type;
+  const ayear = req.body.ayear;
+
+  if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!(await UC.managerExists(manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await UC.schoolAccExists(school, manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  // Validate Class
+  if (!class_) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("class"));
+  }
+
+  if (!(await Class.any({ _id: class_, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("class", class_));
+  }
+
+  // Validate FeeTerm
+  if (!feeTerm) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("fee_term"));
+  }
+
+  if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("fee_term", feeTerm));
+  }
+
+  // Validate StudentType
+  if (!stuType) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("stu_type"));
+  }
+
+  if (!(await StudentType.any({ _id: stuType, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("stu_type", stuType));
+  }
+
+  // Validate AcademicYear
+  if (!ayear) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("ayear", ayear));
+  }
+
+  const feeFine = await FeeFine.create({
+    class: class_,
+    fee_term: feeTerm,
+    student_type: stuType,
+    type: req.body.type,
+    amount: req.body.amount,
+    range: req.body.range,
+    fixed: req.body.fixed,
+    date_range: req.body.date_range,
+    academic_year: ayear,
+    manager,
+    school,
+  });
+
+  res.status(201).json({ msg: feeFine._id });
+});
+
+// @desc    Update a fee-fine
+// @route   PUT /api/fee/fee-fine/:id
+// @access  Private
+const updateFeeFine = asyncHandler(async (req, res) => {
+  const class_ = req.body.class;
+  const feeTerm = req.body.fee_term;
+  const stuType = req.body.stu_type;
+
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  // Validate Class
+  if (!class_) {
+    if (!(await Class.any({ _id: class_, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("class", class_));
+    }
+  }
+
+  // Validate FeeTerm
+  if (feeTerm) {
+    if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("fee_term", feeTerm));
+    }
+  }
+
+  // Validate StudentType
+  if (stuType) {
+    if (!(await StudentType.any({ _id: stuType, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("stu_type", stuType));
+    }
+  }
+
+  const result = await FeeFine.updateOne(query, {
+    $set: {
+      class: class_,
+      term: feeTerm,
+      student_type: stuType,
+      type: req.body.type,
+      amount: req.body.amount,
+      range: req.body.range,
+      fixed: req.body.fixed,
+      date_range: req.body.date_range,
+    },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a fee-fine
+// @route   DELETE /api/fee/fee-fine/:id
+// @access  Private
+const deleteFeeFine = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) {
+    query.school = req.user._id;
+    query.manager = req.user.manager;
+  }
+
+  if (C.isManager(req.user.type)) {
+    query.manager = req.user._id;
+  }
+
+  const feeFine = await FeeFine.findOne(query).select("_id").lean();
+
+  if (!feeFine) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("FeeFine", req.params.id));
+  }
+
+  if (await Class.any({ feeFine: feeFine._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("FeeFine", "Class"));
+  }
+
+  const result = await FeeFine.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
+/** 7. Fee Concession */
+
+// @desc    Get all fee-concessions
+// @route   GET /api/fee/fee-concession
+// @access  Private
+const getFeeConcessions = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const searchField = req.query.sf;
+  const searchValue = req.query.sv;
+
+  const query = {};
+
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+
+  if (searchField && searchValue) {
+    if (searchField === "all") {
+      const fields = ["name"];
+
+      const searchQuery = UC.createSearchQuery(fields, searchValue);
+      query["$or"] = searchQuery["$or"];
+    } else {
+      const searchQuery = UC.createSearchQuery([searchField], searchValue);
+      query["$or"] = searchQuery["$or"];
+    }
+  }
+
+  const results = await UC.paginatedQuery(
+    FeeConcession,
+    query,
+    {},
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a fee-concession
+// @route   GET /api/fee/fee-concession/:id
+// @access  Private
+const getFeeConcession = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  const feeConcession = await FeeConcession.findOne(query)
+    .populate("manager school", "name")
+    .lean();
+
+  if (!feeConcession) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("FeeConcession", req.params.id));
+  }
+
+  res.status(200).json(feeConcession);
+});
+
+// @desc    Add a fee-concession
+// @route   POST /api/fee/fee-concession
+// @access  Private
+const addFeeConcession = asyncHandler(async (req, res) => {
+  let manager = req.body.manager;
+  let school = req.body.school;
+  const stuType = req.body.stu_type;
+  const class_ = req.body.class;
+  const feeTerm = req.body.fee_term;
+  const feeHeads = req.body.fee_heads;
+  const ayear = req.body.ayear;
+
+  if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!(await UC.managerExists(manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!(await UC.schoolAccExists(school, manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  // Validate StudentType
+  if (!stuType) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("stu_type"));
+  }
+
+  if (!(await StudentType.any({ _id: stuType, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("stu_type", stuType));
+  }
+
+  // Validate Class
+  if (!class_) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("class"));
+  }
+
+  if (!(await Class.any({ _id: class_, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("class", class_));
+  }
+
+  // Validate FeeTerm
+  if (!feeTerm) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("fee_term"));
+  }
+
+  if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("fee_term", feeTerm));
+  }
+
+  // Validate FeeHeads
+  if (!feeHeads || feeHeads.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("fee_heads"));
+  }
+
+  for (const fh of feeHeads) {
+    if (!(await FeeHead.any({ _id: fh.fee_head, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("fee_heads", fh.fee_head));
+    }
+  }
+
+  // Validate AcademicYear
+  if (!ayear) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("ayear", ayear));
+  }
+
+  const feeConcession = await FeeConcession.create({
+    type: stuType,
+    class: class_,
+    fee_term: feeTerm,
+    fee_heads: feeHeads,
+    academic_year: ayear,
+    manager,
+    school,
+  });
+
+  res.status(201).json({ msg: feeConcession._id });
+});
+
+// @desc    Update a fee-concession
+// @route   PUT /api/fee/fee-concession/:id
+// @access  Private
+const updateFeeConcession = asyncHandler(async (req, res) => {
+  const stuType = req.body.stu_type;
+  const class_ = req.body.class;
+  const feeTerm = req.body.fee_term;
+  const feeHeads = req.body.fee_heads;
+
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  // Validate StudentType
+  if (stuType) {
+    if (!(await StudentType.any({ _id: stuType, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("stu_type", stuType));
+    }
+  }
+
+  // Validate Class
+  if (!class_) {
+    if (!(await Class.any({ _id: class_, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("class", class_));
+    }
+  }
+
+  // Validate FeeTerm
+  if (feeTerm) {
+    if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("fee_term", feeTerm));
+    }
+  }
+
+  // Validate FeeHeads
+  if (feeHeads || feeHeads.length > 0) {
+    for (const fh of feeHeads) {
+      if (!(await FeeHead.any({ _id: fh.fee_head, manager, school }))) {
+        res.status(400);
+        throw new Error(C.getResourse404Error("fee_heads", fh.fee_head));
+      }
+    }
+  }
+
+  const result = await FeeConcession.updateOne(query, {
+    $set: {
+      type: stuType,
+      class: class_,
+      fee_term: feeTerm,
+      fee_heads: feeHeads,
+    },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a fee-concession
+// @route   DELETE /api/fee/fee-concession/:id
+// @access  Private
+const deleteFeeConcession = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) {
+    query.school = req.user._id;
+    query.manager = req.user.manager;
+  }
+
+  if (C.isManager(req.user.type)) {
+    query.manager = req.user._id;
+  }
+
+  const feeConcession = await FeeConcession.findOne(query).select("_id").lean();
+
+  if (!feeConcession) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("FeeConcession", req.params.id));
+  }
+
+  if (await Class.any({ feeConcession: feeConcession._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("FeeConcession", "Class"));
+  }
+
+  const result = await FeeConcession.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
 module.exports = {
   getFeeGroups,
   getFeeGroup,
@@ -1055,4 +1550,16 @@ module.exports = {
   addFeeStructure,
   updateFeeStructure,
   deleteFeeStructure,
+
+  getFeeFines,
+  getFeeFine,
+  addFeeFine,
+  updateFeeFine,
+  deleteFeeFine,
+
+  getFeeConcessions,
+  getFeeConcession,
+  addFeeConcession,
+  updateFeeConcession,
+  deleteFeeConcession,
 };

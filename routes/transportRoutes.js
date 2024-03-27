@@ -36,6 +36,7 @@ busStopRouter
 const busRouter = express.Router();
 
 busRouter.route("/").get(TC.getBuses).post(TC.addBus);
+busRouter.post("/track", TC.trackBus);
 
 busRouter.route("/:id").get(TC.getBus).patch(TC.updateBus).delete(TC.deleteBus);
 

@@ -22,7 +22,7 @@ const schema = new mongoose.Schema(
       ref: "student_types",
     },
     class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
-    term: {
+    fee_term: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "fee_terms",

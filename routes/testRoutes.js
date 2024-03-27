@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const asyncHandler = require("express-async-handler");
-const Student = require("../models/system/studentModel");
+const Student = require("../models/studentInfo/studentModel");
 
 router.get(
   "/1",

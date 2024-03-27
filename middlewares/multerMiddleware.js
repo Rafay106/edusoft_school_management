@@ -86,10 +86,25 @@ const studentBulkImportUpload = multer({
   }),
 });
 
+const staffUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const filePath = path.join("uploads", "staff");
+      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
+      cb(null, filePath);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${req.user._id}_${Date.now()}${ext}`);
+    },
+  }),
+});
+
 module.exports = {
   upload,
   memoryUpload,
   busStaffPhotoUpload,
   studentPhotoUpload,
   studentBulkImportUpload,
+  staffUpload,
 };

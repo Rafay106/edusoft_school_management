@@ -44,19 +44,8 @@ schoolRouter.post(
   SC.bulkOpsSchool
 );
 
-// 4. StudentType Routes
-const studentTypeRouter = express.Router();
-
-studentTypeRouter.route("/").get(SC.getStudentTypes).post(SC.addStudentType);
-studentTypeRouter
-  .route("/:id")
-  .get(SC.getStudentType)
-  .patch(SC.updateStudentType)
-  .delete(SC.deleteStudentType);
-
 systemRouter.use("/user", userRouter);
 systemRouter.use("/school", schoolRouter);
 systemRouter.use("/template-privilege", templatePrivilegeRouter);
-systemRouter.use("/student-type", studentTypeRouter);
 
 module.exports = systemRouter;

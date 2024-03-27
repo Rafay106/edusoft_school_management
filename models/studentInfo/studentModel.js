@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
+const { isEmailValid } = require("../../utils/validators");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
@@ -24,7 +25,16 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "student_types",
     },
-    email: { type: String, required: [true, C.FIELD_IS_REQ] },
+    email: {
+      type: String,
+      required: [true, C.FIELD_IS_REQ],
+      validate: {
+        validator: isEmailValid,
+        message: C.FIELD_IS_INVALID,
+      },
+      lowercase: true,
+      trim: true,
+    },
     phone: { type: String, required: [true, C.FIELD_IS_REQ] },
     doa: { type: Date, required: [true, C.FIELD_IS_REQ] },
     photo: { type: String, default: "" },
@@ -39,10 +49,7 @@ const schema = new mongoose.Schema(
     gender: {
       type: String,
       required: [true, C.FIELD_IS_REQ],
-      enum: {
-        values: ["m", "f", "o"],
-        message: C.VALUE_NOT_SUP,
-      },
+      enum: { values: ["m", "f", "o"], message: C.VALUE_NOT_SUP },
     },
     academic_year: {
       type: ObjectId,

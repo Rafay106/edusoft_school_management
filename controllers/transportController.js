@@ -5,7 +5,7 @@ const BusStaff = require("../models/transport/busStaffModel");
 const BusStop = require("../models/transport/busStopModel");
 const Bus = require("../models/transport/busModel");
 const User = require("../models/system/userModel");
-const Student = require("../models/system/studentModel");
+const Student = require("../models/studentInfo/studentModel");
 
 /** 1. BusStaff */
 
@@ -587,6 +587,60 @@ const bulkOpsBus = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Track buses
+// @route   POST /api/transport/bus/track
+// @access  Private
+const trackBus = asyncHandler(async (req, res) => {
+  const ids = req.body.ids;
+  let manager = req.body.manager;
+  let school = req.body.school;
+  const result = [];
+
+  if (C.isSchool(req.user.type)) {
+    manager = req.user.manager;
+    school = req.user.school;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!UC.managerExists(manager)) {
+    res.status(200);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!UC.schoolAccExists(school, manager)) {
+    res.status(200);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const buses = await Bus.find({ _id: ids, manager, school })
+    .select("name alternate device")
+    .lean();
+
+  for (const bus of buses) {
+    let bus_ = bus;
+    if (bus.alternate.enabled) {
+      const altBus = await Bus.findById(bus.alternate.bus)
+        .select("name alternate device")
+        .lean();
+
+      bus_ = altBus;
+    }
+    result.push({
+      name: bus_.name,
+      imei: bus_.device.imei,
+      dt_server: bus_.device.dt_server,
+      dt_tracker: bus_.device.dt_tracker,
+      lat: bus_.device.lat,
+      lon: bus_.device.lon,
+      speed: bus_.device.speed,
+      altitude: bus_.device.altitude,
+      angle: bus_.device.angle,
+      params: bus_.device.params,
+    });
+  }
+
+  res.status(200).json(result);
+});
+
 module.exports = {
   getBusStaffs,
   getBusStaff,
@@ -606,4 +660,5 @@ module.exports = {
   updateBus,
   deleteBus,
   bulkOpsBus,
+  trackBus,
 };

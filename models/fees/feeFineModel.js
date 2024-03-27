@@ -7,7 +7,7 @@ const ObjectId = mongoose.SchemaTypes.ObjectId;
 const schema = new mongoose.Schema(
   {
     class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
-    term: {
+    fee_term: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "fee_terms",
@@ -17,7 +17,14 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "student_types",
     },
-    type: { type: String, required: [true, C.FIELD_IS_REQ] },
+    type: {
+      type: String,
+      required: [true, C.FIELD_IS_REQ],
+      enum: {
+        values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly`
+        message: C.VALUE_NOT_SUP,
+      },
+    },
     amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
     range: {
       start: { type: Number, required: [true, C.FIELD_IS_REQ] },
