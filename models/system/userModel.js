@@ -259,7 +259,7 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       validate: {
         validator: isEmailValid,
-        message: C.FIELD_IS_INVALID,
+        message: (props) => `email: ${props.value} is invalid!`,
       },
       lowercase: true,
       trim: true,
@@ -269,7 +269,7 @@ const schema = new mongoose.Schema(
       type: String,
       validate: {
         validator: isUsernameValid,
-        message: (props) => `${props.value} is an invalid username!`,
+        message: (props) => `username: ${props.value} is invalid!`,
       },
       trim: true,
     },
@@ -296,6 +296,7 @@ const schema = new mongoose.Schema(
       },
     },
     privileges: { type: privilegesSchema, required: [true, C.FIELD_IS_REQ] },
+    school_limit: { type: Number, default: 0 },
     manager: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
     school: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
   },

@@ -11,10 +11,10 @@ const { errorHandler } = require("./middlewares/errorMiddleware");
 const {
   authenticate,
   parentAuthenticate,
-  adminPanelAuthorize,
   parentAuthorize,
   adminAuthorize,
   adminAndManagerAuthorize,
+  authorize,
 } = require("./middlewares/authMiddleware");
 const { listenDeviceData } = require("./services/listener");
 const {
@@ -47,12 +47,14 @@ app.use(morgan("dev"));
 
 app.use(express.static(path.join(__dirname, "uploads")));
 
+// Routes Start
+
 app.post("/api/init", require("./controllers/systemController").init);
 
 app.use(
   "/api/system",
   authenticate,
-  adminAuthorize,
+  authorize,
   require("./routes/systemRoutes")
 );
 app.use("/api/login", require("./routes/authRoutes"));
@@ -136,7 +138,7 @@ cron.schedule("0 0 * * *", async () => {
  *************/
 
 // test routes
-app.use("/api/test", authenticate, require("./routes/testRoutes"));
+app.use("/api/test", require("./routes/testRoutes"));
 
 // app.use(express.static(path.join(__dirname, "dist")));
 

@@ -84,31 +84,23 @@ const parentAuthenticate = asyncHandler(async (req, res, next) => {
   }
 });
 
-const adminPanelAuthorize = asyncHandler(async (req, res, next) => {
-  const baseurl = req.baseUrl;
+const authorize = asyncHandler(async (req, res, next) => {
+  const userType = req.user.type;
+  const bUrl = req.baseUrl;
   const url = req.url;
-  console.log("baseurl :>> ", baseurl);
+
+  console.log("bUrl :>> ", bUrl);
   console.log("url :>> ", url);
 
-  if (baseurl !== "/api/admin-panel") return next();
-
-  const userType = req.user.type;
-
-  if (C.isAdmins(userType)) {
-    next();
-  } else if (C.isManager(userType)) {
-    next();
-  } else if (C.isSchool(userType)) {
-    if (req.url.includes("/bus")) next();
-    else if (req.url.includes("/bus-stop")) next();
-    else if (req.url.includes("/student")) next();
-    else if (req.url.includes("/attendance")) next();
+  if (bUrl === "/api/system" && url.includes("/user")) {
+    if (C.isAdmins(userType) || C.isManager(userType)) next();
     else {
-      next();
+      res.status(403);
+      throw new Error("Access Denied!");
     }
   } else {
-    res.status(404);
-    throw new Error(C.URL_404);
+    res.status(403);
+    throw new Error("Access Denied!");
   }
 });
 
@@ -144,7 +136,7 @@ const parentAuthorize = asyncHandler(async (req, res, next) => {
 module.exports = {
   authenticate,
   parentAuthenticate,
-  adminPanelAuthorize,
+  authorize,
   adminAuthorize,
   adminAndManagerAuthorize,
   parentAuthorize,

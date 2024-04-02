@@ -436,7 +436,7 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error(C.getFieldIsReq("manager"));
     }
 
-    if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+    if (!(await UC.managerExists(manager))) {
       res.status(400);
       throw new Error(C.getResourse404Error("manager", manager));
     }
@@ -452,7 +452,7 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error(C.getFieldIsReq("school"));
     }
 
-    if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
+    if (!(await UC.schoolAccExists(school, manager))) {
       res.status(400);
       throw new Error(C.getResourse404Error("school", school));
     }
@@ -460,6 +460,31 @@ const createUser = asyncHandler(async (req, res) => {
 
   // Get privileges
   const privileges = await TemplatePrivilege.findOne({ type }).lean();
+
+  // Validate school_limit
+  if (C.isManager(type)) {
+    if (!req.body.school_limit) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("school_limit"));
+    }
+  } else req.body.school_limit = 0;
+
+  // Check school_limit
+  if (C.isSchool(type)) {
+    const manager_ = await User.findById(manager).select("school_limit").lean();
+
+    const schools = await User.find({ type: C.SCHOOL, manager })
+      .select("_id")
+      .lean();
+
+    if (
+      manager_.school_limit !== 0 &&
+      manager_.school_limit <= schools.length
+    ) {
+      res.status(400);
+      throw new Error("Unable to create School account, limit reached!");
+    }
+  }
 
   const user = await User.create({
     email,
@@ -469,6 +494,7 @@ const createUser = asyncHandler(async (req, res) => {
     phone,
     type,
     privileges,
+    school_limit: req.body.school_limit,
     manager,
     school,
   });
