@@ -22,7 +22,7 @@ const getFeeGroups = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -178,7 +178,7 @@ const getFeeTypes = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -360,7 +360,7 @@ const getFeeTerms = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -606,7 +606,7 @@ const getFeeHeads = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -742,7 +742,7 @@ const updateFeeHead = asyncHandler(async (req, res) => {
     $set: {
       name: req.body.name,
       alias: req.body.alias,
-      fee_type: type,
+      fee_type: feeType,
       ledger: req.body.ledger,
     },
   });
@@ -791,7 +791,7 @@ const getFeeStructures = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -1040,7 +1040,7 @@ const getFeeFines = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -1276,7 +1276,7 @@ const getFeeConcessions = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};

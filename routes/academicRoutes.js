@@ -7,7 +7,7 @@ const academicRouter = express.Router();
 const academicYearRouter = express.Router();
 
 academicYearRouter.route("/").get(AC.getAcademicYears).post(AC.addAcademicYear);
-
+academicYearRouter.post("/set-current", AC.setCurrentAcademicYear);
 academicYearRouter
   .route("/:id")
   .get(AC.getAcademicYear)

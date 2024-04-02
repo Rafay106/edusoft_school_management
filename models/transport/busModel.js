@@ -38,6 +38,9 @@ const deviceSchema = new mongoose.Schema(
 const schema = new mongoose.Schema(
   {
     name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    no_plate: { type: String, required: [true, C.FIELD_IS_REQ] },
+    model: { type: String, required: [true, C.FIELD_IS_REQ] },
+    year_made: { type: String, default: "" },
     status: {
       value: { type: String, default: "none" },
       dt: { type: Date, default: 0 },

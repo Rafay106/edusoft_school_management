@@ -5,13 +5,13 @@ const deviceHistorySchema = new mongoose.Schema(
     dt_server: { type: Date, required: true },
     dt_tracker: { type: Date, required: true },
     lat: { type: String, required: true },
-    lng: { type: String, required: true },
+    lon: { type: String, required: true },
     altitude: { type: String, required: true },
     angle: { type: String, required: true },
     speed: { type: String, required: true },
     params: { type: {}, required: true },
-    odometer: { type: String, required: true },
-    engine_hours: { type: String, required: true },
+    // odometer: { type: String, required: true },
+    // engine_hours: { type: String, required: true },
   },
   { versionKey: false }
 );

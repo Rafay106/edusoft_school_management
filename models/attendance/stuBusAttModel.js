@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+
 const attendanceTypeSchema = new mongoose.Schema(
   {
     tag: {
@@ -16,6 +18,7 @@ const attendanceTypeSchema = new mongoose.Schema(
     lat: { type: Number, required: [true, C.FIELD_IS_REQ] },
     lon: { type: Number, required: [true, C.FIELD_IS_REQ] },
     address: { type: String, required: [true, C.FIELD_IS_REQ] },
+    msg: { type: String, required: [true, C.FIELD_IS_REQ] },
   },
   { _id: false }
 );
@@ -24,15 +27,11 @@ const schema = new mongoose.Schema(
   {
     date: { type: Date, required: [true, C.FIELD_IS_REQ] },
     student: {
-      type: mongoose.SchemaTypes.ObjectId,
+      type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "students",
     },
-    bus: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "bus",
-    },
+    bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
     list: [attendanceTypeSchema],
   },
   { timestamps: true }
@@ -52,5 +51,5 @@ schema.pre("updateOne", function (next) {
 
 schema.plugin(any);
 
-const StuBusAtt = mongoose.model("attendance_student_buses", schema);
+const StuBusAtt = mongoose.model("attendance_bus_students", schema);
 module.exports = StuBusAtt;

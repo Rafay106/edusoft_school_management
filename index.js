@@ -12,6 +12,9 @@ const {
   authenticate,
   parentAuthenticate,
   adminPanelAuthorize,
+  parentAuthorize,
+  adminAuthorize,
+  adminAndManagerAuthorize,
 } = require("./middlewares/authMiddleware");
 const { listenDeviceData } = require("./services/listener");
 const {
@@ -19,6 +22,7 @@ const {
   serviceResetAlternateBus,
 } = require("./services/service");
 const { writeLog } = require("./utils/common");
+const { sendNotifications } = require("./tools/notifications");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -45,23 +49,65 @@ app.use(express.static(path.join(__dirname, "uploads")));
 
 app.post("/api/init", require("./controllers/systemController").init);
 
-app.use("/api/system", authenticate, require("./routes/systemRoutes"));
+app.use(
+  "/api/system",
+  authenticate,
+  adminAuthorize,
+  require("./routes/systemRoutes")
+);
 app.use("/api/login", require("./routes/authRoutes"));
-app.use("/api/util", authenticate, require("./routes/utilRoutes"));
-app.use("/api/academics", authenticate, require("./routes/academicRoutes"));
+app.use(
+  "/api/util",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/utilRoutes")
+);
+app.use(
+  "/api/academics",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/academicRoutes")
+);
 app.use(
   "/api/student-info",
   authenticate,
+  adminAndManagerAuthorize,
   require("./routes/studentInfoRoutes")
 );
-app.use("/api/transport", authenticate, require("./routes/transportRoutes"));
-app.use("/api/hr", authenticate, require("./routes/hrRoutes"));
-app.use("/api/fee", authenticate, require("./routes/feeRoutes"));
+app.use(
+  "/api/transport",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/transportRoutes")
+);
+app.use(
+  "/api/hr",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/hrRoutes")
+);
+app.use(
+  "/api/fee",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/feeRoutes")
+);
+app.use(
+  "/api/dashboard",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/dashboardRoutes")
+);
+
+app.use(
+  "/api/parent",
+  authenticate,
+  parentAuthorize,
+  require("./routes/parentRoutes")
+);
 
 app.post("/api/listener", listenDeviceData);
 // app.post("/api/listener/mobile", listenMobileData);
-
-app.use("/api/parent", parentAuthenticate, require("./routes/parentRoutes"));
 
 // Razorpay
 app.use("/api/razorpay", require("./tools/razorpay"));
@@ -72,7 +118,7 @@ app.use("/api/razorpay", require("./tools/razorpay"));
 
 // cron.schedule("* * * * * *", () => {
 //   console.time("sendPush");
-//   sendPushNotification();
+//   sendNotifications();
 //   console.timeEnd("sendPush");
 // });
 

@@ -431,7 +431,7 @@ const formatDateToAMPM = (dateTime) => {
   const s = String(dt.getUTCSeconds()).padStart(2, "0");
   const postFix = h_ > 11 ? "PM" : "AM";
 
-  return `${D}-${M}-${Y} ${h}:${m}:${s} ${postFix}`;
+  return `${D}-${M}-${Y.slice(2, 4)} ${h}:${m}:${s} ${postFix}`;
 };
 
 module.exports = {

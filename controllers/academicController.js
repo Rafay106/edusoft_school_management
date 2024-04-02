@@ -7,6 +7,7 @@ const User = require("../models/system/userModel");
 const Section = require("../models/academics/sectionModel");
 const Student = require("../models/studentInfo/studentModel");
 const Subject = require("../models/academics/subjectModel");
+const School = require("../models/system/schoolModel");
 
 /** 1. Academic Year */
 
@@ -17,7 +18,7 @@ const getAcademicYears = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -84,12 +85,12 @@ const addAcademicYear = asyncHandler(async (req, res) => {
     manager = req.user.manager;
   } else if (C.isManager(req.user.type)) manager = req.user._id;
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -97,6 +98,7 @@ const addAcademicYear = asyncHandler(async (req, res) => {
   const year = req.body.year;
   let starting_date = req.body.starting_date;
   let ending_date = req.body.ending_date;
+  const setDefault = req.body.set_default;
 
   if (year.length > 4) {
     res.status(400);
@@ -119,6 +121,13 @@ const addAcademicYear = asyncHandler(async (req, res) => {
     manager,
     school,
   });
+
+  if (setDefault) {
+    await School.updateOne(
+      { school },
+      { $set: { current_academic_year: academicYear._id } }
+    );
+  }
 
   res.status(201).json({ msg: academicYear._id });
 });
@@ -194,16 +203,36 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    delQuery.user = req.user._id;
-    delQuery.manager = req.user.manager;
-  }
-
-  if (C.isManager(req.user.type)) {
-    delQuery.manager = req.user._id;
-  }
+  if (C.isSchool(req.user.type)) delQuery.school = req.user._id;
+  else if (C.isManager(req.user.type)) delQuery.manager = req.user._id;
 
   const result = await AcademicYear.deleteOne(delQuery);
+
+  res.status(200).json(result);
+});
+
+// @desc    Set current academic-year
+// @route   POST /api/academics/academic-year/set-current
+// @access  Private
+const setCurrentAcademicYear = asyncHandler(async (req, res) => {
+  const manager = req.manager;
+  const school = req.school;
+  const ayear = req.body.ayear;
+
+  if (!ayear) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("ayear", ayear));
+  }
+
+  const result = await School.updateOne(
+    { school },
+    { $set: { current_academic_year: ayear } }
+  );
 
   res.status(200).json(result);
 });
@@ -217,13 +246,26 @@ const getSections = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  const query = {};
+  let school = req.query.school;
+  let ayear = req.query.ayear;
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  const school_ = await School.findOne({ school })
+    .select("current_academic_year")
+    .lean();
+
+  const query = { academic_year: req.ayear };
+  console.log(req.ayear);
+
+  if (C.isManager(req.user.type)) {
+    manager = req.user._id;
+    school = req.body.school;
+  } else if (C.isSchool(req.user.type)) {
+    school = req.user._id;
+    manager = req.user.manager;
+  }
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -285,12 +327,12 @@ const addSection = asyncHandler(async (req, res) => {
     manager = req.user.manager;
   } else if (C.isManager(req.user.type)) manager = req.user._id;
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -378,7 +420,7 @@ const getClasses = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -460,12 +502,12 @@ const addClass = asyncHandler(async (req, res) => {
     manager = req.user.manager;
   } else if (C.isManager(req.user.type)) manager = req.user._id;
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -576,7 +618,7 @@ const getSubjects = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -644,12 +686,12 @@ const addSubject = asyncHandler(async (req, res) => {
     manager = req.user.manager;
   } else if (C.isManager(req.user.type)) manager = req.user._id;
 
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!(await UC.managerExists(manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("manager", manager));
   }
 
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
+  if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
     throw new Error(C.getResourse404Error("school", school));
   }
@@ -724,6 +766,7 @@ module.exports = {
   addAcademicYear,
   updateAcademicYear,
   deleteAcademicYear,
+  setCurrentAcademicYear,
 
   getClasses,
   getClass,

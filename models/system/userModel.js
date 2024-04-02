@@ -299,7 +299,7 @@ const schema = new mongoose.Schema(
     manager: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
     school: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.index({ email: 1 }, { unique: true });
@@ -310,7 +310,7 @@ schema.pre("save", async function (next) {
     this.password = await bcrypt.hash(this.password, 10);
   }
 
-  if (this.type === C.USER) {
+  if (this.type === C.SCHOOL) {
     if (!this.manager) {
       throw new Error("manager is required!");
     }

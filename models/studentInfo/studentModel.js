@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 const { isEmailValid } = require("../../utils/validators");
+const bcrypt = require("bcrypt");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
@@ -20,7 +21,7 @@ const schema = new mongoose.Schema(
     },
     dob: { type: Date, required: [true, C.FIELD_IS_REQ] },
     cast: { type: String, default: "" },
-    type: {
+    student_type: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "student_types",
@@ -64,8 +65,10 @@ const schema = new mongoose.Schema(
     },
     bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
     bus_stop: { type: ObjectId, ref: "bus_stops" },
+    // siblings: { type: ObjectId, ref: "student_siblings" },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    parent: { type: ObjectId, ref: "users" },
   },
   { timestamps: true }
 );
@@ -73,8 +76,13 @@ const schema = new mongoose.Schema(
 schema.index({ admission_no: 1 }, { unique: true });
 schema.index({ rfid: 1 }, { unique: true });
 
-schema.pre("updateOne", function (next) {
+schema.pre("save", async function (next) {
+  next();
+});
+
+schema.pre("updateOne", async function (next) {
   this.setOptions({ runValidators: true });
+
   next();
 });
 

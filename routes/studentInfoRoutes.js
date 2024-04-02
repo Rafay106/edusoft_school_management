@@ -37,7 +37,21 @@ studentRouter.post(
   C.bulkOpsStudent
 );
 
+studentRouter.post("/reset-password", C.resetStudentPassword);
+
+// 3. Student Bus Attendance Routes
+const stuBusAttRouter = express.Router();
+
+stuBusAttRouter.post("/", C.getStudentAttendance);
+
+// 4. Student Attendance Notification Routes
+const stuAttNotiRouter = express.Router();
+
+stuAttNotiRouter.post("/", C.getStuAttNotification);
+
 router.use("/student-type", studentTypeRouter);
 router.use("/student", studentRouter);
+router.use("/attendance", stuBusAttRouter);
+router.use("/attendance-notification", C.getStuAttNotification);
 
 module.exports = router;

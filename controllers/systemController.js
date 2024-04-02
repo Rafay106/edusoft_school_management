@@ -311,7 +311,7 @@ const getUsers = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "email";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -551,7 +551,7 @@ const getSchools = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};

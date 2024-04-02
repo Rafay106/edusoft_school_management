@@ -16,7 +16,7 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -191,7 +191,7 @@ const getBusStops = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -342,7 +342,7 @@ const getBuses = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf;
+  const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
   const query = {};
@@ -447,6 +447,9 @@ const addBus = asyncHandler(async (req, res) => {
 
   const bus = await Bus.create({
     name: req.body.name,
+    no_plate: req.body.no_plate,
+    model: req.body.model,
+    year_made: req.body.year_made,
     device: req.body.device,
     mobile: req.body.mobile,
     stops,
@@ -463,15 +466,50 @@ const addBus = asyncHandler(async (req, res) => {
 // @route   PUT /api/transport/bus/:id
 // @access  Private
 const updateBus = asyncHandler(async (req, res) => {
+  const { driver, conductor } = req.body;
+  let stops = req.body.stops;
+  const stopOp = req.body.stop_op;
+
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  if (stops && stops.length > 0) {
+    if (!stopOp) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("stop_op"));
+    }
+
+    if (stopOp === "a") {
+      const bus = await Bus.findOne(query).select("stops").lean();
+
+      stops = stops.filter((s) => {
+        if (bus.stops.find((bs) => bs.toString() === s)) return false;
+        else return true;
+      });
+
+      for (const stop of stops) {
+        if (!(await BusStop.any({ ...query, _id: stop }))) {
+          res.status(400);
+          throw new Error(C.getResourse404Error("stops", stop));
+        }
+      }
+    }
   }
 
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
+  if (driver) {
+    if (!(await BusStaff.any({ ...query, _id: driver, type: "d" }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("driver", driver));
+    }
+  }
+
+  if (conductor) {
+    if (!(await BusStaff.any({ ...query, _id: conductor, type: "c" }))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("conductor", conductor));
+    }
   }
 
   const bus = await Bus.findOne(query).select("_id").lean();
@@ -481,12 +519,22 @@ const updateBus = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Error("Bus", req.params.id));
   }
 
-  const result = await Bus.updateOne(query, {
+  const update = {
     $set: {
       name: req.body.name,
-      "device.name": req.body.device.name,
+      no_plate: req.body.no_plate,
+      model: req.body.model,
+      year_made: req.body.year_made,
+      "device.name": req.body.device?.name,
+      driver,
+      conductor,
     },
-  });
+  };
+
+  if (stopOp === "a") update["$push"] = { stops };
+  if (stopOp === "r") update["$pullAll"] = { stops };
+
+  const result = await Bus.updateOne(query, update);
 
   res.status(200).json(result);
 });
@@ -513,6 +561,99 @@ const deleteBus = asyncHandler(async (req, res) => {
   }
 
   const result = await Bus.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
+// @desc    Set alternate bus
+// @route   POST /api/transport/bus/:id/set-alternate
+// @access  Private
+const setAlternateBus = asyncHandler(async (req, res) => {
+  let manager = req.body.manager;
+  let school = req.body.school;
+
+  if (C.isSchool(req.user.type)) {
+    manager = req.user.manager;
+    school = req.user._id;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!UC.managerExists(manager)) {
+    res.status(200);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!UC.schoolAccExists(school, manager)) {
+    res.status(200);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const query = { _id: req.params.id, manager, school };
+
+  if (!(await Bus.any(query))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Bus", req.params.id));
+  }
+
+  if (!req.body.alt_bus) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("alt_bus"));
+  }
+
+  if (!(await Bus.any({ ...query, _id: req.body.alt_bus }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Bus", req.body.alt_bus));
+  }
+
+  if (!req.body.status) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("status"));
+  }
+
+  const result = await Bus.updateOne(query, {
+    $set: {
+      alternate: { enabled: true, bus: req.body.alt_bus },
+      status: { value: req.body.status, dt: new Date() },
+    },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Set alternate bus
+// @route   POST /api/transport/bus/:id/unset-alternate
+// @access  Private
+const unsetAlternateBus = asyncHandler(async (req, res) => {
+  let manager = req.body.manager;
+  let school = req.body.school;
+
+  if (C.isSchool(req.user.type)) {
+    manager = req.user.manager;
+    school = req.user._id;
+  } else if (C.isManager(req.user.type)) manager = req.user._id;
+
+  if (!UC.managerExists(manager)) {
+    res.status(200);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!UC.schoolAccExists(school, manager)) {
+    res.status(200);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+
+  const query = { _id: req.params.id, manager, school };
+
+  if (!(await Bus.any(query))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("Bus", req.params.id));
+  }
+
+  const result = await Bus.updateOne(query, {
+    $set: {
+      alternate: { enabled: false },
+      status: { value: "", dt: new Date() },
+    },
+  });
 
   res.status(200).json(result);
 });
@@ -598,7 +739,7 @@ const trackBus = asyncHandler(async (req, res) => {
 
   if (C.isSchool(req.user.type)) {
     manager = req.user.manager;
-    school = req.user.school;
+    school = req.user._id;
   } else if (C.isManager(req.user.type)) manager = req.user._id;
 
   if (!UC.managerExists(manager)) {
@@ -659,6 +800,8 @@ module.exports = {
   addBus,
   updateBus,
   deleteBus,
+  setAlternateBus,
+  unsetAlternateBus,
   bulkOpsBus,
   trackBus,
 };

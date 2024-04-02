@@ -43,6 +43,7 @@ const schema = new mongoose.Schema(
         validate: { validator: timeValidator, message: timingErr },
       },
     },
+    current_academic_year: { type: ObjectId, ref: "academic_years" },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },

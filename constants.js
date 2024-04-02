@@ -11,8 +11,8 @@ const STR = {
   INVALID_CREDENTIALS: "Invalid Credentials!",
   LIBRARIAN: "librarian",
   MANAGER: "manager",
-  M_ENTRY: "Morning Entry",
-  M_EXIT: "Morning Exit",
+  M_ENTRY: "mEntry",
+  M_EXIT: "mExit",
   PAGE_LIMIT_REACHED: "Page limit reached!",
   PARENT: "parent",
   RECEPTIONIST: "receptionist",
@@ -45,6 +45,7 @@ const FUNCTIONS = {
   isAdmin: (type) => type === STR.ADMIN,
   isAdmins: (type) => [STR.SUPERADMIN, STR.ADMIN].includes(type),
   isManager: (type) => [STR.MANAGER].includes(type),
+  isParent: (type) => [STR.PARENT].includes(type),
   isSchool: (type) => [STR.SCHOOL].includes(type),
   isSuperAdmin: (type) => type === STR.SUPERADMIN,
 };

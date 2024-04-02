@@ -6,6 +6,8 @@ const { isAlphaNumeric } = require("../utils/validators");
 const { checkStuBusAttendance } = require("./attendance");
 
 const insert_db_loc = async (loc) => {
+  console.log("*****insert_db_loc() START*****");
+
   // Format Data
   loc.imei = loc.imei.trim().toUpperCase();
   loc.loc_valid = loc.loc_valid === "1";
@@ -52,9 +54,9 @@ const insert_db_loc = async (loc) => {
   }
 
   // check if dt_tracker is at least one hour too far - set 0 UTC time
-  if (loc.dt_tracker >= new Date(now.getTime() + 3600000)) {
-    loc.dt_tracker = new Date(now);
-  }
+  // if (loc.dt_tracker >= new Date(now.getTime() + 3600000)) {
+  //   loc.dt_tracker = new Date(now);
+  // }
 
   // adjust GPS time
   // loc.dt_tracker = await adjustDeviceTime(loc.imei, loc.dt_tracker);
@@ -86,10 +88,10 @@ const insert_db_loc = async (loc) => {
   }
 
   // Fetch device data
-  const device = await Bus.findOne({ "device.imei": loc.imei })
-    // .select("sensors odometer engine_hours")
-    // .populate("sensors")
-    .lean();
+  // const device = await Bus.findOne({ "device.imei": loc.imei })
+  // .select("sensors odometer engine_hours")
+  // .populate("sensors")
+  // .lean();
 
   // merge params only if dt_tracker is newer
   // if (loc.dt_tracker >= locPrev.dt_tracker) {
@@ -177,11 +179,13 @@ const insert_db_loc = async (loc) => {
   writeLog("insert", `${loc.imei}: ${loc.params}`);
   if (!loc.params.io78) return;
 
-  await checkStuBusAttendance(loc);
+  const result = await checkStuBusAttendance(loc);
+  console.log("result :>> ", result);
+  console.log("*****insert_db_loc() END*****");
 };
 
 const insert_db_unused = async (loc) => {
-  const exists = await UnusedDevice.any({ "device.imei": loc.imei });
+  const exists = await UnusedDevice.any({ imei: loc.imei });
   let result;
   if (!exists) {
     result = await UnusedDevice.create({
@@ -195,7 +199,7 @@ const insert_db_unused = async (loc) => {
     });
   } else {
     result = await UnusedDevice.updateOne(
-      { "device.imei": loc.imei },
+      { imei: loc.imei },
       {
         $set: {
           protocol: loc.protocol,
@@ -204,9 +208,7 @@ const insert_db_unused = async (loc) => {
           port: loc.port,
           dt_server: loc.dt_server,
         },
-        $inc: {
-          count: 1,
-        },
+        $inc: { count: 1 },
       }
     );
   }
@@ -304,14 +306,14 @@ const updateDeviceLocData = async (loc, locPrev) => {
 };
 
 const insertDeviceHistory = async (loc) => {
-  if (loc.lat === 0 && loc.lng === 0) return false;
+  if (loc.lat === 0 && loc.lon === 0) return false;
 
   const DeviceHistory = getDeviceHistoryModel(loc.imei);
   const res = await DeviceHistory.create({
     dt_server: loc.dt_server,
     dt_tracker: loc.dt_tracker,
     lat: loc.lat,
-    lng: loc.lng,
+    lon: loc.lon,
     altitude: loc.altitude,
     angle: loc.angle,
     speed: loc.speed,

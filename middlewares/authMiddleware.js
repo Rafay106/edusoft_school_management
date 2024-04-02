@@ -1,7 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
-const User = require("../models/system/userModel");
 const C = require("../constants");
+const UC = require("../utils/common");
+const User = require("../models/system/userModel");
 const Student = require("../models/studentInfo/studentModel");
 const School = require("../models/system/schoolModel");
 
@@ -57,9 +58,15 @@ const parentAuthenticate = asyncHandler(async (req, res, next) => {
     try {
       const decode = jwt.verify(token, process.env.SECRET);
 
-      req.user = await Student.findById(decode._id).lean();
+      req.student = await Student.findById(decode._id)
+        .select("-password")
+        .lean();
 
-      if (!req.user) {
+      // req.user = await User.findById(req.student.school)
+      //   .select("-password")
+      //   .lean();
+
+      if (!req.student) {
         res.status(404);
         throw new Error("404");
       }
@@ -105,4 +112,40 @@ const adminPanelAuthorize = asyncHandler(async (req, res, next) => {
   }
 });
 
-module.exports = { authenticate, parentAuthenticate, adminPanelAuthorize };
+const adminAuthorize = asyncHandler(async (req, res, next) => {
+  if (C.isAdmins(req.user.type)) next();
+  else {
+    res.status(403);
+    throw new Error("Access Denied!");
+  }
+});
+
+const adminAndManagerAuthorize = asyncHandler(async (req, res, next) => {
+  if (C.isAdmins(req.user.type)) {
+    next();
+  } else if (C.isManager(req.user.type)) {
+    next();
+  } else if (C.isSchool(req.user.type)) {
+    next();
+  } else {
+    res.status(403);
+    throw new Error("Access Denied!");
+  }
+});
+
+const parentAuthorize = asyncHandler(async (req, res, next) => {
+  if (C.isParent(req.user.type)) next();
+  else {
+    res.status(403);
+    throw new Error("Only parent account has access to this route.");
+  }
+});
+
+module.exports = {
+  authenticate,
+  parentAuthenticate,
+  adminPanelAuthorize,
+  adminAuthorize,
+  adminAndManagerAuthorize,
+  parentAuthorize,
+};
