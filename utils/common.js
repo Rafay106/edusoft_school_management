@@ -82,6 +82,28 @@ const managerExists = async (_id) => await User.any({ _id, type: C.MANAGER });
 const schoolAccExists = async (_id, manager) =>
   await User.any({ _id, type: C.SCHOOL, manager });
 
+const validateManagerAndSchool = async (res, manager, school) => {
+  if (!manager) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("manager"));
+  }
+
+  if (!(await managerExists(manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("manager", manager));
+  }
+
+  if (!school) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("school"));
+  }
+
+  if (!(await schoolAccExists(school, manager))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("school", school));
+  }
+};
+
 // ************************
 // USER FUNCTIONS END
 // ************************
@@ -270,7 +292,7 @@ const addMultipleStudents = async (userId, userType, fileData) => {
   };
 };
 
-const getStudentName = (name) => {
+const getPersonName = (name) => {
   let studentName = name.f;
   studentName += name.m ? ` ${name.m} ` : " ";
   studentName += name.l;
@@ -442,11 +464,12 @@ module.exports = {
   getUsernameFromEmail,
   managerExists,
   schoolAccExists,
+  validateManagerAndSchool,
 
   addMultipleSchools,
 
   addMultipleStudents,
-  getStudentName,
+  getPersonName,
 
   getAngle,
   getLenBtwPointsInKm,

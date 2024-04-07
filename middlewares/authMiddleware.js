@@ -21,11 +21,9 @@ const authenticate = asyncHandler(async (req, res, next) => {
       req.user = await User.findById(decode._id).select("-password").lean();
 
       if (C.isSchool(req.user.type)) {
-        const school = await School.findOne({ school: req.user._id })
-          .select("_id")
-          .lean();
+        const school = await School.findOne({ school: req.user._id }).lean();
 
-        if (school) req.user = { ...req.user, school: school._id };
+        if (school) req.school = school;
       }
 
       if (!req.user) {
@@ -91,9 +89,10 @@ const authorize = asyncHandler(async (req, res, next) => {
 
   console.log("bUrl :>> ", bUrl);
   console.log("url :>> ", url);
+  if (C.isAdmins(userType)) return next();
 
   if (bUrl === "/api/system" && url.includes("/user")) {
-    if (C.isAdmins(userType) || C.isManager(userType)) next();
+    if (C.isManager(userType)) next();
     else {
       res.status(403);
       throw new Error("Access Denied!");

@@ -43,6 +43,29 @@ const schema = new mongoose.Schema(
         validate: { validator: timeValidator, message: timingErr },
       },
     },
+    bus_incharge: {
+      name: { type: String, default: "" },
+      email: {
+        type: String,
+        default: "",
+        validate: {
+          validator: function (value) {
+            // Only validate if email is provided
+
+            if (this._update) {
+              const email = this._update["$set"]["bus_incharge.email"];
+              return !email || isEmailValid(value);
+            }
+            return !this.email || isEmailValid(value);
+          },
+          message: C.FIELD_IS_INVALID,
+          isAsync: true,
+        },
+        lowercase: true,
+        trim: true,
+      },
+      phone: { type: String, default: "" },
+    },
     current_academic_year: { type: ObjectId, ref: "academic_years" },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },

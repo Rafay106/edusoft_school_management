@@ -2,6 +2,7 @@ const multer = require("multer");
 const fs = require("node:fs");
 const path = require("node:path");
 
+const maxSize = 2 * 1024 * 1024; // 2MB
 const mimeTypes = {
   "image/jpg": "jpg",
   "image/jpeg": "jpeg",
@@ -12,23 +13,10 @@ const memoryUpload = multer({
   storage: multer.memoryStorage(),
 });
 
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      cb(null, "uploads/");
-    },
-    filename: function (req, file, cb) {
-      cb(null, Date.now() + path.extname(file.originalname));
-    },
-  }),
-});
-
-const maxSize = 2 * 1024 * 1024; // 2MB
-
 const busStaffPhotoUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const filePath = path.join("uploads", "bus_staff");
+      const filePath = path.join("static", "uploads", "bus_staff");
       if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
       cb(null, filePath);
     },
@@ -49,7 +37,7 @@ const busStaffPhotoUpload = multer({
 const studentPhotoUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const filePath = path.join("uploads", "student");
+      const filePath = path.join("static", "uploads", "student");
       if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
       cb(null, filePath);
     },
@@ -89,7 +77,7 @@ const studentBulkImportUpload = multer({
 const staffUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const filePath = path.join("uploads", "staff");
+      const filePath = path.join("static", "uploads", "staff");
       if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
       cb(null, filePath);
     },
@@ -101,7 +89,6 @@ const staffUpload = multer({
 });
 
 module.exports = {
-  upload,
   memoryUpload,
   busStaffPhotoUpload,
   studentPhotoUpload,

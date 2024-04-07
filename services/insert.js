@@ -166,6 +166,8 @@ const insert_db_loc = async (loc) => {
   // insert data into various services
   await updateDeviceLocData(loc, locPrev);
 
+  await updateDeviceStatus(loc, locPrev);
+
   // check for duplicate locations
   if (locFilter(loc, locPrev)) return;
 
@@ -323,6 +325,59 @@ const insertDeviceHistory = async (loc) => {
   });
 
   return res;
+};
+
+const updateDeviceStatus = async (loc, locPrev) => {
+  if (loc.dt_tracker < locPrev.dt_tracker) return;
+
+  if (!locPrev.vehicle_status) {
+    locPrev.vehicle_status = {
+      last_stop: new Date(0),
+      last_idle: new Date(0),
+      last_move: new Date(0),
+      is_stopped: false,
+      is_idle: false,
+      is_moving: false,
+    };
+  }
+
+  const vStat = locPrev.vehicle_status;
+
+  // status stop
+  if (
+    loc.speed === 0 &&
+    (vStat.last_stop.getTime() === 0 || vStat.last_stop < vStat.last_move)
+  ) {
+    vStat.last_stop = loc.dt_server;
+  }
+
+  if (loc.loc_valid) {
+    // status moving
+    if (loc.speed > 0 && vStat.last_move <= vStat.last_stop) {
+      vStat.last_move = loc.dt_server;
+    }
+  }
+
+  // status idle
+  if (vStat.last_stop >= vStat.last_move) {
+    const acc = "io239";
+    if (!loc.params[acc]) return;
+
+    if (loc.params[acc] === "1" && vStat.last_idle.getTime() === 0) {
+      vStat.last_idle = loc.dt_server;
+    } else if (loc.params[acc] === "0" && vStat.last_idle > 0) {
+      vStat.last_idle = new Date(0);
+    }
+  } else {
+    if (vStat.last_idle > 0) {
+      vStat.last_idle = new Date(0);
+    }
+  }
+
+  await Bus.updateOne(
+    { "device.imei": loc.imei },
+    { $set: { "device.vehicle_status": vStat } }
+  );
 };
 
 const getDeviceData = async (imei) => {

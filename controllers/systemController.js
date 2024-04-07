@@ -673,6 +673,7 @@ const addSchool = asyncHandler(async (req, res) => {
     lon: parseFloat(req.body.lon).toFixed(6),
     radius: req.body.radius,
     timings: req.body.timings,
+    bus_incharge: req.body.bus_incharge,
     manager: req.body.manager,
     school: req.body.school,
   });
@@ -696,6 +697,8 @@ const updateSchool = asyncHandler(async (req, res) => {
 
   const lat = req.body.lat ? parseFloat(req.body.lat).toFixed(6) : undefined;
   const lon = req.body.lon ? parseFloat(req.body.lon).toFixed(6) : undefined;
+  const timings = req.body.timings;
+  const busIncharge = req.body.bus_incharge;
 
   const result = await School.updateOne(query, {
     $set: {
@@ -710,8 +713,11 @@ const updateSchool = asyncHandler(async (req, res) => {
       lat,
       lon,
       radius: req.body.radius,
-      "timings.morning": req.body.timings?.morning,
-      "timings.afternoon": req.body.timings?.afternoon,
+      "timings.morning": timings?.morning,
+      "timings.afternoon": timings?.afternoon,
+      "bus_incharge.name": busIncharge?.name,
+      "bus_incharge.email": busIncharge?.email,
+      "bus_incharge.phone": busIncharge?.phone,
     },
   });
 

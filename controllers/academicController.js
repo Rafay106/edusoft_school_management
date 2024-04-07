@@ -249,23 +249,26 @@ const getSections = asyncHandler(async (req, res) => {
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  let school = req.query.school;
   let ayear = req.query.ayear;
 
-  const school_ = await School.findOne({ school })
-    .select("current_academic_year")
-    .lean();
-
-  const query = { academic_year: req.ayear };
-  console.log(req.ayear);
-
-  if (C.isManager(req.user.type)) {
-    manager = req.user._id;
-    school = req.body.school;
-  } else if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
+  if (C.isSchool(req.user.type)) {
+    ayear = req.school.current_academic_year;
   }
+
+  if (!ayear) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await AcademicYear.any({ _id: ayear }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("ayear", ayear));
+  }
+
+  const query = { academic_year: ayear };
+
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user._id;
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -453,15 +456,14 @@ const getClasses = asyncHandler(async (req, res) => {
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
   for (const class_ of results.result) {
-    for (const section of class_.sections) {
-      const students = await Student.countDocuments({ class: class_, section });
-      section.students = students;
-      // console.log("students :>> ", students);
-    }
-  }
+    for (const s of class_.sections) {
+      const students = await Student.countDocuments({
+        class: class_,
+        section: s.section,
+      });
 
-  for (const class_ of results.result) {
-    console.log("class_ :>> ", class_);
+      s.students = students;
+    }
   }
 
   res.status(200).json(results);
@@ -502,15 +504,7 @@ const addClass = asyncHandler(async (req, res) => {
     manager = req.user.manager;
   } else if (C.isManager(req.user.type)) manager = req.user._id;
 
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
+  await UC.validateManagerAndSchool(res, manager, school);
 
   // Validate Section
   if (!sections || sections.length === 0) {
@@ -538,7 +532,7 @@ const addClass = asyncHandler(async (req, res) => {
 
   const class_ = await Class.create({
     name: req.body.name,
-    // sections,
+    sections: sections.map((section) => ({ section })),
     academic_year: ayear,
     manager,
     school,

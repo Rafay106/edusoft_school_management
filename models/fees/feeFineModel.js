@@ -21,7 +21,7 @@ const schema = new mongoose.Schema(
       type: String,
       required: [true, C.FIELD_IS_REQ],
       enum: {
-        values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly`
+        values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly
         message: C.VALUE_NOT_SUP,
       },
     },

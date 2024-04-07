@@ -7,18 +7,12 @@ const Student = require("../models/studentInfo/studentModel");
 const storeStuAttNotification = async (msg, studentId, date, bus) => {
   const stu = await Student.findById(studentId).select("manager school");
 
-  await StuAttNotify.create({
-    date,
-    msg,
-    student: stu._id,
-    bus,
-    manager: stu.manager,
-    school: stu.school,
-  });
+  await StuAttNotify.create({ date, msg, student: stu._id, bus });
 };
 
 const sendNotifications = asyncHandler(async () => {
   const notifications = await StuAttNotify.find({ sent: false })
+    .populate("student", "school")
     .sort("createdBy")
     .limit(10)
     .lean();
@@ -28,19 +22,20 @@ const sendNotifications = asyncHandler(async () => {
     process.env.ONESIGNAL_API_KEY
   );
 
+  const sentNotifications = [];
+
   for (const noty of notifications) {
     const notification = {
       contents: {
         en: noty.msg,
       },
-      include_external_user_ids: [noty.student], // schoolId
+      include_external_user_ids: [noty.student._id, noty.student.school],
     };
 
     try {
       const response = await client.createNotification(notification);
       console.log(response.body.id);
-
-      await StuAttNotify.updateOne({ _id: noty._id }, { $set: { sent: true } });
+      sentNotifications.push(noty._id);
     } catch (e) {
       if (e instanceof OneSignal.HTTPError) {
         console.log(e.statusCode);
@@ -48,6 +43,11 @@ const sendNotifications = asyncHandler(async () => {
       } else console.log(e);
     }
   }
+
+  await StuAttNotify.updateMany(
+    { _id: sentNotifications },
+    { $set: { sent: true } }
+  );
 });
 
 module.exports = {

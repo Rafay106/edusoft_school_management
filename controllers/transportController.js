@@ -39,13 +39,23 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   const results = await UC.paginatedQuery(
     BusStaff,
     query,
-    "type name",
+    "type name photo",
     page,
     limit,
     sort
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  for (const staff of results.result) {
+    if (staff.type === "c") staff.type = C.CONDUCTOR;
+    if (staff.type === "d") staff.type = C.DRIVER;
+
+    staff.name = UC.getPersonName(staff.name);
+
+    if (!staff.photo) staff.photo = `${process.env.DOMAIN}/user-blank.svg`;
+    else staff.photo = `${process.env.DOMAIN}/uploads/bus_staff/${staff.photo}`;
+  }
 
   res.status(200).json(results);
 });
@@ -99,6 +109,8 @@ const addBusStaff = asyncHandler(async (req, res) => {
     l: req.body.lname,
   };
 
+  const photo = req.file ? req.file.filename : "";
+
   const driving_license = {
     number: req.body.dl_no,
     expiry_date: req.body.dl_exp,
@@ -110,7 +122,7 @@ const addBusStaff = asyncHandler(async (req, res) => {
     doj: req.body.doj,
     email: req.body.email,
     phone: req.body.phone,
-    photo: req.body.photo,
+    photo,
     driving_license,
     manager,
     school,
@@ -125,14 +137,8 @@ const addBusStaff = asyncHandler(async (req, res) => {
 const updateBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
-  }
-
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
-  }
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const busStaff = await BusStaff.findOne(query).select("_id").lean();
 
@@ -141,10 +147,31 @@ const updateBusStaff = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Error("BusStaff", req.params.id));
   }
 
+  const name = {};
+  if (req.body.fname) name.f = req.body.fname;
+  if (req.body.mname) name.m = req.body.mname;
+  if (req.body.lname) name.l = req.body.lname;
+
+  const photo = req.file ? req.file.filename : undefined;
+
+  if (req.body.dl_exp) {
+    const dlExp = new Date(req.body.dl_exp);
+    if (isNaN(dlExp)) {
+      res.status(400);
+      throw new Error(C.getFieldIsInvalid("dt_exp"));
+    }
+  }
+
   const result = await BusStaff.updateOne(query, {
     $set: {
-      name: req.body.name,
-      "device.name": req.body.device.name,
+      type: req.body.type,
+      name,
+      doj: req.body.doj,
+      email: req.body.email,
+      phone: req.body.phone,
+      photo,
+      "driving_license.number": req.body.dl_no,
+      "driving_license.expiry_date": req.body.dl_exp,
     },
   });
 
@@ -295,6 +322,9 @@ const updateBusStop = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Error("BusStop", req.params.id));
   }
 
+  if (req.body.lat) req.body.lat = parseFloat(req.body.lat).toFixed(6);
+  if (req.body.lon) req.body.lon = parseFloat(req.body.lon).toFixed(6);
+
   const result = await BusStop.updateOne(query, {
     $set: {
       name: req.body.name,
@@ -321,6 +351,11 @@ const deleteBusStop = asyncHandler(async (req, res) => {
   if (!stop) {
     res.status(400);
     throw new Error(C.getResourse404Error("BusStop", req.params.id));
+  }
+
+  if (await Student.any({ bus_stop: stop._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("BusStop", "Student"));
   }
 
   if (await Bus.any({ stops: stop._id })) {
@@ -732,50 +767,29 @@ const bulkOpsBus = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus/track
 // @access  Private
 const trackBus = asyncHandler(async (req, res) => {
-  const ids = req.body.ids;
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const query = { _id: req.body.bus_ids };
+
   const result = [];
 
-  if (C.isSchool(req.user.type)) {
-    manager = req.user.manager;
-    school = req.user._id;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
-  if (!UC.managerExists(manager)) {
-    res.status(200);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!UC.schoolAccExists(school, manager)) {
-    res.status(200);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const buses = await Bus.find({ _id: ids, manager, school })
-    .select("name alternate device")
-    .lean();
+  const buses = await Bus.find(query).select("name device").lean();
 
   for (const bus of buses) {
-    let bus_ = bus;
-    if (bus.alternate.enabled) {
-      const altBus = await Bus.findById(bus.alternate.bus)
-        .select("name alternate device")
-        .lean();
-
-      bus_ = altBus;
-    }
     result.push({
-      name: bus_.name,
-      imei: bus_.device.imei,
-      dt_server: bus_.device.dt_server,
-      dt_tracker: bus_.device.dt_tracker,
-      lat: bus_.device.lat,
-      lon: bus_.device.lon,
-      speed: bus_.device.speed,
-      altitude: bus_.device.altitude,
-      angle: bus_.device.angle,
-      params: bus_.device.params,
+      name: bus.name,
+      imei: bus.device.imei,
+      dt_server: bus.device.dt_server,
+      dt_tracker: bus.device.dt_tracker,
+      lat: bus.device.lat,
+      lon: bus.device.lon,
+      speed: bus.device.speed,
+      altitude: bus.device.altitude,
+      angle: bus.device.angle,
+      vehicle_status: bus.device.vehicle_status,
+      params: bus.device.params,
+      ignition: bus.device.params.io239 === "1",
     });
   }
 

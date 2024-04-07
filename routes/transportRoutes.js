@@ -18,7 +18,7 @@ busStaffRouter
 busStaffRouter
   .route("/:id")
   .get(TC.getBusStaff)
-  .patch(TC.updateBusStaff)
+  .patch(busStaffPhotoUpload.single("photo"), TC.updateBusStaff)
   .delete(TC.deleteBusStaff);
 
 // 2. BusStop Routes

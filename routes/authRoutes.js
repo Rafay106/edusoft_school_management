@@ -51,7 +51,9 @@ router.post(
       return res.status(200).json({ ...user, ...token });
     }
 
-    const parentUser = await User.findOne({ username: email })
+    const admissionNo = email.toUpperCase();
+
+    const parentUser = await User.findOne({ username: admissionNo })
       .select("email username name phone type manager school password")
       .populate("manager school", "name")
       .lean();
@@ -62,16 +64,22 @@ router.post(
         throw new Error(C.INVALID_CREDENTIALS);
       }
 
-      const student = await Student.findOne({ admission_no: email })
-        .select("roll_no photo class section bus")
+      const student = await Student.findOne({ admission_no: admissionNo })
+        .select("roll_no name email phone photo age class section bus")
         .populate("class section", "name")
         .populate("bus", "name no_plate")
         .lean();
 
       if (!student) {
         res.status(404);
-        throw new Error(`Student not found with admission_no: ${email}`);
+        throw new Error(`Student not found with admission_no: ${admissionNo}`);
       }
+
+      student.name = UC.getPersonName(student.name);
+      if (!student.photo) student.photo = "/user-blank.svg";
+      student.class = student.class.name;
+      student.section = student.section.name;
+      student.bus = student.bus.name;
 
       const token = generateToken(parentUser._id);
 
@@ -83,7 +91,9 @@ router.post(
 
       return res.status(200).json({ ...parentUser, ...token });
     } else {
-      const student = await Student.findOne({ admission_no: email }).lean();
+      const student = await Student.findOne({
+        admission_no: admissionNo,
+      }).lean();
 
       if (!student) {
         res.status(401);
@@ -102,7 +112,7 @@ router.post(
             throw new Error(C.INVALID_CREDENTIALS);
           }
 
-          const student_ = await Student.findOne({ admission_no: email })
+          const student_ = await Student.findOne({ admission_no: admissionNo })
             .select("roll_no photo class section bus")
             .populate("class section", "name")
             .populate("bus", "name no_plate")
@@ -110,7 +120,9 @@ router.post(
 
           if (!student_) {
             res.status(404);
-            throw new Error(`Student not found with admission_no: ${email}`);
+            throw new Error(
+              `Student not found with admission_no: ${admissionNo}`
+            );
           }
 
           const token = generateToken(parent._id);
@@ -133,7 +145,7 @@ router.post(
         email: student.email,
         password: "123456",
         username: student.admission_no,
-        name: `${UC.getStudentName(student.name)}'s parent`,
+        name: `${UC.getPersonName(student.name)}'s parent`,
         phone: student.phone,
         type: C.PARENT,
         privileges: template.privileges,

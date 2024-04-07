@@ -5,7 +5,7 @@ const C = require("../constants");
 const {
   isPointInCircle,
   convUTCTo0530,
-  getStudentName,
+  getPersonName,
   formatDateToAMPM,
   writeLog,
 } = require("../utils/common");
@@ -16,7 +16,6 @@ const BusStop = require("../models/transport/busStopModel");
 
 const checkStuBusAttendance = async (loc) => {
   console.log("*****checkStuBusAttendance() START*****");
-  console.log("loc.dt_tracker :>> ", loc.dt_tracker);
 
   try {
     const student = await Student.findOne({ rfid: loc.params.io78 })
@@ -118,12 +117,12 @@ const checkMorningAttendance = async (loc, student, school, bus) => {
   }
 
   // if rfid came from school then student reached school
-  if (
-    !isMExitTaken &&
-    isPointInCircle(loc.lat, loc.lon, school.lat, school.lon, school.radius)
-  ) {
-    await takeAttendance(loc, student, C.M_EXIT, school);
-    return true;
+  const skul = school;
+  if (isPointInCircle(loc.lat, loc.lon, skul.lat, skul.lon, skul.radius)) {
+    if (!isMExitTaken) {
+      await takeAttendance(loc, student, C.M_EXIT, school);
+      return true;
+    } else return false;
   }
 
   if (isMEntryTaken) return false;
@@ -170,12 +169,12 @@ const checkAfternoonAttendance = async (loc, student, school, bus) => {
   }
 
   // if rfid came from school then student entered bus at school
-  if (
-    !isAEntryTaken &&
-    isPointInCircle(loc.lat, loc.lon, school.lat, school.lon, school.radius)
-  ) {
-    await takeAttendance(loc, student, C.A_ENTRY, school);
-    return true;
+  const skul = school;
+  if (isPointInCircle(loc.lat, loc.lon, skul.lat, skul.lon, skul.radius)) {
+    if (!isAEntryTaken) {
+      await takeAttendance(loc, student, C.A_ENTRY, school);
+      return true;
+    } else return false;
   }
 
   if (isAExitTaken) return false;
@@ -236,7 +235,7 @@ const takeAttendance = async (loc, student, tag, location = false) => {
     .select("_id name")
     .lean();
 
-  const sName = getStudentName(student.name);
+  const sName = getPersonName(student.name);
   const class_ = student.class.name;
   const section = student.section.name;
   const admNo = student.admission_no;
@@ -276,8 +275,6 @@ const takeAttendance = async (loc, student, tag, location = false) => {
       stopMsg = `stop (${location.name}) instead of stop (${stuBusStop.name})`;
     } else stopMsg = `stop (${location.name})`;
   }
-
-  console.log(location);
 
   if (tag === C.M_ENTRY) {
     msg += ` has entered ${busMsg} from ${stopMsg}`;

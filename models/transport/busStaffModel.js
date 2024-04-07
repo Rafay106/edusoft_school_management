@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+
 const schema = new mongoose.Schema(
   {
     type: {
@@ -22,19 +24,11 @@ const schema = new mongoose.Schema(
     phone: { type: String, default: "" },
     photo: { type: String, default: "" },
     driving_license: {
-      number: { type: String, default: "" },
+      number: { type: String, default: "", uppercase: true },
       expiry_date: { type: Date, default: 0 },
     },
-    manager: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "users",
-      required: [true, C.FIELD_IS_REQ],
-    },
-    school: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: "users",
-      required: [true, C.FIELD_IS_REQ],
-    },
+    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true }
 );

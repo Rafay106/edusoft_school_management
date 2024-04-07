@@ -12,6 +12,7 @@ const StuBusAtt = require("../models/attendance/stuBusAttModel");
 
 const bcrypt = require("bcrypt");
 const StuAttNotification = require("../models/attendance/stuAttNotifyModel");
+const BusStop = require("../models/transport/busStopModel");
 
 /** 1. StudentType */
 
@@ -176,16 +177,59 @@ const getStudents = asyncHandler(async (req, res) => {
     }
   }
 
+  const select = {
+    admission_no: 1,
+    name: 1,
+    email: 1,
+    phone: 1,
+    photo: 1,
+    rfid: 1,
+    academic_year: 1,
+    class: 1,
+    section: 1,
+    bus: 1,
+    bus_stop: 1,
+    gender: 1,
+    parent: 1,
+  };
+
+  const populate = [
+    "academic_year class section bus bus_stop parent manager school",
+    "name title",
+  ];
+
+  if (C.isAdmins(req.user.type)) {
+    select.school = 1;
+    select.manager = 1;
+  } else if (C.isManager(req.user.type)) {
+    select.school = 1;
+  }
+
   const results = await UC.paginatedQuery(
     Student,
     query,
-    "name gender phone email admissionNo",
+    select,
     page,
     limit,
-    sort
+    sort,
+    populate
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  for (const s of results.result) {
+    s.name = UC.getPersonName(s.name);
+
+    if (!s.photo) s.photo = `${process.env.DOMAIN}/user-blank.svg`;
+    else s.photo = `${process.env.DOMAIN}/uploads/student/${s.photo}`;
+
+    s.academic_year = s.academic_year.title;
+    s.class = s.class.name;
+    s.section = s.section.name;
+    s.bus = s.bus.name;
+    s.bus_stop = s.bus_stop.name;
+    if (s.parent) s.parent = s.parent.name;
+  }
 
   res.status(200).json(results);
 });
@@ -196,21 +240,25 @@ const getStudents = asyncHandler(async (req, res) => {
 const getStudent = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
-  }
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const student = await Student.findOne(query)
-    .populate("manager school", "name")
+    .populate(
+      "academic_year class section bus bus_stop parent manager school",
+      "name title"
+    )
     .lean();
 
   if (!student) {
     res.status(404);
     throw new Error(C.getResourse404Error("Student", req.params.id));
   }
+
+  student.name = UC.getPersonName(student.name);
+
+  if (!student.photo) student.photo = `${process.env.DOMAIN}/user-blank.svg`;
+  else student.photo = `${process.env.DOMAIN}/uploads/student/${student.photo}`;
 
   res.status(200).json(student);
 });
@@ -257,9 +305,7 @@ const addStudent = asyncHandler(async (req, res) => {
     l: req.body.lname,
   };
 
-  const photo = req.file
-    ? req.file.path.toString().replace("uploads\\", "").replace("\\", "/")
-    : "";
+  const photo = req.file ? req.file.filename : "";
 
   const address = {
     current: req.body.address_current,
@@ -380,9 +426,7 @@ const updateStudent = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Error("Student", req.params.id));
   }
 
-  const photo = req.file
-    ? req.file.path.toString().replace("uploads\\", "").replace("\\", "/")
-    : undefined;
+  const photo = req.file ? req.file.filename : undefined;
 
   const studentType = req.body.student_type;
 

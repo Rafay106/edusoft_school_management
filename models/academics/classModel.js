@@ -4,12 +4,18 @@ const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
+const sectionsSchema = new mongoose.Schema({
+  section: {
+    type: ObjectId,
+    required: [true, C.FIELD_IS_REQ],
+    ref: "sections",
+  },
+});
+
 const schema = new mongoose.Schema(
   {
     name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    sections: [
-      { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "sections" },
-    ],
+    sections: [sectionsSchema],
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],

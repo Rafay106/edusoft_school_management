@@ -66,14 +66,15 @@ const schema = new mongoose.Schema(
     bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
     bus_stop: { type: ObjectId, ref: "bus_stops" },
     // siblings: { type: ObjectId, ref: "student_siblings" },
+    parent: { type: ObjectId, ref: "users" },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    parent: { type: ObjectId, ref: "users" },
   },
   { timestamps: true }
 );
 
 schema.index({ admission_no: 1 }, { unique: true });
+schema.index({ email: 1 }, { unique: true });
 schema.index({ rfid: 1 }, { unique: true });
 
 schema.pre("save", async function (next) {

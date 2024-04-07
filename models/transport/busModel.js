@@ -30,7 +30,14 @@ const deviceSchema = new mongoose.Schema(
     angle: { type: Number, default: 0 },
     params: { type: Object, default: {} },
     loc_valid: { type: Boolean, default: false },
-    status: { type: String, default: "" },
+    vehicle_status: {
+      last_stop: { type: Date, default: 0 },
+      last_idle: { type: Date, default: 0 },
+      last_move: { type: Date, default: 0 },
+      is_stopped: { type: Boolean, default: false },
+      is_idle: { type: Boolean, default: false },
+      is_moving: { type: Boolean, default: false },
+    },
   },
   { minimize: false }
 );
@@ -67,8 +74,41 @@ const schema = new mongoose.Schema(
   { timestamps: true, minimize: false }
 );
 
-schema.index({ name: 1 }, { unique: true });
+schema.index({ name: 1, school: 1 }, { unique: true });
 schema.index({ "device.imei": 1 }, { unique: true });
+
+schema.pre("updateOne", function (next) {
+  const data = this.getUpdate().$set;
+
+  if (!data.vehicle_status) return next();
+
+  const vStat = data.vehicle_status;
+  console.log("vStat :>> ", vStat);
+
+  if (vStat.last_stop >= vStat.last_move) {
+    vStat.is_stopped = true;
+    vStat.is_idle = false;
+    vStat.is_moving = false;
+  } else {
+    vStat.is_stopped = false;
+    vStat.is_idle = false;
+    vStat.is_moving = true;
+  }
+
+  if (
+    vStat.last_stop <= vStat.last_idle &&
+    vStat.last_move <= vStat.last_idle
+  ) {
+    vStat.is_stopped = false;
+    vStat.is_idle = true;
+    vStat.is_moving = false;
+  }
+
+  console.log("vStat :>> ", vStat);
+  this.device.vehicle_status = vStat;
+
+  next();
+});
 
 schema.plugin(any);
 

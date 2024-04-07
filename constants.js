@@ -4,6 +4,8 @@ const STR = {
   A_ENTRY: "aEntry",
   A_EXIT: "aExit",
   BUS_STAFF: "bus-staff",
+  CONDUCTOR: "conductor",
+  DRIVER: "driver",
   FIELD_IS_INVALID: "%F% is invalid!",
   FIELD_IS_INVALID_AT_IDX: "%F% is invalid at index: %I%",
   FIELD_IS_REQ: "%F% is required!",

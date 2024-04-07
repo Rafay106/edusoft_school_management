@@ -46,6 +46,7 @@ app.use(function (req, res, next) {
 app.use(morgan("dev"));
 
 app.use(express.static(path.join(__dirname, "uploads")));
+app.use(express.static(path.join(__dirname, "static")));
 
 // Routes Start
 
@@ -150,6 +151,4 @@ app.all("*", (req, res) => res.status(404).json({ msg: "Url not found!" }));
 
 app.use(errorHandler);
 
-app.listen(process.env.PORT, () =>
-  console.log(`Edusoft running on port: ${PORT}`)
-);
+app.listen(PORT, () => console.log(`Edusoft running on port: ${PORT}`));

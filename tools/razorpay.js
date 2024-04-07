@@ -3,8 +3,6 @@ const crypto = require("node:crypto");
 const asyncHandler = require("express-async-handler");
 const Razorpay = require("razorpay");
 const RazorpayPayment = require("../models/fees/razorPayModel");
-const User = require("../models/system/userModel");
-const Student = require("../models/studentInfo/studentModel");
 const C = require("../constants");
 const UC = require("../utils/common");
 
@@ -19,30 +17,71 @@ const razorpay = new Razorpay({
 // const HOST = "https://gdgranchi.edusoft.in";
 const HOST = "http://localhost:8001";
 
+const STUDENTS = [
+  {
+    name: "Mohit Sain",
+    admission_no: "A123",
+    fees: "2500",
+    phone: "911231231230",
+    email: "mohit@gmail.com",
+    address: "",
+  },
+  {
+    name: "Vishal Singh",
+    admission_no: "A234",
+    fees: "3500",
+    phone: "911231231230",
+    email: "vishal@gmail.com",
+    address: "",
+  },
+  {
+    name: "Mudit Mangtani",
+    admission_no: "A345",
+    fees: "4500",
+    phone: "911231231230",
+    email: "mudit@gmail.com",
+    address: "",
+  },
+  {
+    name: "Divij Gupta",
+    admission_no: "A456",
+    fees: "2500",
+    phone: "911231231230",
+    email: "divij@gmail.com",
+    address: "",
+  },
+  {
+    name: "Raghav Jhalani",
+    admission_no: "A567",
+    fees: "3000",
+    phone: "911231231230",
+    email: "raghav@gmail.com",
+    address: "",
+  },
+];
+
 const createOrder = asyncHandler(async (req, res) => {
-  let admNo = "TEST";
-  const amount = req.body.amount;
+  let admNo = req.body.adm_no;
 
   if (!admNo) {
     res.status(400);
     throw new Error(C.getFieldIsReq("admNo"));
   }
 
-  if (!amount) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("amount"));
-  }
-
   admNo = admNo.toUpperCase();
 
-  const student = await Student.findOne({ admission_no: admNo })
-    .select("name email phone address manager school")
-    .lean();
+  // const student = await Student.findOne({ admission_no: admNo })
+  //   .select("name email phone address manager school")
+  //   .lean();
+
+  const student = STUDENTS.find((ele) => ele.admission_no === admNo);
 
   if (!student) {
     res.status(400);
     throw new Error("Student not found!");
   }
+
+  const amount = parseInt(student.fees);
 
   const options = {
     amount: amount * 100, // Amount in paise
@@ -61,21 +100,22 @@ const createOrder = asyncHandler(async (req, res) => {
     if (student.name.m) stuName += ` ${student.name.m}`;
     stuName += ` ${student.name.l}`;
 
-    order.stuName = stuName;
+    order.stuName = student.name; // stuName;
     order.stuPhone = student.phone;
     order.stuEmail = student.email;
     order.stuAddress = student.address || "NA";
 
     await RazorpayPayment.create({
       order,
-      student,
-      manager: student.manager,
-      school: student.school,
+      student: "65f83813b5a6842a063f4782",
+      manager: "65f82505e113e46069900161",
+      school: "65f82511e113e46069900173",
     });
 
     res.status(200).json(order);
   } catch (err) {
-    res.status(400).json({ success: false, msg: "Something went wrong!" });
+    console.log(err);
+    res.status(400).json({ success: false, msg: err.error || err.message });
   }
 });
 
@@ -157,6 +197,13 @@ router.get(
   asyncHandler(async (req, res) => {
     console.log("req.body :>>", req.body);
     res.redirect(`${HOST}/payment-cancel`);
+  })
+);
+
+router.get(
+  "/fee-list",
+  asyncHandler((req, res) => {
+    res.json(STUDENTS);
   })
 );
 
