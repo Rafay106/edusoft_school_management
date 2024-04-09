@@ -1,3 +1,5 @@
+const { NODE_ENV } = process.env;
+
 const errorHandler = (err, req, res, next) => {
   console.log("Custom Error Handler:", err);
 
@@ -8,36 +10,36 @@ const errorHandler = (err, req, res, next) => {
   //   if (err.code === 11000) err = duplicateKeyErrorHandler(err)
   // }
 
+  const errObj = {
+    message: err.message || "Something went wrong",
+  };
+
+  let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+
   if (err.name === "ValidationError") {
     const message = Object.keys(err.errors).map((key) =>
       err.errors[key].message.replace("%F%", key)
     );
 
-    return res.status(400).json({
-      error: message,
-    });
-  }
-
-  if (err.name === "MongoServerError" && err.code === 11000) {
+    errObj.message = message;
+    statusCode = 400;
+  } else if (err.name === "MongoServerError" && err.code === 11000) {
     const message = Object.keys(err.keyValue).map(
       (key) => `${key}: ${err.keyValue[key]} already exists!`
     );
-    return res.status(400).json({
-      error: message,
-    });
+
+    errObj.message = message;
+    statusCode = 400;
+  } else if (err.name === "BulkImportError") {
+    errObj.message = err.message.split(",");
+    statusCode = 400;
+  } else if (err.name === "CustomValidation") {
+    statusCode = 400;
   }
 
-  if (err.name === "BulkImportError") {
-    err.message = err.message.split(",");
-  }
+  errObj.stack = NODE_ENV === "production" ? null : err.stack.split("\n");
 
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  const errMsg = err.message || "Something went wrong";
-
-  res.status(statusCode).json({
-    message: errMsg,
-    stack: process.env.NODE_ENV === "production" ? null : err.stack.split("\n"),
-  });
+  res.status(statusCode).json(errObj);
 };
 
 module.exports = { errorHandler };

@@ -15,7 +15,9 @@ const sectionsSchema = new mongoose.Schema({
 const schema = new mongoose.Schema(
   {
     name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    sections: [sectionsSchema],
+    sections: [
+      { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "sections" },
+    ],
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],

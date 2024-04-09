@@ -6,16 +6,20 @@ const ObjectId = mongoose.SchemaTypes.ObjectId;
 
 const schema = new mongoose.Schema(
   {
-    date: { type: Date, required: [true, C.FIELD_IS_REQ] },
     msg: { type: String, required: [true, C.FIELD_IS_REQ] },
-    student: { type: mongoose.SchemaTypes.ObjectId, ref: "students" },
-    sent: { type: Boolean, default: false },
+    date: { type: Date, required: [true, C.FIELD_IS_REQ] },
+    dt: { type: Date, default: new Date() },
+    student: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "students",
+    },
     bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
   },
-  { timestamps: true, versionKey: false }
+  { versionKey: false }
 );
 
 schema.plugin(any);
 
-const StuAttNotification = mongoose.model("stu_att_notifications", schema);
-module.exports = StuAttNotification;
+const StuAttEvent = mongoose.model("student_attendance_event", schema);
+module.exports = StuAttEvent;

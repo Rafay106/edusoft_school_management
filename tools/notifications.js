@@ -1,20 +1,18 @@
 const asyncHandler = require("express-async-handler");
 const OneSignal = require("onesignal-node");
-const { default: axios } = require("axios");
-const StuAttNotify = require("../models/attendance/stuAttNotifyModel");
-const Student = require("../models/studentInfo/studentModel");
+const StuAttEvent = require("../models/attendance/stuAttEventModel");
+const QueueStuAtt = require("../models/attendance/stuAttQueueModel");
 
-const storeStuAttNotification = async (msg, studentId, date, bus) => {
-  const stu = await Student.findById(studentId).select("manager school");
-
-  await StuAttNotify.create({ date, msg, student: stu._id, bus });
+const stuAttEvent = async (msg, studentId, date, bus) => {
+  await StuAttEvent.create({ msg, date, student: studentId, bus });
+  await QueueStuAtt.create({ msg, student: studentId });
 };
 
 const sendNotifications = asyncHandler(async () => {
-  const notifications = await StuAttNotify.find({ sent: false })
+  const notifications = await QueueStuAtt.find()
     .populate("student", "school")
-    .sort("createdBy")
-    .limit(10)
+    .sort("dt")
+    .limit(100)
     .lean();
 
   const client = new OneSignal.Client(
@@ -44,13 +42,10 @@ const sendNotifications = asyncHandler(async () => {
     }
   }
 
-  await StuAttNotify.updateMany(
-    { _id: sentNotifications },
-    { $set: { sent: true } }
-  );
+  await QueueStuAtt.deleteMany({ _id: sentNotifications });
 });
 
 module.exports = {
-  storeStuAttNotification,
+  stuAttEvent,
   sendNotifications,
 };

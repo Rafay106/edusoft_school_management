@@ -11,7 +11,7 @@ const Bus = require("../models/transport/busModel");
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
 
 const bcrypt = require("bcrypt");
-const StuAttNotification = require("../models/attendance/stuAttNotifyModel");
+const StuAttEvent = require("../models/attendance/stuAttEventModel");
 const BusStop = require("../models/transport/busStopModel");
 
 /** 1. StudentType */
@@ -148,14 +148,18 @@ const getStudents = asyncHandler(async (req, res) => {
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  const query = {};
+  let manager = req.query.manager;
+  let school = req.query.school;
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
-  }
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
+
+  const ayear = await UC.getCurrentAcademicYear(school);
+
+  const query = { academic_year: ayear };
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -269,35 +273,17 @@ const getStudent = asyncHandler(async (req, res) => {
 const addStudent = asyncHandler(async (req, res) => {
   let manager = req.body.manager;
   let school = req.body.school;
-  const ayear = req.body.ayear;
   const class_ = req.body.class;
   const section = req.body.section;
   const studentType = req.body.student_type;
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
+  const ayear = await UC.getCurrentAcademicYear(school);
 
   const name = {
     f: req.body.fname,
@@ -312,7 +298,7 @@ const addStudent = asyncHandler(async (req, res) => {
     permanent: req.body.address_permanent,
   };
 
-  // Validate academic-year
+  // Validate student_type
   if (!studentType) {
     res.status(400);
     throw new Error(C.getFieldIsReq("student_type"));
@@ -320,18 +306,7 @@ const addStudent = asyncHandler(async (req, res) => {
 
   if (!(await StudentType.any({ _id: studentType, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("AcademicYear", studentType));
-  }
-
-  // Validate academic-year
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("AcademicYear", ayear));
+    throw new Error(C.getResourse404Error("StudentType", studentType));
   }
 
   // Validate class
@@ -400,7 +375,7 @@ const addStudent = asyncHandler(async (req, res) => {
     address,
     rfid: req.body.rfid,
     gender: req.body.gender,
-    academic_year: req.body.ayear,
+    academic_year: ayear,
     class: class_,
     section,
     bus,
@@ -590,71 +565,19 @@ const bulkOpsStudent = asyncHandler(async (req, res) => {
   }
 });
 
-// @desc    Reset student password
-// @route   PATCH /api/student-info/student/reset-password
-// @access  Private
-const resetStudentPassword = asyncHandler(async (req, res) => {
-  const _id = req.body.student;
-  const oldPass = req.body.old_password;
-  const newPass = req.body.new_password;
-
-  const student = await Student.findById(_id).select("password").lean();
-
-  if (!student) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("student", _id));
-  }
-
-  if (!bcrypt.compare(oldPass, student.password)) {
-    res.status(400);
-    throw new Error(C.INVALID_CREDENTIALS);
-  }
-
-  const result = await Student.updateOne(
-    { _id },
-    { $set: { password: await bcrypt.hash(newPass, 10) } }
-  );
-
-  res.status(200).json(result);
-});
-
 // @desc    Get student's attendance
 // @route   POST /api/student-info/student/attendance
 // @access  Private
 const getStudentAttendance = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "admission_no";
+  const searchField = "all";
+  const searchValue = req.query.search;
+
+  const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
+  const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
   const busIds = req.body.bus_ids;
-
-  if (C.isSchool(req.user.type)) {
-    manager = req.user.manager;
-    school = req.user._id;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  // Validate date
-  if (!req.body.date) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("date"));
-  }
-
-  const date = new Date(req.body.date);
-
-  if (isNaN(date)) {
-    res.status(400);
-    throw new Error("date is invalid!");
-  }
-
-  date.setUTCHours(0, 0, 0, 0);
 
   // Validate bus_ids
   if (!busIds || busIds.length === 0) {
@@ -662,9 +585,7 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("bus"));
   }
 
-  const buses = await Bus.find({ _id: busIds, manager, school })
-    .select()
-    .lean();
+  const buses = await Bus.find({ _id: busIds }).select().lean();
 
   if (buses.length === 0) {
     res.status(400);
@@ -673,19 +594,14 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
 
   const students = await Student.find({
     bus: buses.map((b) => b._id),
-    manager,
-    school,
   })
     .select("_id admission_no name")
     .lean();
 
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "admission_no";
-  const searchField = "all";
-  const searchValue = req.query.search;
-
-  const query = { date, student: students.map((s) => s._id) };
+  const query = {
+    date: { $gte: dtStart, $lte: dtEnd },
+    student: students.map((s) => s._id),
+  };
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -719,6 +635,22 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
+  for (const result of results.result) {
+    result.student = {
+      admission_no: result.student.admission_no,
+      name: UC.getPersonName(result.student.name),
+    };
+
+    result.bus = result.bus.name;
+
+    for (const list of result.list) {
+      if (list.tag === C.M_ENTRY) list.tag = "Picked from Stoppage";
+      else if (list.tag === C.M_EXIT) list.tag = "Dropped at School";
+      else if (list.tag === C.A_ENTRY) list.tag = "Picked from School";
+      else if (list.tag === C.A_EXIT) list.tag = "Dropped at Stoppage";
+    }
+  }
+
   res.status(200).json(results);
 });
 
@@ -732,25 +664,9 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const date = req.body.date;
+  const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
+  const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
   const busIds = req.body.bus_ids;
-
-  if (C.isSchool(req.user.type)) {
-    manager = req.user.manager;
-    school = req.user._id;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
 
   // Validate bus_ids
   if (!busIds || busIds.length === 0) {
@@ -758,9 +674,7 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("bus"));
   }
 
-  const buses = await Bus.find({ _id: busIds, manager, school })
-    .select()
-    .lean();
+  const buses = await Bus.find({ _id: busIds }).select().lean();
 
   if (buses.length === 0) {
     res.status(400);
@@ -769,13 +683,14 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
 
   const students = await Student.find({
     bus: buses.map((b) => b._id),
-    manager,
-    school,
   })
     .select("_id admission_no name")
     .lean();
 
-  const query = { date, student: students.map((s) => s._id) };
+  const query = {
+    date: { $gte: dtStart, $lte: dtEnd },
+    student: students.map((s) => s._id),
+  };
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -798,7 +713,7 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
   }
 
   const results = await UC.paginatedQuery(
-    StuAttNotification,
+    StuAttEvent,
     query,
     {},
     page,
@@ -825,7 +740,6 @@ module.exports = {
   updateStudent,
   deleteStudent,
   bulkOpsStudent,
-  resetStudentPassword,
   getStudentAttendance,
   getStuAttNotification,
 };

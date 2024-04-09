@@ -82,35 +82,30 @@ const managerExists = async (_id) => await User.any({ _id, type: C.MANAGER });
 const schoolAccExists = async (_id, manager) =>
   await User.any({ _id, type: C.SCHOOL, manager });
 
-const validateManagerAndSchool = async (res, manager, school) => {
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!(await managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!(await schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-};
-
 // ************************
 // USER FUNCTIONS END
 // ************************
 
-/**
- * School Functions
- */
+// ************************
+// SCHOOL FUNCTIONS START
+// ************************
+
+const getCurrentAcademicYear = async (schoolId) => {
+  const school = await School.findOne({ school: schoolId })
+    .select("current_academic_year")
+    .lean();
+
+  if (!school.current_academic_year) {
+    const err = new Error(
+      "Current academic year not set, please set the current academic year!"
+    );
+    err.name = C.CUSTOMVALIDATION;
+
+    throw err;
+  }
+
+  return school.current_academic_year;
+};
 
 const addMultipleSchools = async (userId, fileData) => {
   const schools = [];
@@ -148,13 +143,13 @@ const addMultipleSchools = async (userId, fileData) => {
   };
 };
 
-/**
- * School Functions
- */
+// ************************
+// SCHOOL FUNCTIONS END
+// ************************
 
-/**
- * Student Functions
- */
+// ************************
+// STUDENT FUNCTIONS START
+// ************************
 
 const addMultipleStudents = async (userId, userType, fileData) => {
   const students = [];
@@ -300,9 +295,70 @@ const getPersonName = (name) => {
   return studentName;
 };
 
-/**
- * Student Functions
- */
+// ************************
+// STUDENT FUNCTIONS END
+// ************************
+
+// ************************
+// VALIDATION FUNCTIONS START
+// ************************
+
+const validateAndSetDate = (date, fieldName) => {
+  const err = new Error();
+  err.name = C.CUSTOMVALIDATION;
+
+  if (!date) {
+    err.message = C.getFieldIsReq(fieldName);
+    throw err;
+  }
+
+  const date_ = new Date(date);
+
+  if (isNaN(date_)) {
+    err.message = fieldName + " is invalid!";
+    throw err;
+  }
+
+  date_.setUTCHours(0, 0, 0, 0);
+
+  return date_;
+};
+
+const validateManagerAndSchool = async (user, manager, school) => {
+  const err = new Error();
+  err.name = C.CUSTOMVALIDATION;
+
+  if (C.isSchool(user.type)) {
+    school = user._id;
+    manager = user.manager;
+  } else if (C.isManager(user.type)) manager = user._id;
+
+  if (!manager) {
+    err.message = C.getFieldIsReq("manager");
+    throw err;
+  }
+
+  if (!(await managerExists(manager))) {
+    err.message = C.getResourse404Error("manager", manager);
+    throw err;
+  }
+
+  if (!school) {
+    err.message = C.getFieldIsReq("school");
+    throw err;
+  }
+
+  if (!(await schoolAccExists(school, manager))) {
+    err.message = C.getResourse404Error("school", school);
+    throw err;
+  }
+
+  return [manager, school];
+};
+
+// ************************
+// VALIDATION FUNCTIONS END
+// ************************
 
 const deg2rad = (deg) => {
   return deg * (Math.PI / 180);
@@ -466,10 +522,13 @@ module.exports = {
   schoolAccExists,
   validateManagerAndSchool,
 
+  getCurrentAcademicYear,
   addMultipleSchools,
 
   addMultipleStudents,
   getPersonName,
+
+  validateAndSetDate,
 
   getAngle,
   getLenBtwPointsInKm,

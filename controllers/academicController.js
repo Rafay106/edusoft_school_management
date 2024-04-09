@@ -80,20 +80,11 @@ const addAcademicYear = asyncHandler(async (req, res) => {
   let manager = req.body.manager;
   let school = req.body.school;
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
   const year = req.body.year;
   let starting_date = req.body.starting_date;
@@ -215,9 +206,15 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/academic-year/set-current
 // @access  Private
 const setCurrentAcademicYear = asyncHandler(async (req, res) => {
-  const manager = req.manager;
-  const school = req.school;
+  let manager = req.body.manager;
+  let school = req.body.school;
   const ayear = req.body.ayear;
+
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
   if (!ayear) {
     res.status(400);
@@ -249,26 +246,18 @@ const getSections = asyncHandler(async (req, res) => {
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  let ayear = req.query.ayear;
+  let manager = req.query.manager;
+  let school = req.query.school;
 
-  if (C.isSchool(req.user.type)) {
-    ayear = req.school.current_academic_year;
-  }
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
-  }
+  const ayear = await UC.getCurrentAcademicYear(school);
 
   const query = { academic_year: ayear };
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -321,35 +310,16 @@ const getSection = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/section
 // @access  Private
 const addSection = asyncHandler(async (req, res) => {
-  const ayear = req.body.ayear;
   let manager = req.body.manager;
   let school = req.body.school;
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
-  }
+  const ayear = await UC.getCurrentAcademicYear(school);
 
   const section = await Section.create({
     name: req.body.name,
@@ -426,10 +396,18 @@ const getClasses = asyncHandler(async (req, res) => {
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  const query = {};
+  let manager = req.query.manager;
+  let school = req.query.school;
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
+
+  const ayear = await UC.getCurrentAcademicYear(school);
+
+  const query = { academic_year: ayear };
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -446,7 +424,7 @@ const getClasses = asyncHandler(async (req, res) => {
   const results = await UC.paginatedQuery(
     Class,
     query,
-    "name section",
+    "name sections",
     page,
     limit,
     sort,
@@ -456,14 +434,16 @@ const getClasses = asyncHandler(async (req, res) => {
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
   for (const class_ of results.result) {
+    const sections = [];
     for (const s of class_.sections) {
       const students = await Student.countDocuments({
         class: class_,
-        section: s.section,
+        section: s._id,
       });
 
-      s.students = students;
+      sections.push({ ...s, students });
     }
+    class_.sections = sections;
   }
 
   res.status(200).json(results);
@@ -495,16 +475,16 @@ const getClass = asyncHandler(async (req, res) => {
 // @access  Private
 const addClass = asyncHandler(async (req, res) => {
   const sections = req.body.sections;
-  const ayear = req.body.ayear;
   let manager = req.body.manager;
   let school = req.body.school;
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
-  await UC.validateManagerAndSchool(res, manager, school);
+  const ayear = await UC.getCurrentAcademicYear(school);
 
   // Validate Section
   if (!sections || sections.length === 0) {
@@ -519,20 +499,9 @@ const addClass = asyncHandler(async (req, res) => {
     }
   }
 
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
-  }
-
   const class_ = await Class.create({
     name: req.body.name,
-    sections: sections.map((section) => ({ section })),
+    sections, //: sections.map((section) => ({ section })),
     academic_year: ayear,
     manager,
     school,
@@ -615,10 +584,18 @@ const getSubjects = asyncHandler(async (req, res) => {
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
-  const query = {};
+  let manager = req.query.manager;
+  let school = req.query.school;
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
+
+  const ayear = await UC.getCurrentAcademicYear(school);
+
+  const query = { academic_year: ayear };
 
   if (searchField && searchValue) {
     if (searchField === "all") {

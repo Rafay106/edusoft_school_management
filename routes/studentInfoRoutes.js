@@ -37,8 +37,6 @@ studentRouter.post(
   C.bulkOpsStudent
 );
 
-studentRouter.post("/reset-password", C.resetStudentPassword);
-
 // 3. Student Bus Attendance Routes
 const stuBusAttRouter = express.Router();
 

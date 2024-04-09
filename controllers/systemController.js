@@ -568,6 +568,28 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Reset student password
+// @route   PATCH /api/system/user/reset-password
+// @access  Private
+const resetPassword = asyncHandler(async (req, res) => {
+  const oldPass = req.body.old_password;
+  const newPass = req.body.new_password;
+
+  const user = await User.findById(req.user._id).select("password").lean();
+
+  if (!bcrypt.compare(oldPass, user.password)) {
+    res.status(400);
+    throw new Error(C.INVALID_CREDENTIALS);
+  }
+
+  const result = await User.updateOne(
+    { _id: req.user._id },
+    { $set: { password: await bcrypt.hash(newPass, 10) } }
+  );
+
+  res.status(200).json(result);
+});
+
 /** 3. School */
 
 // @desc    Get all schools
@@ -837,6 +859,7 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  resetPassword,
 
   getSchools,
   getSchool,

@@ -4,7 +4,7 @@ const UC = require("../utils/common");
 const User = require("../models/system/userModel");
 const Student = require("../models/studentInfo/studentModel");
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
-const StuAttNotification = require("../models/attendance/stuAttNotifyModel");
+const StuAttEvent = require("../models/attendance/stuAttEventModel");
 const Bus = require("../models/transport/busModel");
 const School = require("../models/system/schoolModel");
 
@@ -107,29 +107,8 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
   const manager = req.user.manager;
   const school = req.user.school;
 
-  // Validate dt_start
-  if (!req.body.dt_start) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("dt_start"));
-  }
-  const dtStart = new Date(req.body.dt_start);
-  if (isNaN(dtStart)) {
-    res.status(400);
-    throw new Error(C.getFieldIsInvalid("dt_start"));
-  }
-  dtStart.setUTCHours(0, 0, 0, 0);
-
-  // Validate dt_end
-  if (!req.body.dt_end) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("dt_end"));
-  }
-  const dtEnd = new Date(req.body.dt_end);
-  if (isNaN(dtEnd)) {
-    res.status(400);
-    throw new Error(C.getFieldIsInvalid("dtEnd"));
-  }
-  dtEnd.setUTCHours(0, 0, 0, 0);
+  const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
+  const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
 
   const students = await Student.find({ parent: req.user._id, manager, school })
     .select("_id admission_no name")
@@ -342,7 +321,7 @@ const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
   }
 
   const results = await UC.paginatedQuery(
-    StuAttNotification,
+    StuAttEvent,
     query,
     {},
     page,

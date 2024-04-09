@@ -10,7 +10,7 @@ const {
   writeLog,
 } = require("../utils/common");
 
-const { storeStuAttNotification } = require("../tools/notifications");
+const { stuAttEvent } = require("../tools/notifications");
 const School = require("../models/system/schoolModel");
 const BusStop = require("../models/transport/busStopModel");
 
@@ -226,10 +226,6 @@ const isAfternoonTime = (currDT, afternoonTime) => {
 };
 
 const takeAttendance = async (loc, student, tag, location = false) => {
-  const school = await School.findOne({ school: student.school })
-    .select("name")
-    .lean();
-
   // Current bus
   const cBus = await Bus.findOne({ "device.imei": loc.imei })
     .select("_id name")
@@ -241,7 +237,7 @@ const takeAttendance = async (loc, student, tag, location = false) => {
   const admNo = student.admission_no;
   const dt = formatDateToAMPM(convUTCTo0530(loc.dt_tracker));
 
-  let msg = `Your child ${sName} (class: ${class_}, section: ${section}, admission_no: ${admNo})`;
+  let msg = `Your child ${sName} (${class_}-${section} ${admNo})`;
   let busMsg = "";
   let stopMsg = "";
 
@@ -252,28 +248,28 @@ const takeAttendance = async (loc, student, tag, location = false) => {
       const altBus = await Bus.findById(alt.bus).select("name").lean();
       if (!cBus._id.equals(altBus._id)) {
         // Wrong bus
-        busMsg = `bus (${cBus.name}) instead of bus (${altBus.name})`;
+        busMsg = `${cBus.name} instead of ${altBus.name}`;
       } else {
         // Correct Alternate bus
-        busMsg = `alternate bus (${cBus.name}) today`;
+        busMsg = `different bus (${cBus.name}) today`;
       }
     } else {
       // Wrong bus
-      busMsg = `bus (${cBus.name}) instead of bus (${student.bus.name})`;
+      busMsg = `${cBus.name} instead of ${student.bus.name}`;
     }
   } else {
     // Correct bus
-    busMsg = `bus (${cBus.name})`;
+    busMsg = `${cBus.name}`;
   }
 
   // Make stop message
   const stuBusStop = student.bus_stop;
   if (!location) {
-    stopMsg = `unknown stop (${loc.lat}, ${loc.lon}) instead of stop (${stuBusStop.name})`;
+    stopMsg = `unknown stop (${loc.lat}, ${loc.lon}) instead of ${stuBusStop.name}`;
   } else {
     if (!stuBusStop._id.equals(location._id)) {
-      stopMsg = `stop (${location.name}) instead of stop (${stuBusStop.name})`;
-    } else stopMsg = `stop (${location.name})`;
+      stopMsg = `${location.name} instead of ${stuBusStop.name}`;
+    } else stopMsg = `${location.name}`;
   }
 
   if (tag === C.M_ENTRY) {
@@ -314,7 +310,7 @@ const takeAttendance = async (loc, student, tag, location = false) => {
     );
   }
 
-  await storeStuAttNotification(msg, student._id, loc.today, cBus._id);
+  await stuAttEvent(msg, student._id, loc.today, cBus._id);
 };
 
 const switchBus = async (oldBusId, newBusId) => {

@@ -29,10 +29,7 @@ const schema = new mongoose.Schema(
     email: {
       type: String,
       required: [true, C.FIELD_IS_REQ],
-      validate: {
-        validator: isEmailValid,
-        message: C.FIELD_IS_INVALID,
-      },
+      validate: { validator: isEmailValid, message: C.FIELD_IS_INVALID },
       lowercase: true,
       trim: true,
     },

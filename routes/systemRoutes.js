@@ -22,6 +22,7 @@ const userRouter = express.Router();
 
 userRouter.route("/").get(SC.getUsers).post(SC.createUser);
 userRouter.get("/required-data", SC.requiredDataUser);
+userRouter.patch("/reset-password", SC.resetPassword);
 userRouter
   .route("/:id")
   .get(SC.getUser)
