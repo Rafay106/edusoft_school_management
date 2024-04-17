@@ -6,6 +6,11 @@ const ObjectId = mongoose.SchemaTypes.ObjectId;
 
 const categorySchema = new mongoose.Schema({
   title: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+  academic_year: {
+    type: ObjectId,
+    required: [true, C.FIELD_IS_REQ],
+    ref: "academic_years",
+  },
   school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
 });
 
