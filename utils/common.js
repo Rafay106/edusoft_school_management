@@ -12,14 +12,11 @@ const User = require("../models/system/userModel");
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
 
+  const regex = new RegExp(value, "i");
+
   for (const field of fields) {
     query.$or.push({
-      ["$expr"]: {
-        $regexMatch: {
-          input: { $toString: `$${field}` },
-          regex: new RegExp(value, "i"),
-        },
-      },
+      ["$expr"]: { $regexMatch: { input: { $toString: `$${field}` }, regex } },
     });
   }
 
@@ -79,8 +76,7 @@ const getUsernameFromEmail = (email) => {
 
 const managerExists = async (_id) => await User.any({ _id, type: C.MANAGER });
 
-const schoolAccExists = async (_id, manager) =>
-  await User.any({ _id, type: C.SCHOOL, manager });
+const schoolAccExists = async (_id) => await User.any({ _id, type: C.SCHOOL });
 
 // ************************
 // USER FUNCTIONS END
@@ -300,6 +296,32 @@ const getPersonName = (name) => {
 // ************************
 
 // ************************
+// BUS FUNCTIONS START
+// ************************
+
+const getBusIcon = (device) => {
+  const timeout = parseInt(process.env.CONNECTION_TIMEOUT_MINUTES) * 60 * 1000;
+  const dt_tracker = new Date(device.dt_tracker);
+  const diff = new Date().getTime() - dt_tracker.getTime();
+  const speed = parseFloat(device.speed);
+  const ignition = device.params.io239 === "1";
+
+  if (diff > timeout) {
+    return `${process.env.DOMAIN}/images/bus_offline.png`;
+  } else if (speed > 0) {
+    return `${process.env.DOMAIN}/images/bus_moving.png`;
+  } else if (speed === 0 && ignition) {
+    return `${process.env.DOMAIN}/images/bus_idle.png`;
+  } else if (speed === 0 && !ignition) {
+    return `${process.env.DOMAIN}/images/bus_stopped.png`;
+  } else return `${process.env.DOMAIN}/images/bus_idle.png`;
+};
+
+// ************************
+// BUS FUNCTIONS END
+// ************************
+
+// ************************
 // VALIDATION FUNCTIONS START
 // ************************
 
@@ -322,6 +344,25 @@ const validateAndSetDate = (date, fieldName) => {
   date_.setUTCHours(0, 0, 0, 0);
 
   return date_;
+};
+
+const validateSchool = async (user, school) => {
+  const err = new Error();
+  err.name = C.CUSTOMVALIDATION;
+
+  if (C.isSchool(user.type)) school = user._id;
+
+  if (!school) {
+    err.message = C.getFieldIsReq("school");
+    throw err;
+  }
+
+  if (!(await schoolAccExists(school))) {
+    err.message = C.getResourse404Error("school", school);
+    throw err;
+  }
+
+  return school;
 };
 
 const validateManagerAndSchool = async (user, manager, school) => {
@@ -443,6 +484,15 @@ const isPointInPolygon = (vertices, lat, lng) => {
   return oddNodes;
 };
 
+const daysBetween = (startDate, endDate) => {
+  const oneDay = 24 * 60 * 60 * 1000;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffMilliseconds = Math.abs(end - start);
+  const diffDays = Math.round(diffMilliseconds / oneDay);
+  return diffDays;
+};
+
 const getAppRootDir = (currentDir) => {
   while (!fs.existsSync(path.join(currentDir, "package.json"))) {
     currentDir = path.join(currentDir, "..");
@@ -520,7 +570,6 @@ module.exports = {
   getUsernameFromEmail,
   managerExists,
   schoolAccExists,
-  validateManagerAndSchool,
 
   getCurrentAcademicYear,
   addMultipleSchools,
@@ -528,12 +577,17 @@ module.exports = {
   addMultipleStudents,
   getPersonName,
 
+  getBusIcon,
+
   validateAndSetDate,
+  validateSchool,
+  validateManagerAndSchool,
 
   getAngle,
   getLenBtwPointsInKm,
   isPointInCircle,
   isPointInPolygon,
+  daysBetween,
 
   getAppRootDir,
   writeLog,

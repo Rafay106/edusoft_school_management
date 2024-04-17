@@ -16,6 +16,7 @@ const FeeTerm = require("../models/fees/feeTermModel");
 const FeeHead = require("../models/fees/feeHeadModel");
 const Designation = require("../models/hr/designationModel");
 const Department = require("../models/hr/departmentModel");
+const Student = require("../models/studentInfo/studentModel");
 
 // @desc    Get managers
 // @route   GET /api/util/manager-list

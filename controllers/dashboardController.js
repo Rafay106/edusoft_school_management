@@ -15,12 +15,19 @@ const schoolDashboard = asyncHandler(async (req, res) => {
   let manager = req.body.manager;
   let school = req.body.school;
 
-  [manager, school] = await UC.validateManagerAndSchool(res, manager, school);
+  [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    manager,
+    school
+  );
 
   const ayear = await UC.getCurrentAcademicYear(school);
 
   // Validate date
-  const date = UC.validateAndSetDate(req.body.date, "date");
+  const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
+  const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
+
+  const noOfDays = UC.daysBetween(dtStart, dtEnd);
 
   const stuQuery = { academic_year: ayear, manager, school };
 
@@ -40,30 +47,32 @@ const schoolDashboard = asyncHandler(async (req, res) => {
     .select("admission_no name")
     .lean();
 
-  const attendance = await StuBusAtt.find({ date, student: students }).lean();
+  const attendance = await StuBusAtt.find({
+    date: { $gte: dtStart, $lte: dtEnd },
+    student: students,
+  }).lean();
+
+  const total = students.length * noOfDays;
 
   const present = attendance.filter((att) => att.list.length !== 0).length;
 
-  const absent = students.filter((stu) => {
-    if (attendance.find((att) => att.student.equals(stu._id))) return false;
-    return true;
-  }).length;
+  const absent = total - present;
 
-  const morning_entry = attendance.filter((att) => {
-    if (att.list.find((attType) => attType.tag === C.M_ENTRY)) return att;
-  }).length;
+  const morning_entry = attendance.filter((att) =>
+    att.list.find((attType) => attType.tag === C.M_ENTRY)
+  ).length;
 
-  const morning_exit = attendance.filter((att) => {
-    if (att.list.find((attType) => attType.tag === C.M_EXIT)) return att;
-  }).length;
+  const morning_exit = attendance.filter((att) =>
+    att.list.find((attType) => attType.tag === C.M_EXIT)
+  ).length;
 
-  const afternoon_entry = attendance.filter((att) => {
-    if (att.list.find((attType) => attType.tag === C.A_ENTRY)) return att;
-  }).length;
+  const afternoon_entry = attendance.filter((att) =>
+    att.list.find((attType) => attType.tag === C.A_ENTRY)
+  ).length;
 
-  const afternoon_exit = attendance.filter((att) => {
-    if (att.list.find((attType) => attType.tag === C.A_EXIT)) return att;
-  }).length;
+  const afternoon_exit = attendance.filter((att) =>
+    att.list.find((attType) => attType.tag === C.A_EXIT)
+  ).length;
 
   const missed = attendance.filter((att) => {
     if (
@@ -76,7 +85,8 @@ const schoolDashboard = asyncHandler(async (req, res) => {
   const results = {
     present,
     absent,
-    total: students.length,
+    total,
+    noOfDays,
     morning_entry,
     morning_exit,
     afternoon_entry,

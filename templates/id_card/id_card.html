@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ID Card</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      .card {
+        width: 54mm;
+        height: 85mm;
+        background-color: #f2f2f2;
+        border-radius: 20px;
+        overflow: hidden;
+        font-size: 10px;
+      }
+
+      .card-header__bg {
+        width: calc(100% + 25mm);
+        height: 33mm;
+        border-radius: 50%;
+        margin-left: 50%;
+        margin-top: -50%;
+        transform: translateX(-50%);
+        box-shadow: 0 0 28px 10px rgba(234, 51, 10, 0.3);
+        background-color: #ff2525;
+        background-image: linear-gradient(
+          281deg,
+          #ff0000 6%,
+          #ff0000 38%,
+          #f7ad0d 100%
+        );
+      }
+      .card-header-top {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+      }
+      #logo-img {
+        display: block;
+        width: 25px;
+        margin-inline: auto;
+      }
+      #logo-txt {
+        margin: 3px;
+        text-align: center;
+        color: #5f5e5e;
+        font-size: 7px;
+        font-weight: 700;
+      }
+      #photo-img {
+        width: 60px;
+        border-radius: 50%;
+        position: relative;
+        margin-left: auto;
+        margin-right: auto;
+        transform: translateY(-10px) translateX(-5px);
+      }
+      .bus img {
+        width: 25px;
+      }
+      .bus p {
+        text-align: center;
+        color: #5f5e5e;
+        font-size: 7px;
+        font-weight: 700;
+      }
+      .card-header-bottom {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        align-items: center;
+        color: #565656;
+      }
+      #name,
+      #school {
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+      #school-address {
+        width: 45mm;
+        text-align: center;
+      }
+      .body {
+        display: flex;
+        flex-direction: column;
+        width: 80%;
+        margin: 8px auto;
+        font-size: 8px;
+      }
+      .body .head {
+        background: #ece9e9;
+        border-radius: 10px;
+        padding: 8px 5px;
+      }
+      .body .main {
+        padding: 0 5px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .body .footer {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: end;
+      }
+      #sign {
+        position: absolute;
+        top: -35px;
+        right: -15px;
+        background-color: #403f3f;
+        padding: 5px;
+        width: 50px;
+        border-radius: 5px;
+      }
+      #sign img {
+        max-width: 50px;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header__bg"></div>
+        <div class="card-header-top">
+          <div class="logo">
+            <img
+              id="logo-img"
+              src="./images/logo.png"
+            />
+            <p id="logo-txt">
+              SUTLEJ <br />HOUSE <br />
+              (O+)
+            </p>
+          </div>
+
+          <div class="photo">
+            <img
+              src="./images/user-blank.svg"
+              id="photo-img"
+            />
+          </div>
+
+          <div class="bus">
+            <img src="./images/bus-school.png" />
+            <p id="bus-text">D-03</p>
+          </div>
+        </div>
+
+        <div class="card-header-bottom">
+          <p id="name">{{name}}</p>
+          <p id="school">DELHI PUBLIC SCHOOL</p>
+          <p id="school-address">
+            Add : SAIL Township, P.O Dhuruwa, Ranchi 834004
+          </p>
+          <p>Phone : {{phone}}</p>
+        </div>
+      </div>
+      <div class="body">
+        <div class="head">
+          <span>Class :{{class}}</span>
+          <span>Adm No. : {{admno}}</span>
+        </div>
+        <div class="main">
+          <p>Father's Name : Bikash Chandra Dey</p>
+          <p>Mother's Name : Ruby Dey</p>
+          <p>Address : {{address}}</p>
+          <p>Pin Code : 834002</p>
+          <p>Phone Number : 7865453456</p>
+          <p>Date of Birth : 17 Aug 2007</p>
+          <p>Bus Stop : Bahu Bazaar</p>
+        </div>
+        <div class="footer">
+          <div id="sign">
+            <img id="sign-img" src="./images/signature.png" />
+          </div>
+          <p>Principal</p>
+        </div>
+      </div>
+      <hr />
+      <div class="footer">
+        <p>info@dpsranchi.com</p>
+        <p>dpsranchi.com</p>
+      </div>
+    </div>
+  </body>
+</html>

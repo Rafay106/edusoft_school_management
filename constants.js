@@ -21,6 +21,7 @@ const STR = {
   RECEPTIONIST: "receptionist",
   RESOURSE_404: "%R% not found: %ID%",
   SCHOOL: "school",
+  STAFF: "staff",
   STUDENT: "student",
   SUPERADMIN: "superadmin",
   TEACHER: "teacher",

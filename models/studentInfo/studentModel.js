@@ -49,6 +49,7 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       enum: { values: ["m", "f", "o"], message: C.VALUE_NOT_SUP },
     },
+    house: { type: String, default: "" },
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],

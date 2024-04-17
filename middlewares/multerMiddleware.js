@@ -88,10 +88,37 @@ const staffUpload = multer({
   }),
 });
 
+const idCardUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const filePath = path.join(
+        "static",
+        "uploads",
+        "admin_system",
+        "id_card"
+      );
+      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
+      cb(null, filePath);
+    },
+    filename: (req, file, cb) => {
+      const ext = mimeTypes[file.mimetype];
+      cb(null, `${req.user._id}_${file.fieldname}_${Date.now()}.${ext}`);
+    },
+  }),
+  limits: { fileSize: maxSize },
+  fileFilter: (req, file, cb) => {
+    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+      return cb(new Error("Only jpg, jpeg, or png files are allowed"));
+    }
+    cb(null, true);
+  },
+});
+
 module.exports = {
   memoryUpload,
   busStaffPhotoUpload,
   studentPhotoUpload,
   studentBulkImportUpload,
   staffUpload,
+  idCardUpload,
 };

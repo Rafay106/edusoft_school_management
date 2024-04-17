@@ -5,6 +5,7 @@ require("./config/db")();
 
 const express = require("express");
 const morgan = require("morgan");
+const fs = require("node:fs");
 const path = require("node:path");
 const cron = require("node-cron");
 const { errorHandler } = require("./middlewares/errorMiddleware");
@@ -16,12 +17,13 @@ const {
   adminAndManagerAuthorize,
   authorize,
 } = require("./middlewares/authMiddleware");
+const UM = require("./middlewares/utilMiddleware");
 const { listenDeviceData } = require("./services/listener");
 const {
   serviceClearHistory,
   serviceResetAlternateBus,
 } = require("./services/service");
-const { writeLog } = require("./utils/common");
+const UC = require("./utils/common");
 const { sendNotifications } = require("./tools/notifications");
 
 const app = express();
@@ -43,6 +45,12 @@ app.use(function (req, res, next) {
   next();
 });
 
+const accessLogStream = fs.createWriteStream(
+  path.join(__dirname, "logs", "access.log"),
+  { flags: "a" }
+);
+
+app.use(morgan("combined", { stream: accessLogStream }));
 app.use(morgan("dev"));
 
 app.use(express.static(path.join(__dirname, "uploads")));
@@ -70,6 +78,12 @@ app.use(
   authenticate,
   adminAndManagerAuthorize,
   require("./routes/academicRoutes")
+);
+app.use(
+  "/api/admin-section",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/adminSectionRoutes")
 );
 app.use(
   "/api/student-info",
@@ -103,6 +117,12 @@ app.use(
 );
 
 app.use(
+  "/api/parent-util",
+  authenticate,
+  parentAuthorize,
+  require("./routes/parentUtilRoutes")
+);
+app.use(
   "/api/parent",
   authenticate,
   parentAuthorize,
@@ -130,7 +150,7 @@ cron.schedule("0 0 * * *", async () => {
     await serviceClearHistory();
     await serviceResetAlternateBus();
   } catch (err) {
-    writeLog("errors", `${err.stack}`);
+    UC.writeLog("errors", `${err.stack}`);
   }
 });
 

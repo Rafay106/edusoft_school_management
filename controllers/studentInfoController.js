@@ -571,7 +571,7 @@ const bulkOpsStudent = asyncHandler(async (req, res) => {
 const getStudentAttendance = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "admission_no";
+  const sort = req.query.sort || "date";
   const searchField = "all";
   const searchValue = req.query.search;
 
@@ -606,13 +606,11 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
   if (searchField && searchValue) {
     if (searchField === "all") {
       const fields = [
-        "admission_no",
-        "name.f",
-        "name.m",
-        "name.l",
-        "email",
-        "address.current",
-        "address.permanent",
+        "student.admission_no",
+        "student.name.f",
+        "student.name.m",
+        "student.name.l",
+        "bus.name",
       ];
 
       const searchQuery = UC.createSearchQuery(fields, searchValue);
@@ -622,6 +620,12 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
       query["$or"] = searchQuery["$or"];
     }
   }
+
+  query["$or"] = [
+    { "student.admission_no": { $regex: "TEST", $options: "i" } },
+  ];
+
+  console.log("query :>> ", query);
 
   const results = await UC.paginatedQuery(
     StuBusAtt,
@@ -635,21 +639,21 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
-  for (const result of results.result) {
-    result.student = {
-      admission_no: result.student.admission_no,
-      name: UC.getPersonName(result.student.name),
-    };
+  // for (const result of results.result) {
+  //   result.student = {
+  //     ...result.student,
+  //     name: UC.getPersonName(result.student.name),
+  //   };
 
-    result.bus = result.bus.name;
+  //   result.bus = result.bus.name;
 
-    for (const list of result.list) {
-      if (list.tag === C.M_ENTRY) list.tag = "Picked from Stoppage";
-      else if (list.tag === C.M_EXIT) list.tag = "Dropped at School";
-      else if (list.tag === C.A_ENTRY) list.tag = "Picked from School";
-      else if (list.tag === C.A_EXIT) list.tag = "Dropped at Stoppage";
-    }
-  }
+  //   for (const list of result.list) {
+  //     if (list.tag === C.M_ENTRY) list.tag = "Picked from Stoppage";
+  //     else if (list.tag === C.M_EXIT) list.tag = "Dropped at School";
+  //     else if (list.tag === C.A_ENTRY) list.tag = "Picked from School";
+  //     else if (list.tag === C.A_EXIT) list.tag = "Dropped at Stoppage";
+  //   }
+  // }
 
   res.status(200).json(results);
 });
@@ -660,7 +664,7 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
 const getStuAttNotification = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "admission_no";
+  const sort = req.query.sort || "date";
   const searchField = req.query.sf || "all";
   const searchValue = req.query.sv;
 
@@ -695,10 +699,10 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
   if (searchField && searchValue) {
     if (searchField === "all") {
       const fields = [
-        "admission_no",
-        "name.f",
-        "name.m",
-        "name.l",
+        "student.admission_no",
+        "student.name.f",
+        "student.name.m",
+        "student.name.l",
         "email",
         "address.current",
         "address.permanent",
@@ -719,10 +723,20 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
     page,
     limit,
     sort,
-    ["student bus", "admission_no name"]
+    ["student bus", "admission_no name email"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  for (const result of results.result) {
+    result.student.name = UC.getPersonName(result.student.name);
+    // {
+    //   admission_no: result.student.admission_no,
+    //   name: UC.getPersonName(result.student.name),
+    // };
+
+    result.bus = result.bus.name;
+  }
 
   res.status(200).json(results);
 });

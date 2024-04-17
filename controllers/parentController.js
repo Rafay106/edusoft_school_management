@@ -55,12 +55,33 @@ const addStudent = asyncHandler(async (req, res) => {
 // @route   POST /api/parent/bus/track
 // @access  Private
 const trackBus = asyncHandler(async (req, res) => {
-  const manager = req.user.manager;
   const school = req.user.school;
+  const busId = req.body.bus;
 
   const results = [];
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  if (busId) {
+    const bus = await Bus.findById(busId)
+      .select("name no_plate status device")
+      .lean();
+
+    return res.status(200).json([
+      {
+        imei: bus.device.imei,
+        dt_server: bus.device.dt_server,
+        dt_tracker: bus.device.dt_tracker,
+        lat: bus.device.lat,
+        lon: bus.device.lon,
+        speed: bus.device.speed,
+        altitude: bus.device.altitude,
+        angle: bus.device.angle,
+        vehicle_status: bus.device.vehicle_status,
+        ignition: bus.device.params.io239 === "1",
+      },
+    ]);
+  }
+
+  const students = await Student.find({ parent: req.user._id, school })
     .select("_id admission_no name bus")
     .populate("bus", "alternate")
     .lean();
@@ -266,29 +287,8 @@ const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
   const manager = req.user.manager;
   const school = req.user.school;
 
-  // Validate dt_start
-  if (!req.body.dt_start) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("dt_start"));
-  }
-  const dtStart = new Date(req.body.dt_start);
-  if (isNaN(dtStart)) {
-    res.status(400);
-    throw new Error(C.getFieldIsInvalid("dt_start"));
-  }
-  dtStart.setUTCHours(0, 0, 0, 0);
-
-  // Validate dt_end
-  if (!req.body.dt_end) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("dt_end"));
-  }
-  const dtEnd = new Date(req.body.dt_end);
-  if (isNaN(dtEnd)) {
-    res.status(400);
-    throw new Error(C.getFieldIsInvalid("dtEnd"));
-  }
-  dtEnd.setUTCHours(0, 0, 0, 0);
+  const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
+  const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
 
   const students = await Student.find({ parent: req.user._id, manager, school })
     .select("_id admission_no name")
@@ -389,6 +389,76 @@ const getStudentBusContactInfo = asyncHandler(async (req, res) => {
   res.status(200).json(results);
 });
 
+// @desc    Get attendance calendar
+// @route   POST /api/parent/student/attendance-calendar
+// @access  Private
+const getStudentAttendanceCalendar = asyncHandler(async (req, res) => {
+  const studentId = req.body.student;
+
+  if (!studentId) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("student"));
+  }
+
+  if (!(await Student.any({ _id: studentId, parent: req.user._id }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Error("student", studentId));
+  }
+
+  if (!req.body.month) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("month"));
+  }
+
+  const month = parseInt(req.body.month);
+
+  if (isNaN(month)) {
+    res.status(400);
+    throw new Error(C.getFieldIsInvalid("month"));
+  }
+
+  const now = new Date(new Date().setUTCHours(0, 0, 0, 0));
+  const dtStart = new Date(new Date(now.setMonth(month - 1)).setDate(1));
+  const dtEnd = new Date(new Date(now.setMonth(month)).setDate(0));
+
+  const student = await Student.findById(studentId)
+    .select("_id admission_no name")
+    .lean();
+
+  const query = {
+    date: { $gte: dtStart, $lte: dtEnd },
+    student: student._id,
+  };
+
+  const attendances = await StuBusAtt.find(query).lean();
+
+  const result = [];
+  const lastDate = dtEnd.getUTCDate();
+
+  const week = [];
+  for (let d = 1; d <= lastDate; d++) {
+    const currDate = new Date(new Date(dtStart).setUTCDate(d));
+
+    const att = attendances.find(
+      (att) => att.date.getTime() === currDate.getTime()
+    );
+
+    if (att) {
+      week.push({ date: currDate, attendance: "Present" });
+    } else week.push({ date: currDate, attendance: "Absent" });
+
+    if (d % 7 === 0) {
+      const week_ = [...week];
+      result.push(week_);
+      week.splice(0, week.length);
+    }
+  }
+
+  if (week.length > 0) result.push(week);
+
+  res.status(200).json(result);
+});
+
 module.exports = {
   getParentAccountInfo,
   addStudent,
@@ -397,4 +467,5 @@ module.exports = {
   getStudentAttendanceCount,
   getStudentAttendanceNotification,
   getStudentBusContactInfo,
+  getStudentAttendanceCalendar,
 };

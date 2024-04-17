@@ -12,5 +12,6 @@ router.post(
   C.getStudentAttendanceNotification
 );
 router.post("/student/bus-contact-info", C.getStudentBusContactInfo);
+router.post("/student/attendance-calendar", C.getStudentAttendanceCalendar);
 
 module.exports = router;

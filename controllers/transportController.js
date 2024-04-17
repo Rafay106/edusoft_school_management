@@ -790,7 +790,42 @@ const trackBus = asyncHandler(async (req, res) => {
       vehicle_status: bus.device.vehicle_status,
       params: bus.device.params,
       ignition: bus.device.params.io239 === "1",
+      icon: UC.getBusIcon(bus.device),
     });
+  }
+
+  res.status(200).json(result);
+});
+
+// @desc    Get buses status
+// @route   POST /api/transport/bus/status
+// @access  Private
+const getBusStatus = asyncHandler(async (req, res) => {
+  const school = await UC.validateSchool(req.user, req.body.school);
+
+  const buses = await Bus.find({ school }).select("name device").lean();
+
+  const result = {
+    total: buses.length,
+    moving: 0,
+    stopped: 0,
+    idle: 0,
+    offline: 0,
+  };
+
+  const timeout = parseInt(process.env.CONNECTION_TIMEOUT_MINUTES) * 60 * 1000;
+
+  for (const bus of buses) {
+    const dt_tracker = new Date(bus.device.dt_tracker);
+    const speed = parseFloat(bus.device.speed);
+    const ignition = bus.device.params.io239 === "1";
+
+    const diff = new Date().getTime() - dt_tracker.getTime();
+
+    if (diff > timeout) result.offline++;
+    else if (speed > 0) result.moving++;
+    else if (speed === 0 && ignition) result.idle++;
+    else if (speed === 0 && !ignition) result.stopped++;
   }
 
   res.status(200).json(result);
@@ -818,4 +853,5 @@ module.exports = {
   unsetAlternateBus,
   bulkOpsBus,
   trackBus,
+  getBusStatus,
 };

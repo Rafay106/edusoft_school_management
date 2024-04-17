@@ -36,7 +36,7 @@ sectionRouter
   .patch(AC.updateSection)
   .delete(AC.deleteSection);
 
-// 3. Subject Routes
+// 4. Subject Routes
 const subjectRouter = express.Router();
 
 subjectRouter.route("/").get(AC.getSubjects).post(AC.addSubject);
