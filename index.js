@@ -115,6 +115,12 @@ app.use(
   adminAndManagerAuthorize,
   require("./routes/dashboardRoutes")
 );
+app.use(
+  "/api/library",
+  authenticate,
+  adminAndManagerAuthorize,
+  require("./routes/libraryRoutes")
+);
 
 app.use(
   "/api/parent-util",
