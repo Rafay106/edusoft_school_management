@@ -284,11 +284,24 @@ const addMultipleStudents = async (userId, userType, fileData) => {
 };
 
 const getPersonName = (name) => {
+  if (!name) return "";
+  if (!name.f || name.l) return "";
+
   let studentName = name.f;
   studentName += name.m ? ` ${name.m} ` : " ";
   studentName += name.l;
 
   return studentName;
+};
+
+const getStudentAddress = (address) => {
+  if (!address) return "NA";
+  let res = address.house + ", ";
+  res += address.street + ", ";
+  res += address.city + " " + address.pincode + ", ";
+  res += address.pincode;
+
+  return res;
 };
 
 // ************************
@@ -401,6 +414,40 @@ const validateManagerAndSchool = async (user, manager, school) => {
 // VALIDATION FUNCTIONS END
 // ************************
 
+// ************************
+// DATE FUNCTIONS START
+// ************************
+
+const getYMD = (dt = new Date()) => {
+  const now = new Date(dt);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const date = now.getUTCDate();
+  return "" + year + month + date;
+};
+
+const getDDMMYYYY = (dt = new Date()) => {
+  const now = new Date(dt);
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+  const date = now.getUTCDate();
+
+  return `${date}-${month}-${year}`;
+};
+
+const daysBetween = (startDate, endDate) => {
+  const oneDay = 24 * 60 * 60 * 1000;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffMilliseconds = Math.abs(end - start);
+  const diffDays = Math.round(diffMilliseconds / oneDay);
+  return diffDays;
+};
+
+// ************************
+// DATE FUNCTIONS END
+// ************************
+
 const deg2rad = (deg) => {
   return deg * (Math.PI / 180);
 };
@@ -482,15 +529,6 @@ const isPointInPolygon = (vertices, lat, lng) => {
   }
 
   return oddNodes;
-};
-
-const daysBetween = (startDate, endDate) => {
-  const oneDay = 24 * 60 * 60 * 1000;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diffMilliseconds = Math.abs(end - start);
-  const diffDays = Math.round(diffMilliseconds / oneDay);
-  return diffDays;
 };
 
 const getAppRootDir = (currentDir) => {
@@ -576,6 +614,7 @@ module.exports = {
 
   addMultipleStudents,
   getPersonName,
+  getStudentAddress,
 
   getBusIcon,
 
@@ -583,11 +622,14 @@ module.exports = {
   validateSchool,
   validateManagerAndSchool,
 
+  getYMD,
+  getDDMMYYYY,
+  daysBetween,
+
   getAngle,
   getLenBtwPointsInKm,
   isPointInCircle,
   isPointInPolygon,
-  daysBetween,
 
   getAppRootDir,
   writeLog,

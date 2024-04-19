@@ -297,7 +297,6 @@ const schema = new mongoose.Schema(
     },
     privileges: { type: privilegesSchema, required: [true, C.FIELD_IS_REQ] },
     school_limit: { type: Number, default: 0 },
-    manager: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
     school: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
   },
   { timestamps: true, versionKey: false }

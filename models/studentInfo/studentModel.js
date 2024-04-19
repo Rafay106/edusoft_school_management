@@ -6,6 +6,17 @@ const bcrypt = require("bcrypt");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
+const addressSchema = new mongoose.Schema(
+  {
+    house: { type: String, default: "", uppercase: true },
+    street: { type: String, default: "", uppercase: true },
+    city: { type: String, default: "", uppercase: true },
+    state: { type: String, default: "", uppercase: true },
+    pincode: { type: Number, default: "", uppercase: true },
+  },
+  { _id: false }
+);
+
 const schema = new mongoose.Schema(
   {
     admission_no: {
@@ -19,8 +30,26 @@ const schema = new mongoose.Schema(
       m: { type: String, default: "", uppercase: true },
       l: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
     },
+    father_name: {
+      f: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+      m: { type: String, default: "", uppercase: true },
+      l: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+    },
+    mother_name: {
+      f: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+      m: { type: String, default: "", uppercase: true },
+      l: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+    },
     dob: { type: Date, required: [true, C.FIELD_IS_REQ] },
-    cast: { type: String, default: "" },
+    cast: {
+      type: String,
+      default: "NA",
+      uppercase: true,
+      enum: {
+        values: ["GEN", "OBC", "ST", "SC", "OTHERS", "NA"],
+        message: C.VALUE_NOT_SUP,
+      },
+    },
     student_type: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
@@ -39,10 +68,7 @@ const schema = new mongoose.Schema(
     age: { type: Number, default: 0 },
     height: { type: Number, default: 0 },
     weight: { type: Number, default: 0 },
-    address: {
-      current: { type: String, default: "" },
-      permanent: { type: String, default: "" },
-    },
+    address: { current: addressSchema, permanent: addressSchema },
     rfid: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
     gender: {
       type: String,
@@ -50,6 +76,7 @@ const schema = new mongoose.Schema(
       enum: { values: ["m", "f", "o"], message: C.VALUE_NOT_SUP },
     },
     house: { type: String, default: "" },
+    blood_group: { type: String, default: "" },
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
@@ -63,9 +90,7 @@ const schema = new mongoose.Schema(
     },
     bus: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "buses" },
     bus_stop: { type: ObjectId, ref: "bus_stops" },
-    // siblings: { type: ObjectId, ref: "student_siblings" },
     parent: { type: ObjectId, ref: "users" },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true }
