@@ -359,7 +359,6 @@ const addStudent = asyncHandler(async (req, res) => {
 
   const student = await Student.create({
     admission_no: req.body.admNo,
-    password: "123456",
     roll_no: req.body.rollNo,
     name,
     dob: req.body.dob,
@@ -375,6 +374,8 @@ const addStudent = asyncHandler(async (req, res) => {
     address,
     rfid: req.body.rfid,
     gender: req.body.gender,
+    house: req.body.house,
+    blood_group: req.body.blood_group,
     academic_year: ayear,
     class: class_,
     section,

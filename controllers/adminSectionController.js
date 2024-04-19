@@ -1,13 +1,13 @@
-// const fs = require("node:fs");
-const fs = require("fs-extra");
+const fs = require("node:fs");
 const path = require("node:path");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
 const IdCard = require("../models/admin_section/idCardModel");
 const Student = require("../models/studentInfo/studentModel");
-const PDFDocument = require("pdfkit");
-const htmlPdf = require("html-pdf");
+const puppeteer = require("puppeteer");
+const { PDFDocument } = require("pdf-lib");
+
 // const { DOMAIN } = process.env;
 
 const DOMAIN = "http://localhost:8000";
@@ -273,34 +273,29 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 
     students = await Student.find({ class: class_, section })
       .populate("class section bus_stop", "name")
+      .sort("roll_no")
       .lean();
   }
 
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth() + 1;
-  const date = now.getUTCDate();
+  if (students.length === 0) {
+    res.status(404);
+    throw new Error(`Student(s) not found!`);
+  }
 
-  const pdfName = `id_cards_${year}_${month}_${date}_${now.getTime()}.pdf`;
-  const pdfPath = path.join(
-    UC.getAppRootDir(__dirname),
-    "data",
-    "id_cards",
-    "class"
-  );
+  const classAndSection = `${students[0].class.name}-${students[0].section.name}`;
+  const now = new Date();
+  const YMD = UC.getYMD();
+
+  const pdfName = `id_cards_${classAndSection}_${YMD}_${now.getTime()}.pdf`;
+  const pdfPath = path.join(UC.getAppRootDir(__dirname), "data", "id_cards");
 
   if (!fs.existsSync(pdfPath)) fs.mkdirSync(pdfPath, { recursive: true });
 
   const pdfFile = path.join(pdfPath, pdfName);
 
-  const studentPDFs = [];
+  const idCards = [];
 
-  const doc = new PDFDocument();
-  doc.pipe(fs.createWriteStream(pdfFile));
-
-  for (let i = 0; i < students.length; i++) {
-    const student = students[i];
-
+  for (const student of students) {
     const template = path.join(
       UC.getAppRootDir(__dirname),
       "templates",
@@ -308,88 +303,121 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
       "id_card.html"
     );
 
-    const htmlContent = await generateIndividualPDF(student, template);
+    const idCard = await generateStudentIdCard(student, template);
 
-    doc.text(htmlContent);
-    if (i < students.length - 1) doc.addPage();
-    // studentPDFs.push(pdfPath);
+    idCards.push(`./data/id_cards/${idCard}`);
   }
 
-  // const combinedPDFPath = await combinePDFs(studentPDFs);
+  await combinePDFs(idCards, pdfFile);
 
   res.download(pdfFile, pdfName, (err) => {
     if (err) throw err;
   });
 });
 
-async function generateIndividualPDF(student, template) {
-  const className = student.class.name + "-" + student.section.name;
-  const htmlContent = fs
-    .readFileSync(template, "utf8")
-    .replace("{{name}}", UC.getPersonName(student.name))
-    .replace("{{rollNo}}", student.rollNo)
-    .replace("{{class}}", className)
-    .replace("{{address}}", student.address.current);
-
-  // const pdfPath = `data/id_cards/student/${student.admission_no}.pdf`;
-
-  return htmlContent;
-
-  return new Promise((resolve, reject) => {
-    htmlPdf
-      .create(htmlContent, {
-        width: "54mm",
-        height: "85mm",
-        renderDelay: 2000, // Give some delay to render images
-      })
-      .toFile(pdfPath, (err, res) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(pdfPath);
-        }
-      });
-  });
-}
-
-async function combinePDFs(studentPDFs) {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth() + 1;
-  const date = now.getUTCDate();
-
-  const filename = `id_cards_${year}_${month}_${date}_${now.getTime()}.pdf`;
-  const combinedPDFPath = path.join(
-    UC.getAppRootDir(__dirname),
-    "data",
-    "id_cards",
-    "class"
+const generateStudentIdCard = async (student, template) => {
+  const logo = fs.readFileSync(
+    path.join("templates", "id_card", "images", "logo.png"),
+    "base64"
   );
 
-  if (!fs.existsSync(combinedPDFPath)) fs.mkdirSync(combinedPDFPath);
+  const busLogo = fs.readFileSync(
+    path.join("templates", "id_card", "images", "bus-school.png"),
+    "base64"
+  );
 
-  const combinedPDF = path.join(combinedPDFPath, filename);
-
-  const pdfStream = new PDFDocument({
-    autoFirstPage: false,
-  });
-
-  const writeStream = fs.createWriteStream(combinedPDF);
-  pdfStream.pipe(writeStream);
-
-  for (let pdfPath of studentPDFs) {
-    const pdfBuffer = fs.readFileSync(pdfPath);
-    const tempPDF = new PDFDocument();
-    tempPDF.pipe(pdfStream, { end: false });
-    tempPDF.image(pdfBuffer, {
-      fit: [54 * 4, 85 * 4],
-    });
-    tempPDF.addPage();
-    tempPDF.end();
+  const signature = fs.readFileSync(
+    path.join("templates", "id_card", "images", "signature.png"),
+    "base64"
+  );
+  const house = student.house || "NA";
+  const blood = student.blood_group || "NA";
+  let photo;
+  if (student.photo) {
+    photo = fs.readFileSync(
+      path.join("static", "uploads", "student", student.photo),
+      "base64"
+    );
+  } else {
+    photo = fs.readFileSync(
+      path.join("templates", "id_card", "images", "user-blank.png"),
+      "base64"
+    );
   }
 
-  pdfStream.end();
-  return combinedPDF;
+  const htmlContent = fs
+    .readFileSync(template, "utf8")
+    .replace("{{logo}}", `data:image/jpeg;base64,${logo}`)
+    .replace("{{bus-logo}}", `data:image/jpeg;base64,${busLogo}`)
+    .replace("{{signature}}", `data:image/jpeg;base64,${signature}`)
+    .replace("{{house}}", house)
+    .replace("{{blood}}", `(${blood})`)
+    .replace("{{photo}}", `data:image/jpeg;base64,${photo}`)
+    .replace("{{name}}", UC.getPersonName(student.name))
+    .replace("{{phone}}", student.phone || "NA")
+    .replace("{{class}}", `${student.class.name}-${student.section.name}`)
+    .replace("{{admno}}", student.admission_no)
+    .replace("{{father}}", UC.getPersonName(student.father_name) || "NA")
+    .replace("{{mother}}", UC.getPersonName(student.mother_name) || "NA")
+    .replace(
+      "{{address}}",
+      UC.getStudentAddress(student.address.current) || "NA"
+    )
+    .replace("{{pincode}}", student.address.current.pincode || "NA")
+    .replace("{{phone}}", student.phone || "NA")
+    .replace("{{dob}}", UC.getDDMMYYYY(student.dob) || "NA")
+    .replace("{{busstop}}", student.bus_stop.name || "NA");
+
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+
+  await page.setViewport({ height: 1024, width: 640 });
+
+  await page.setContent(htmlContent);
+
+  // Wait for images to load
+  // await page.waitForSelector("#logo-img");
+
+  const tempName = `id_card_${student.admission_no}.pdf`;
+
+  const pdfOptions = {
+    path: path.join("data", "id_cards", tempName),
+    width: "54mm",
+    height: "85mm",
+    printBackground: true,
+    margin: {
+      top: "0mm",
+      right: "0mm",
+      bottom: "0mm",
+      left: "0mm",
+    },
+  };
+
+  await page.pdf(pdfOptions);
+
+  await browser.close();
+
+  return tempName;
+};
+
+async function combinePDFs(pdfFiles, outputFile) {
+  const mergedPdf = await PDFDocument.create();
+
+  for (let pdfFile of pdfFiles) {
+    const pdfBytes = await fs.promises.readFile(pdfFile);
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const copiedPages = await mergedPdf.copyPages(
+      pdfDoc,
+      pdfDoc.getPageIndices()
+    );
+    copiedPages.forEach((page) => {
+      mergedPdf.addPage(page);
+    });
+  }
+
+  const mergedPdfBytes = await mergedPdf.save();
+
+  await fs.promises.writeFile(outputFile, mergedPdfBytes);
 }
 
 module.exports = {

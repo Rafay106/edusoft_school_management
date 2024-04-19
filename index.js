@@ -136,7 +136,7 @@ app.use(
 );
 
 app.post("/api/listener", listenDeviceData);
-// app.post("/api/listener/mobile", listenMobileData);
+app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
 
 // Razorpay
 app.use("/api/razorpay", require("./tools/razorpay"));

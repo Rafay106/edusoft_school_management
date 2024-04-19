@@ -59,7 +59,6 @@ const schema = new mongoose.Schema(
             return !this.email || isEmailValid(value);
           },
           message: C.FIELD_IS_INVALID,
-          isAsync: true,
         },
         lowercase: true,
         trim: true,
@@ -67,7 +66,6 @@ const schema = new mongoose.Schema(
       phone: { type: String, default: "" },
     },
     current_academic_year: { type: ObjectId, ref: "academic_years" },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true }

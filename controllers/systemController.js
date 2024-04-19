@@ -399,7 +399,6 @@ const requiredDataUser = asyncHandler(async (req, res) => {
 // @access  Private
 const createUser = asyncHandler(async (req, res) => {
   const { email, name, phone, type } = req.body;
-  let manager = req.body.manager;
   let school = req.body.school;
 
   // Validate type
@@ -410,35 +409,17 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error(C.getValueNotSup(type));
     }
   } else if (C.isManager(req.user.type)) {
-    manager = req.user._id;
     notType.push(C.MANAGER);
     if (notType.includes(type)) {
       res.status(400);
       throw new Error(C.getValueNotSup(type));
     }
   } else if (C.isSchool(req.user.type)) {
-    manager = req.user.manager;
     school = req.user._id;
     notType.push(C.SCHOOL);
     if (notType.includes(type)) {
       res.status(400);
       throw new Error(C.getValueNotSup(type));
-    }
-  }
-
-  // Validate manager
-  if (
-    C.isAdmins(req.user.type) &&
-    ![C.SUPERADMIN, C.ADMIN, C.MANAGER].includes(type)
-  ) {
-    if (!manager) {
-      res.status(400);
-      throw new Error(C.getFieldIsReq("manager"));
-    }
-
-    if (!(await UC.managerExists(manager))) {
-      res.status(400);
-      throw new Error(C.getResourse404Error("manager", manager));
     }
   }
 
@@ -452,7 +433,7 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error(C.getFieldIsReq("school"));
     }
 
-    if (!(await UC.schoolAccExists(school, manager))) {
+    if (!(await UC.schoolAccExists(school))) {
       res.status(400);
       throw new Error(C.getResourse404Error("school", school));
     }
