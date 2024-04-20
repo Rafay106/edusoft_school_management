@@ -73,6 +73,24 @@ const studentBulkImportUpload = multer({
     },
   }),
 });
+const bulkImportUpload = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const filePath = path.join("data", "imports");
+      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
+      cb(null, filePath);
+    },
+    filename: function (req, file, cb) {
+      const ext = path.extname(file.originalname);
+
+      if (![".xlsx"].includes(ext)) {
+        return cb(new Error("Only xlsx files supported!"));
+      }
+
+      cb(null, `${Date.now()}${ext}`);
+    },
+  }),
+});
 
 const staffUpload = multer({
   storage: multer.diskStorage({
@@ -119,6 +137,7 @@ module.exports = {
   busStaffPhotoUpload,
   studentPhotoUpload,
   studentBulkImportUpload,
+  bulkImportUpload,
   staffUpload,
   idCardUpload,
 };

@@ -3,14 +3,10 @@ const C = require("../constants");
 const UC = require("../utils/common");
 const StudentType = require("../models/studentInfo/studentTypeModel");
 const Student = require("../models/studentInfo/studentModel");
-const User = require("../models/system/userModel");
-const AcademicYear = require("../models/academics/academicYearModel");
 const Class = require("../models/academics/classModel");
 const Section = require("../models/academics/sectionModel");
 const Bus = require("../models/transport/busModel");
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
-
-const bcrypt = require("bcrypt");
 const StuAttEvent = require("../models/attendance/stuAttEventModel");
 const BusStop = require("../models/transport/busStopModel");
 

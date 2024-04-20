@@ -16,24 +16,18 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   const query = {};
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
   else if (C.isSchool(req.user.type)) query.school = req.user._id;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
+  if (search) {
+    const fields = ["name.f", "name.m", "name.l"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(

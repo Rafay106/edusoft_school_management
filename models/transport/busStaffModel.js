@@ -30,7 +30,7 @@ const schema = new mongoose.Schema(
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
     school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.plugin(any);

@@ -285,7 +285,7 @@ const addMultipleStudents = async (userId, userType, fileData) => {
 
 const getPersonName = (name) => {
   if (!name) return "";
-  if (!name.f || name.l) return "";
+  if (!name.f || !name.l) return "";
 
   let studentName = name.f;
   studentName += name.m ? ` ${name.m} ` : " ";
