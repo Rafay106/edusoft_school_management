@@ -39,14 +39,8 @@ schoolRouter
   .patch(SC.updateSchool)
   .delete(SC.deleteSchool);
 
-schoolRouter.post(
-  "/bulk",
-  memoryUpload.single("school-file"),
-  SC.bulkOpsSchool
-);
-
+systemRouter.use("/template-privilege", templatePrivilegeRouter);
 systemRouter.use("/user", userRouter);
 systemRouter.use("/school", schoolRouter);
-systemRouter.use("/template-privilege", templatePrivilegeRouter);
 
 module.exports = systemRouter;

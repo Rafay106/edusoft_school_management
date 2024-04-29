@@ -17,34 +17,31 @@ const School = require("../models/system/schoolModel");
 const getAcademicYears = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const sort = req.query.sort || "year";
+  const search = req.query.search;
 
-  const query = {};
+  const [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    req.query.manager,
+    req.query.school
+  );
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  const query = { school, manager };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["year", "title"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["year", "title"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
     AcademicYear,
     query,
-    {},
+    "year title",
     page,
     limit,
-    sort
+    sort,
+    ["school manager", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -58,7 +55,7 @@ const getAcademicYears = asyncHandler(async (req, res) => {
 const getAcademicYear = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const academicYear = await AcademicYear.findOne(query)
@@ -77,13 +74,10 @@ const getAcademicYear = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/academic-year
 // @access  Private
 const addAcademicYear = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
+  const [manager, school] = await UC.validateManagerAndSchool(
     req.user,
-    manager,
-    school
+    req.body.manager,
+    req.body.school
   );
 
   const year = req.body.year;
@@ -109,13 +103,13 @@ const addAcademicYear = asyncHandler(async (req, res) => {
     title: req.body.title,
     starting_date,
     ending_date,
-    manager,
     school,
+    manager,
   });
 
   if (setDefault) {
     await School.updateOne(
-      { school },
+      { _id: school },
       { $set: { current_academic_year: academicYear._id } }
     );
   }
@@ -129,7 +123,7 @@ const addAcademicYear = asyncHandler(async (req, res) => {
 const updateAcademicYear = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await AcademicYear.any(query))) {
@@ -194,7 +188,7 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user._id;
+  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
   else if (C.isManager(req.user.type)) delQuery.manager = req.user._id;
 
   const result = await AcademicYear.deleteOne(delQuery);
@@ -206,16 +200,13 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/academic-year/set-current
 // @access  Private
 const setCurrentAcademicYear = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const ayear = req.body.ayear;
-
-  [manager, school] = await UC.validateManagerAndSchool(
+  const [manager, school] = await UC.validateManagerAndSchool(
     req.user,
-    manager,
-    school
+    req.body.manager,
+    req.body.school
   );
 
+  const ayear = req.body.ayear;
   if (!ayear) {
     res.status(400);
     throw new Error(C.getFieldIsReq("ayear"));
@@ -227,7 +218,7 @@ const setCurrentAcademicYear = asyncHandler(async (req, res) => {
   }
 
   const result = await School.updateOne(
-    { school },
+    { _id: school },
     { $set: { current_academic_year: ayear } }
   );
 
@@ -243,32 +234,17 @@ const getSections = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  let manager = req.query.manager;
-  let school = req.query.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    manager,
-    school
-  );
-
+  const school = await UC.validateSchool(req.user, req.query.school);
   const ayear = await UC.getCurrentAcademicYear(school);
 
   const query = { academic_year: ayear };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -291,7 +267,7 @@ const getSections = asyncHandler(async (req, res) => {
 const getSection = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const section = await Section.findOne(query)
@@ -310,13 +286,10 @@ const getSection = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/section
 // @access  Private
 const addSection = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
+  const [manager, school] = await UC.validateManagerAndSchool(
     req.user,
-    manager,
-    school
+    req.body.manager,
+    req.body.school
   );
 
   const ayear = await UC.getCurrentAcademicYear(school);
@@ -324,8 +297,8 @@ const addSection = asyncHandler(async (req, res) => {
   const section = await Section.create({
     name: req.body.name,
     academic_year: ayear,
-    manager,
     school,
+    manager,
   });
 
   res.status(201).json({ msg: section._id });
@@ -337,7 +310,7 @@ const addSection = asyncHandler(async (req, res) => {
 const updateSection = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await Section.any(query))) {
@@ -359,7 +332,7 @@ const deleteSection = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
+    query.school = req.user.school;
     query.manager = req.user.manager;
   }
 
@@ -393,32 +366,17 @@ const getClasses = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  let manager = req.query.manager;
-  let school = req.query.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    manager,
-    school
-  );
-
+  const school = await UC.validateSchool(req.user, req.query.school);
   const ayear = await UC.getCurrentAcademicYear(school);
 
   const query = { academic_year: ayear };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -455,7 +413,7 @@ const getClasses = asyncHandler(async (req, res) => {
 const getClass = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const stuClass = await Class.findOne(query)
@@ -475,15 +433,12 @@ const getClass = asyncHandler(async (req, res) => {
 // @access  Private
 const addClass = asyncHandler(async (req, res) => {
   const sections = req.body.sections;
-  let manager = req.body.manager;
-  let school = req.body.school;
 
-  [manager, school] = await UC.validateManagerAndSchool(
+  const [manager, school] = await UC.validateManagerAndSchool(
     req.user,
-    manager,
-    school
+    req.body.manager,
+    req.body.school
   );
-
   const ayear = await UC.getCurrentAcademicYear(school);
 
   // Validate Section
@@ -492,16 +447,26 @@ const addClass = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("sections"));
   }
 
+  const sectionIds = [];
   for (const s of sections) {
-    if (!(await Section.any({ _id: s, manager, school }))) {
+    const section = await Section.findOne({
+      name: s.toUpperCase(),
+      academic_year: ayear,
+    })
+      .select("_id")
+      .lean();
+
+    if (!section) {
       res.status(400);
       throw new Error(C.getResourse404Error("section", s));
     }
+
+    sectionIds.push(section._id);
   }
 
   const class_ = await Class.create({
     name: req.body.name,
-    sections, //: sections.map((section) => ({ section })),
+    sections: sectionIds, //: sections.map((section) => ({ section })),
     academic_year: ayear,
     manager,
     school,
@@ -516,7 +481,7 @@ const addClass = asyncHandler(async (req, res) => {
 const updateClass = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await Class.any(query))) {
@@ -547,7 +512,7 @@ const deleteClass = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
+    query.school = req.user.school;
     query.manager = req.user.manager;
   }
 
@@ -581,8 +546,7 @@ const getSubjects = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   let manager = req.query.manager;
   let school = req.query.school;
@@ -597,16 +561,11 @@ const getSubjects = asyncHandler(async (req, res) => {
 
   const query = { academic_year: ayear };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
+  if (search) {
+    const fields = ["name"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -629,7 +588,7 @@ const getSubjects = asyncHandler(async (req, res) => {
 const getSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const subject = await Subject.findOne(query)
@@ -690,7 +649,7 @@ const addSubject = asyncHandler(async (req, res) => {
 const updateSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const subject = await Subject.findOne(query).select("_id").lean();
@@ -718,7 +677,7 @@ const deleteSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
+    query.school = req.user.school;
     query.manager = req.user.manager;
   }
 

@@ -296,11 +296,14 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
   const idCards = [];
 
   for (const student of students) {
+    console.log("student :>> ", student);
+
     const template = path.join(
       UC.getAppRootDir(__dirname),
       "templates",
       "id_card",
-      "id_card.html"
+      // "id_card_old.html"
+      "id_card_bus.html"
     );
 
     const idCard = await generateStudentIdCard(student, template);
@@ -316,13 +319,28 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 });
 
 const generateStudentIdCard = async (student, template) => {
+  const background = fs.readFileSync(
+    path.join("templates", "id_card", "images", "background-orange.jpeg"),
+    "base64"
+  );
+
   const logo = fs.readFileSync(
-    path.join("templates", "id_card", "images", "logo.png"),
+    path.join("templates", "id_card", "images", "acharya-logo.png"),
     "base64"
   );
 
   const busLogo = fs.readFileSync(
-    path.join("templates", "id_card", "images", "bus-school.png"),
+    path.join("templates", "id_card", "images", "bus-logo.png"),
+    "base64"
+  );
+
+  const bloodLogo = fs.readFileSync(
+    path.join("templates", "id_card", "images", "blood-logo.png"),
+    "base64"
+  );
+
+  const barcode = fs.readFileSync(
+    path.join("templates", "id_card", "images", "barcode.png"),
     "base64"
   );
 
@@ -330,14 +348,18 @@ const generateStudentIdCard = async (student, template) => {
     path.join("templates", "id_card", "images", "signature.png"),
     "base64"
   );
-  const house = student.house || "NA";
-  const blood = student.blood_group || "NA";
+
   let photo;
   if (student.photo) {
-    photo = fs.readFileSync(
-      path.join("static", "uploads", "student", student.photo),
-      "base64"
-    );
+    const photoPath = path.join("static", "uploads", "student", student.photo);
+    if (fs.existsSync(photoPath)) {
+      photo = fs.readFileSync(photoPath, "base64");
+    } else {
+      photo = fs.readFileSync(
+        path.join("templates", "id_card", "images", "user-blank.png"),
+        "base64"
+      );
+    }
   } else {
     photo = fs.readFileSync(
       path.join("templates", "id_card", "images", "user-blank.png"),
@@ -347,26 +369,32 @@ const generateStudentIdCard = async (student, template) => {
 
   const htmlContent = fs
     .readFileSync(template, "utf8")
+    .replace("{{background}}", `data:image/jpeg;base64,${background}`)
     .replace("{{logo}}", `data:image/jpeg;base64,${logo}`)
-    .replace("{{bus-logo}}", `data:image/jpeg;base64,${busLogo}`)
-    .replace("{{signature}}", `data:image/jpeg;base64,${signature}`)
-    .replace("{{house}}", house)
-    .replace("{{blood}}", `(${blood})`)
     .replace("{{photo}}", `data:image/jpeg;base64,${photo}`)
-    .replace("{{name}}", UC.getPersonName(student.name))
-    .replace("{{phone}}", student.phone || "NA")
-    .replace("{{class}}", `${student.class.name}-${student.section.name}`)
     .replace("{{admno}}", student.admission_no)
-    .replace("{{father}}", UC.getPersonName(student.father_name) || "NA")
-    .replace("{{mother}}", UC.getPersonName(student.mother_name) || "NA")
-    .replace(
-      "{{address}}",
-      UC.getStudentAddress(student.address.current) || "NA"
-    )
-    .replace("{{pincode}}", student.address.current.pincode || "NA")
-    .replace("{{phone}}", student.phone || "NA")
+    .replace("{{class}}", `${student.class.name}-${student.section.name}`)
     .replace("{{dob}}", UC.getDDMMYYYY(student.dob) || "NA")
-    .replace("{{busstop}}", student.bus_stop.name || "NA");
+    .replace("{{house}}", student.house || "NA")
+    .replace("{{name}}", UC.getPersonName(student.name))
+    .replace(
+      "{{father}}",
+      UC.getPersonName(student.father_details?.name) || "NA"
+    )
+    .replace(
+      "{{mother}}",
+      UC.getPersonName(student.mother_details?.name) || "NA"
+    )
+    .replace("{{bus-logo}}", `data:image/jpeg;base64,${busLogo}`)
+    .replace("{{bus-name}}", student.bus?.name || "NA")
+    .replace("{{address}}", student.address.permanent.slice(0, 20) || "NA")
+    .replace("{{bus-stop}}", student.bus_stop?.name || "NA")
+    .replace("{{phone}}", student.phone || "NA")
+    .replace("{{blood-logo}}", `data:image/jpeg;base64,${bloodLogo}`)
+    .replace("{{blood}}", student.blood_group || "NA")
+    .replace("{{barcode}}", `data:image/jpeg;base64,${barcode}`)
+    .replace("{{signature}}", `data:image/jpeg;base64,${signature}`);
+  // .replace("{{pincode}}", student.address.current.pincode || "NA")
 
   const browser = await puppeteer.launch();
   const page = await browser.newPage();
@@ -378,7 +406,7 @@ const generateStudentIdCard = async (student, template) => {
   // Wait for images to load
   // await page.waitForSelector("#logo-img");
 
-  const tempName = `id_card_${student.admission_no}.pdf`;
+  const tempName = `id_card_${student.admission_no.replace("/", "")}.pdf`;
 
   const pdfOptions = {
     path: path.join("data", "id_cards", tempName),
@@ -403,7 +431,7 @@ const generateStudentIdCard = async (student, template) => {
 async function combinePDFs(pdfFiles, outputFile) {
   const mergedPdf = await PDFDocument.create();
 
-  for (let pdfFile of pdfFiles) {
+  for (const pdfFile of pdfFiles) {
     const pdfBytes = await fs.promises.readFile(pdfFile);
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const copiedPages = await mergedPdf.copyPages(
@@ -418,6 +446,10 @@ async function combinePDFs(pdfFiles, outputFile) {
   const mergedPdfBytes = await mergedPdf.save();
 
   await fs.promises.writeFile(outputFile, mergedPdfBytes);
+
+  for (const pdfFile of pdfFiles) {
+    fs.unlinkSync(pdfFile);
+  }
 }
 
 module.exports = {

@@ -10,7 +10,7 @@ const Class = require("../models/academics/classModel");
 const Section = require("../models/academics/sectionModel");
 const AcademicYear = require("../models/academics/academicYearModel");
 const FeeGroup = require("../models/fees/feeGroupModel");
-const StudentType = require("../models/studentInfo/studentTypeModel");
+const StudentType = require("../models/studentInfo/boardingTypeModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const FeeTerm = require("../models/fees/feeTermModel");
 const FeeHead = require("../models/fees/feeHeadModel");
@@ -432,41 +432,13 @@ const getAcademicYearList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/section-list
 // @access  Private
 const getSectionList = asyncHandler(async (req, res) => {
-  let manager = req.query.manager;
-  let school = req.query.school;
-  const academic_year = req.query.ayear;
+  const [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    req.query.manager,
+    req.query.school
+  );
 
-  if (C.isManager(req.user.type)) {
-    manager = req.user._id;
-  } else if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  }
-
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!academic_year) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
+  const academic_year = await UC.getCurrentAcademicYear(school);
 
   const sections = await Section.find({ manager, school, academic_year })
     .select("name")

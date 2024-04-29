@@ -7,17 +7,27 @@ const {
 
 const router = express.Router();
 
-// 1. StudentType Routes
-const studentTypeRouter = express.Router();
+// 1. BoardingType Routes
+const boardingTypeRouter = express.Router();
 
-studentTypeRouter.route("/").get(C.getStudentTypes).post(C.addStudentType);
-studentTypeRouter
+boardingTypeRouter.route("/").get(C.getBoardingTypes).post(C.addBoardingType);
+boardingTypeRouter
   .route("/:id")
-  .get(C.getStudentType)
-  .patch(C.updateStudentType)
-  .delete(C.deleteStudentType);
+  .get(C.getBoardingType)
+  .patch(C.updateBoardingType)
+  .delete(C.deleteBoardingType);
 
-// 2. Student Routes
+// 2. SubWard Routes
+const subwardRouter = express.Router();
+
+subwardRouter.route("/").get(C.getSubWards).post(C.addSubWard);
+subwardRouter
+  .route("/:id")
+  .get(C.getSubWard)
+  .patch(C.updateSubWard)
+  .delete(C.deleteSubWard);
+
+// 3. Student Routes
 const studentRouter = express.Router();
 
 studentRouter
@@ -47,7 +57,8 @@ const stuAttNotiRouter = express.Router();
 
 stuAttNotiRouter.post("/", C.getStuAttNotification);
 
-router.use("/student-type", studentTypeRouter);
+router.use("/boarding-type", boardingTypeRouter);
+router.use("/sub-ward", subwardRouter);
 router.use("/student", studentRouter);
 router.use("/attendance", stuBusAttRouter);
 router.use("/attendance-notification", C.getStuAttNotification);

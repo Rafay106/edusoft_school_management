@@ -22,7 +22,9 @@ const schema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    email_verified: { type: Boolean, default: false },
     phone: { type: String, required: [true, C.FIELD_IS_REQ] },
+    phone_verified: { type: Boolean, default: false },
     address: { type: String, required: [true, C.FIELD_IS_REQ] },
     country: { type: String, required: [true, C.FIELD_IS_REQ] },
     state: { type: String, required: [true, C.FIELD_IS_REQ] },
@@ -65,22 +67,49 @@ const schema = new mongoose.Schema(
       },
       phone: { type: String, default: "" },
     },
+    library: {
+      fine_per_day: { type: Number, default: 0 },
+      book_issue_limit: { type: Number, default: 0 },
+      book_issue_days: { type: Number, default: 0 },
+    },
     current_academic_year: { type: ObjectId, ref: "academic_years" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
+schema.index({ name: 1, manager: 1 }, { unique: true });
 schema.index({ email: 1 }, { unique: true });
-schema.index({ school: 1 }, { unique: true });
 
 schema.pre("updateOne", function (next) {
   this.setOptions({ runValidators: true });
+
+  const emailToUpdate = this.getUpdate().$set?.email;
+  if (emailToUpdate) {
+    this.updateOne({}, { $set: { email_verified: false } });
+  }
+
+  const phoneToUpdate = this.getUpdate().$set?.phone;
+  if (phoneToUpdate) {
+    this.updateOne({}, { $set: { phone_verified: false } });
+  }
+
   next();
 });
 
 schema.pre("updateMany", function (next) {
   this.setOptions({ runValidators: true });
+
+  const emailToUpdate = this.getUpdate().$set?.email;
+  if (emailToUpdate) {
+    this.updateOne({}, { $set: { email_verified: false } });
+  }
+
+  const phoneToUpdate = this.getUpdate().$set?.phone;
+  if (phoneToUpdate) {
+    this.updateOne({}, { $set: { phone_verified: false } });
+  }
+
   next();
 });
 

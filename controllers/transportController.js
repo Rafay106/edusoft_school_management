@@ -16,24 +16,18 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  const query = {};
+  const school = await UC.validateSchool(req.user, req.query.school);
+
+  const query = { school };
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -50,8 +44,6 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   for (const staff of results.result) {
     if (staff.type === "c") staff.type = C.CONDUCTOR;
     if (staff.type === "d") staff.type = C.DRIVER;
-
-    staff.name = UC.getPersonName(staff.name);
 
     if (!staff.photo) staff.photo = `${process.env.DOMAIN}/user-blank.svg`;
     else staff.photo = `${process.env.DOMAIN}/uploads/bus_staff/${staff.photo}`;
@@ -85,29 +77,11 @@ const getBusStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus-staff
 // @access  Private
 const addBusStaff = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const name = {
-    f: req.body.fname,
-    m: req.body.mname,
-    l: req.body.lname,
-  };
+  const [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    req.body.manager,
+    req.body.school
+  );
 
   const photo = req.file ? req.file.filename : "";
 
@@ -118,14 +92,14 @@ const addBusStaff = asyncHandler(async (req, res) => {
 
   const busStaff = await BusStaff.create({
     type: req.body.type,
-    name,
+    name: req.body.name,
     doj: req.body.doj,
     email: req.body.email,
     phone: req.body.phone,
     photo,
     driving_license,
-    manager,
     school,
+    manager,
   });
 
   res.status(201).json({ msg: busStaff._id });
@@ -218,33 +192,28 @@ const getBusStops = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  const query = {};
+  const school = await UC.validateSchool(req.user, req.query.school);
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+  const query = { school };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name", "address"];
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name", "address"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
     BusStop,
     query,
-    "name address",
+    {},
     page,
     limit,
-    sort
+    sort,
+    ["school manager", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -277,23 +246,11 @@ const getBusStop = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus-stop
 // @access  Private
 const addBusStop = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
+  const [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    req.body.manager,
+    req.body.school
+  );
 
   const busStop = await BusStop.create({
     name: req.body.name,
@@ -301,8 +258,8 @@ const addBusStop = asyncHandler(async (req, res) => {
     fare: req.body.fare,
     lat: parseFloat(req.body.lat).toFixed(6),
     lon: parseFloat(req.body.lon).toFixed(6),
-    manager,
     school,
+    manager,
   });
 
   res.status(201).json({ msg: busStop._id });
@@ -377,24 +334,18 @@ const getBuses = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  const query = {};
+  const school = await UC.validateSchool(req.user, req.query.school);
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+  const query = { school };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -404,7 +355,7 @@ const getBuses = asyncHandler(async (req, res) => {
     page,
     limit,
     sort,
-    ["driver conductor", "name"]
+    ["driver conductor school manager", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -437,8 +388,12 @@ const getBus = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus
 // @access  Private
 const addBus = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    req.body.manager,
+    req.body.school
+  );
+
   const stops = req.body.stops;
   const driver = req.body.driver;
   const conductor = req.body.conductor;
@@ -448,27 +403,12 @@ const addBus = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("stops"));
   }
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  if (!(await BusStaff.any({ _id: driver, type: "d", manager, school }))) {
+  if (!(await BusStaff.any({ _id: driver, type: "d", school }))) {
     res.status(400);
     throw new Error(C.getResourse404Error("driver", driver));
   }
 
-  if (!(await BusStaff.any({ _id: conductor, type: "c", manager, school }))) {
+  if (!(await BusStaff.any({ _id: conductor, type: "c", school }))) {
     res.status(400);
     throw new Error(C.getResourse404Error("conductor", conductor));
   }
@@ -486,12 +426,11 @@ const addBus = asyncHandler(async (req, res) => {
     model: req.body.model,
     year_made: req.body.year_made,
     device: req.body.device,
-    mobile: req.body.mobile,
     stops,
     driver,
     conductor,
-    manager,
     school,
+    manager,
   });
 
   res.status(201).json({ msg: bus._id });

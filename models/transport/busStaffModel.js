@@ -14,23 +14,24 @@ const schema = new mongoose.Schema(
         message: C.VALUE_NOT_SUP,
       },
     },
-    name: {
-      f: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-      m: { type: String, default: "", uppercase: true },
-      l: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    },
+    name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
     doj: { type: Date, required: [true, C.FIELD_IS_REQ] },
     email: { type: String, default: "" },
-    phone: { type: String, default: "" },
+    phone: { type: String, required: [true, C.FIELD_IS_REQ] },
+    alt_phone: { type: String, default: "" },
     photo: { type: String, default: "" },
     driving_license: {
       number: { type: String, default: "", uppercase: true },
       expiry_date: { type: Date, default: 0 },
     },
+    school: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "schools",
+    },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.plugin(any);

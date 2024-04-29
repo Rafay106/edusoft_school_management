@@ -42,6 +42,18 @@ const deviceSchema = new mongoose.Schema(
   { minimize: false }
 );
 
+const stopSchema = new mongoose.Schema(
+  {
+    number: { type: Number, required: [true, C.FIELD_IS_REQ] },
+    stop: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "bus_stops",
+    },
+  },
+  { _id: false }
+);
+
 const schema = new mongoose.Schema(
   {
     name: { type: String, required: [true, C.FIELD_IS_REQ] },
@@ -68,10 +80,14 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "bus_staffs",
     },
+    school: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "schools",
+    },
     manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
-  { timestamps: true, minimize: false }
+  { timestamps: true, minimize: false, versionKey: false }
 );
 
 schema.index({ name: 1, school: 1 }, { unique: true });

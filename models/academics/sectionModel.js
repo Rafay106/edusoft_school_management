@@ -10,21 +10,21 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "academic_years",
     },
+    school: {
+      type: mongoose.SchemaTypes.ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "schools",
+    },
     manager: {
       type: mongoose.SchemaTypes.ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "users",
     },
-    school: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
-schema.index({ name: 1, school: 1 }, { unique: true });
+schema.index({ name: 1, academic_year: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
 const Section = mongoose.model("sections", schema);
