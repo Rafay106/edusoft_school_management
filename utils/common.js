@@ -7,6 +7,7 @@ const School = require("../models/system/schoolModel");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/studentInfo/studentModel");
 const { isUsernameValid } = require("./validators");
+
 const User = require("../models/system/userModel");
 
 const createSearchQuery = (fields, value) => {

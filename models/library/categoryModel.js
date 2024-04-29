@@ -12,6 +12,7 @@ const categorySchema = new mongoose.Schema({
     ref: "academic_years",
   },
   school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+  
 });
 
 categorySchema.index({ title: 1, school: 1 }, { unique: true });

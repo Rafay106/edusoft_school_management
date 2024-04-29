@@ -22,6 +22,7 @@ const STR = {
   PAGE_LIMIT_REACHED: "Page limit reached!",
   PARENT: "parent",
   RECEPTIONIST: "receptionist",
+  
   RESOURSE_404: "%R% not found: %ID%",
   SCHOOL: "school",
   STAFF: "staff",

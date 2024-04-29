@@ -14,11 +14,7 @@ const staffSchema = new mongoose.Schema({
       message: C.VALUE_NOT_SUP,
     },
   },
-  name: {
-    f: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    m: { type: String, default: "", uppercase: true },
-    l: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-  },
+  name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
   father_name: { type: String, default: "", uppercase: true },
   mother_name: { type: String, default: "", uppercase: true },
   dob: { type: Date, required: [true, C.FIELD_IS_REQ] },

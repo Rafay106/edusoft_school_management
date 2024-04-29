@@ -135,6 +135,7 @@ app.use(
   parentAuthorize,
   require("./routes/parentRoutes")
 );
+app.use("/api/library",authenticate,require("./routes/libraryRoutes"));
 
 app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
