@@ -24,18 +24,29 @@ const checkStuBusAttendance = async (loc) => {
         name: 1,
         email: 1,
         phone: 1,
-        bus: 1,
+        bus_arrival: 1,
+        bus_departure: 1,
         bus_stop: 1,
         manager: 1,
         school: 1,
       })
       .populate("bus_stop")
       .populate("class section", "name")
-      .populate("bus", "name alternate")
+      .populate("bus_arrival bus_departure", "name alternate")
       .lean();
 
     if (!student) {
       const data = `Error: Student not found | RFID: ${loc.params.io78}`;
+      writeLog("attendance_bus_students", data);
+      return false;
+    }
+
+    const school = await School.findOne({ school: student.school })
+      .select("name lat lon radius address timings")
+      .lean();
+
+    if (!school) {
+      const data = `Error: School not found | school: ${student.school}`;
       writeLog("attendance_bus_students", data);
       return false;
     }
@@ -50,10 +61,16 @@ const checkStuBusAttendance = async (loc) => {
       return false;
     }
 
-    let busToFetch = student.bus._id;
-    if (!currBus._id.equals(student.bus._id)) {
+    const morningTime = school.timings.morning;
+    let busToFetch;
+
+    if (isMorningTime(loc.dt_tracker, morningTime)) {
+      busToFetch = student.bus_arrival._id;
+    } else busToFetch = student.bus_departure._id;
+
+    if (!currBus._id.equals(busToFetch)) {
       busToFetch = currBus._id;
-      await switchBus(student.bus._id, currBus._id);
+      await switchBus(busToFetch, currBus._id);
     }
 
     const bus = await Bus.findById(busToFetch)
@@ -63,16 +80,6 @@ const checkStuBusAttendance = async (loc) => {
 
     if (!bus) {
       const data = `Error: Bus not found | _id: ${busToFetch}`;
-      writeLog("attendance_bus_students", data);
-      return false;
-    }
-
-    const school = await School.findOne({ school: student.school })
-      .select("name lat lon radius address timings")
-      .lean();
-
-    if (!school) {
-      const data = `Error: School not found | school: ${student.school}`;
       writeLog("attendance_bus_students", data);
       return false;
     }
@@ -120,7 +127,7 @@ const checkMorningAttendance = async (loc, student, school, bus) => {
   const skul = school;
   if (isPointInCircle(loc.lat, loc.lon, skul.lat, skul.lon, skul.radius)) {
     if (!isMExitTaken) {
-      await takeAttendance(loc, student, C.M_EXIT, school);
+      await takeAttendance(loc, student, C.M_EXIT, school.timings, school);
       return true;
     } else return false;
   }
@@ -132,20 +139,20 @@ const checkMorningAttendance = async (loc, student, school, bus) => {
 
   // if rfid came from student bus_stop then student boarded bus for school
   if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, radius)) {
-    await takeAttendance(loc, student, C.M_ENTRY, bs);
+    await takeAttendance(loc, student, C.M_ENTRY, school.timings, bs);
     return true;
   }
 
   // if not then check for remaining stops
   for (const stop of bus.stops) {
     if (isPointInCircle(loc.lat, loc.lon, stop.lat, stop.lon, radius)) {
-      await takeAttendance(loc, student, C.M_ENTRY, stop);
+      await takeAttendance(loc, student, C.M_ENTRY, school.timings, stop);
       return true;
     }
   }
 
   // if not then morning attendance came from location except stops and school
-  await takeAttendance(loc, student, C.M_ENTRY);
+  await takeAttendance(loc, student, C.M_ENTRY, school.timings);
   return true;
 };
 
@@ -172,7 +179,7 @@ const checkAfternoonAttendance = async (loc, student, school, bus) => {
   const skul = school;
   if (isPointInCircle(loc.lat, loc.lon, skul.lat, skul.lon, skul.radius)) {
     if (!isAEntryTaken) {
-      await takeAttendance(loc, student, C.A_ENTRY, school);
+      await takeAttendance(loc, student, C.A_ENTRY, school.timings, school);
       return true;
     } else return false;
   }
@@ -184,20 +191,20 @@ const checkAfternoonAttendance = async (loc, student, school, bus) => {
 
   // if rfid came from student bus_stop then student dropped at bus stop
   if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, radius)) {
-    await takeAttendance(loc, student, C.A_EXIT, bs);
+    await takeAttendance(loc, student, C.A_EXIT, school.timings, bs);
     return true;
   }
 
   // if not then check for remaining stops
   for (const stop of bus.stops) {
     if (isPointInCircle(loc.lat, loc.lon, stop.lat, stop.lon, radius)) {
-      await takeAttendance(loc, student, C.A_EXIT, stop);
+      await takeAttendance(loc, student, C.A_EXIT, school.timings, stop);
       return true;
     }
   }
 
   // if not then morning attendance came from location except stops and school
-  await takeAttendance(loc, student, C.A_EXIT);
+  await takeAttendance(loc, student, C.A_EXIT, school.timings);
   return true;
 };
 
@@ -225,7 +232,7 @@ const isAfternoonTime = (currDT, afternoonTime) => {
   return false;
 };
 
-const takeAttendance = async (loc, student, tag, location = false) => {
+const takeAttendance = async (loc, student, tag, timings, location = false) => {
   // Current bus
   const cBus = await Bus.findOne({ "device.imei": loc.imei })
     .select("_id name")
@@ -242,11 +249,17 @@ const takeAttendance = async (loc, student, tag, location = false) => {
   let stopMsg = "";
 
   // Make bus message
-  if (!cBus._id.equals(student.bus._id)) {
-    const alt = student.bus.alternate;
+  let defaultBus;
+
+  if (isMorningTime(loc.dt_tracker, timings.morning)) {
+    defaultBus = student.bus_arrival;
+  } else defaultBus = student.bus_departure;
+
+  if (!cBus._id.equals(defaultBus._id)) {
+    const alt = defaultBus.alternate;
     if (alt.enabled) {
-      const altBus = await Bus.findById(alt.bus).select("name").lean();
-      if (!cBus._id.equals(altBus._id)) {
+      if (!cBus._id.equals(alt.bus)) {
+        const altBus = await Bus.findById(alt.bus).select("name").lean();
         // Wrong bus
         busMsg = `${cBus.name} instead of ${altBus.name}`;
       } else {

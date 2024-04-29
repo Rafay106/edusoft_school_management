@@ -67,9 +67,12 @@ const trackBus = asyncHandler(async (req, res) => {
 
     return res.status(200).json([
       {
+        busName: bus.name,
+        no_plate: bus.no_plate,
+        status: bus.status,
         imei: bus.device.imei,
         dt_server: bus.device.dt_server,
-        dt_tracker: bus.device.dt_tracker,
+        dt_tracker: bus.device.dt_tracker.toISOString(),
         lat: bus.device.lat,
         lon: bus.device.lon,
         speed: bus.device.speed,
@@ -87,6 +90,18 @@ const trackBus = asyncHandler(async (req, res) => {
     .lean();
 
   for (const stu of students) {
+    if (!stu.bus) {
+      results.push({
+        student: {
+          admission_no: stu.admission_no,
+          name: UC.getPersonName(stu.name),
+        },
+        msg: "Pedestrian",
+      });
+
+      continue;
+    }
+
     const busToFetch = stu.bus.alternate.enabled
       ? stu.bus.alternate.bus
       : stu.bus._id;
@@ -100,6 +115,9 @@ const trackBus = asyncHandler(async (req, res) => {
         admission_no: stu.admission_no,
         name: UC.getPersonName(stu.name),
       },
+      busName: bus.name,
+      no_plate: bus.no_plate,
+      status: bus.status,
       imei: bus.device.imei,
       dt_server: bus.device.dt_server,
       dt_tracker: bus.device.dt_tracker,
@@ -110,6 +128,7 @@ const trackBus = asyncHandler(async (req, res) => {
       angle: bus.device.angle,
       vehicle_status: bus.device.vehicle_status,
       ignition: bus.device.params.io239 === "1",
+      icon: UC.getBusIcon(bus.device),
     });
   }
 

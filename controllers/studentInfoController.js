@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
-const StudentType = require("../models/studentInfo/studentTypeModel");
+const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const Student = require("../models/studentInfo/studentModel");
 const Class = require("../models/academics/classModel");
 const Section = require("../models/academics/sectionModel");
@@ -9,38 +9,138 @@ const Bus = require("../models/transport/busModel");
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
 const StuAttEvent = require("../models/attendance/stuAttEventModel");
 const BusStop = require("../models/transport/busStopModel");
+const SubWard = require("../models/studentInfo/subwardTypeModel");
 
-/** 1. StudentType */
+/** 1. BoardingType */
 
-// @desc    Get StudentTypes
-// @route   GET /api/student-info/student-type
+// @desc    Get BoardingTypes
+// @route   GET /api/student-info/boarding-type
 // @access  Private
-const getStudentTypes = asyncHandler(async (req, res) => {
+const getBoardingTypes = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  const query = {};
+  const school = await UC.validateSchool(req.user, req.query.school);
+
+  const query = { school };
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
-    StudentType,
+    BoardingType,
+    query,
+    "",
+    page,
+    limit,
+    sort,
+    ["school manager", "name"]
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a BoardingType
+// @route   GET /api/student-info/boarding-type/:id
+// @access  Private
+const getBoardingType = asyncHandler(async (req, res) => {
+  const type = await BoardingType.findOne({
+    _id: req.params.id,
+  }).lean();
+
+  if (!type) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("BoardingType", req.params.id));
+  }
+
+  res.status(200).json(type);
+});
+
+// @desc    Add a BoardingType
+// @route   POST /api/student-info/boarding-type
+// @access  Private
+const addBoardingType = asyncHandler(async (req, res) => {
+  const [manager, school] = await UC.validateManagerAndSchool(
+    req.user,
+    req.body.manager,
+    req.body.school
+  );
+
+  const type = await BoardingType.create({
+    name: req.body.name,
+    school,
+    manager,
+  });
+
+  res.status(201).json({ msg: type._id });
+});
+
+// @desc    Update a BoardingType
+// @route   PATCH /api/student-info/boarding-type/:id
+// @access  Private
+const updateBoardingType = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  if (!(await BoardingType.any(query))) {
+    res.status(404);
+    throw new Error(C.getResourse404Error("BoardingType", req.params.id));
+  }
+
+  const result = await BoardingType.updateOne(query, {
+    $set: { name: req.body.name },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a BoardingType
+// @route   DELETE /api/student-info/boarding-type/:id
+// @access  Private
+const deleteBoardingType = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const result = await BoardingType.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
+/** 2. SubWard */
+
+// @desc    Get SubWards
+// @route   GET /api/student-info/sub-ward
+// @access  Private
+const getSubWards = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const search = req.query.search;
+
+  const school = await UC.validateSchool(req.user, req.query.school);
+
+  const query = { school };
+
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
+
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
+  }
+
+  const results = await UC.paginatedQuery(
+    SubWard,
     query,
     "name",
     page,
@@ -53,86 +153,66 @@ const getStudentTypes = asyncHandler(async (req, res) => {
   res.status(200).json(results);
 });
 
-// @desc    Get a StudentType
-// @route   GET /api/student-info/student-type/:id
+// @desc    Get a SubWard
+// @route   GET /api/student-info/sub-ward/:id
 // @access  Private
-const getStudentType = asyncHandler(async (req, res) => {
-  const type = await StudentType.findOne({
+const getSubWard = asyncHandler(async (req, res) => {
+  const type = await SubWard.findOne({
     _id: req.params.id,
   }).lean();
 
   if (!type) {
     res.status(404);
-    throw new Error(C.getResourse404Error("StudentType", req.params.id));
+    throw new Error(C.getResourse404Error("SubWard", req.params.id));
   }
 
   res.status(200).json(type);
 });
 
-// @desc    Add a StudentType
-// @route   POST /api/student-info/student-type
+// @desc    Add a SubWard
+// @route   POST /api/student-info/sub-ward
 // @access  Private
-const addStudentType = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+const addSubWard = asyncHandler(async (req, res) => {
+  const school = await UC.validateSchool(req.user, req.body.school);
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const type = await StudentType.create({
-    name: req.body.name,
-    manager,
-    school,
-  });
+  const type = await SubWard.create({ name: req.body.name, school });
 
   res.status(201).json({ msg: type._id });
 });
 
-// @desc    Update a StudentType
-// @route   PATCH /api/student-info/student-type/:id
+// @desc    Update a SubWard
+// @route   PATCH /api/student-info/sub-ward/:id
 // @access  Private
-const updateStudentType = asyncHandler(async (req, res) => {
+const updateSubWard = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) query.school = req.user._id;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
-  if (!(await StudentType.any(query))) {
+  if (!(await SubWard.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("StudentType", req.params.id));
+    throw new Error(C.getResourse404Error("SubWard", req.params.id));
   }
 
-  const result = await StudentType.updateOne(query, {
+  const result = await SubWard.updateOne(query, {
     $set: { name: req.body.name },
   });
 
   res.status(200).json(result);
 });
 
-// @desc    Delete a StudentType
-// @route   DELETE /api/student-info/student-type/:id
+// @desc    Delete a SubWard
+// @route   DELETE /api/student-info/sub-ward/:id
 // @access  Private
-const deleteStudentType = asyncHandler(async (req, res) => {
+const deleteSubWard = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const result = await StudentType.deleteOne(query);
+  const result = await SubWard.deleteOne(query);
 
   res.status(200).json(result);
 });
 
-/** 2. Student */
+/** 3. Student */
 
 // @desc    Get all students
 // @route   GET /api/student-info/student
@@ -141,40 +221,21 @@ const getStudents = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
-  let manager = req.query.manager;
-  let school = req.query.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    manager,
-    school
-  );
+  const school = await UC.validateSchool(req.user, req.query.school);
 
   const ayear = await UC.getCurrentAcademicYear(school);
 
   const query = { academic_year: ayear };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = [
-        "name.f",
-        "name.m",
-        "name.l",
-        "phone",
-        "email",
-        "admissionNo",
-        "gender",
-      ];
+  if (C.isManager(req.user.type)) query.manager = req.user._id;
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+  if (search) {
+    const fields = ["name", "phone", "email", "admissionNo", "gender"];
+
+    const searchQuery = UC.createSearchQuery(fields, searchValue);
+    query["$or"] = searchQuery["$or"];
   }
 
   const select = {
@@ -194,14 +255,11 @@ const getStudents = asyncHandler(async (req, res) => {
   };
 
   const populate = [
-    "academic_year class section bus bus_stop parent manager school",
+    "academic_year class section bus bus_stop parent school",
     "name title",
   ];
 
-  if (C.isAdmins(req.user.type)) {
-    select.school = 1;
-    select.manager = 1;
-  } else if (C.isManager(req.user.type)) {
+  if (C.isAdmins(req.user.type) || C.isManager(req.user.type)) {
     select.school = 1;
   }
 
@@ -218,16 +276,14 @@ const getStudents = asyncHandler(async (req, res) => {
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
   for (const s of results.result) {
-    s.name = UC.getPersonName(s.name);
-
     if (!s.photo) s.photo = `${process.env.DOMAIN}/user-blank.svg`;
     else s.photo = `${process.env.DOMAIN}/uploads/student/${s.photo}`;
 
-    s.academic_year = s.academic_year.title;
-    s.class = s.class.name;
-    s.section = s.section.name;
-    s.bus = s.bus.name;
-    s.bus_stop = s.bus_stop.name;
+    s.academic_year = s.academic_year?.title;
+    s.class = s.class?.name;
+    s.section = s.section?.name;
+    s.bus = s.bus?.name;
+    s.bus_stop = s.bus_stop?.name;
     if (s.parent) s.parent = s.parent.name;
   }
 
@@ -300,9 +356,9 @@ const addStudent = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("student_type"));
   }
 
-  if (!(await StudentType.any({ _id: studentType, manager, school }))) {
+  if (!(await BoardingType.any({ _id: studentType, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("StudentType", studentType));
+    throw new Error(C.getResourse404Error("BoardingType", studentType));
   }
 
   // Validate class
@@ -402,9 +458,12 @@ const updateStudent = asyncHandler(async (req, res) => {
 
   const studentType = req.body.student_type;
 
-  if (studentType && !(await StudentType.any({ ...query, _id: studentType }))) {
+  if (
+    studentType &&
+    !(await BoardingType.any({ ...query, _id: studentType }))
+  ) {
     res.status(400);
-    throw new Error(C.getResourse404Error("StudentType", studentType));
+    throw new Error(C.getResourse404Error("BoardingType", studentType));
   }
 
   const class_ = req.body.class;
@@ -739,11 +798,17 @@ const getStuAttNotification = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getStudentTypes,
-  getStudentType,
-  addStudentType,
-  updateStudentType,
-  deleteStudentType,
+  getBoardingTypes,
+  getBoardingType,
+  addBoardingType,
+  updateBoardingType,
+  deleteBoardingType,
+
+  getSubWards,
+  getSubWard,
+  addSubWard,
+  updateSubWard,
+  deleteSubWard,
 
   getStudents,
   getStudent,

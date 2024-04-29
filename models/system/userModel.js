@@ -4,6 +4,8 @@ const C = require("../../constants");
 const { isEmailValid, isUsernameValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+
 const privilegesSchema = new mongoose.Schema({
   sidebar_manager: { type: Boolean, default: false },
   dashboard: {
@@ -264,17 +266,11 @@ const schema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    email_verified: { type: Boolean, default: false },
     password: { type: String, required: [true, C.FIELD_IS_REQ] },
-    username: {
-      type: String,
-      validate: {
-        validator: isUsernameValid,
-        message: (props) => `username: ${props.value} is invalid!`,
-      },
-      trim: true,
-    },
     name: { type: String, required: [true, C.FIELD_IS_REQ] },
     phone: { type: String, required: [true, C.FIELD_IS_REQ] },
+    phone_verified: { type: Boolean, default: false },
     type: {
       type: String,
       required: [true, C.FIELD_IS_REQ],
@@ -297,13 +293,15 @@ const schema = new mongoose.Schema(
     },
     privileges: { type: privilegesSchema, required: [true, C.FIELD_IS_REQ] },
     school_limit: { type: Number, default: 0 },
-    school: { type: mongoose.SchemaTypes.ObjectId, ref: "users" },
+    school: { type: ObjectId, ref: "schools" },
+    manager: { type: ObjectId, ref: "users" },
   },
   { timestamps: true, versionKey: false }
 );
 
 schema.index({ email: 1 }, { unique: true });
-schema.index({ username: 1 }, { unique: true });
+schema.index({ phone: 1 }, { unique: true });
+// schema.index({ username: 1 }, { unique: true });
 
 schema.pre("save", async function (next) {
   if (this.isModified("password")) {
@@ -321,11 +319,33 @@ schema.pre("save", async function (next) {
 
 schema.pre("updateOne", function (next) {
   this.setOptions({ runValidators: true });
+
+  const emailToUpdate = this.getUpdate().$set?.email;
+  if (emailToUpdate) {
+    this.updateOne({}, { $set: { email_verified: false } });
+  }
+
+  const phoneToUpdate = this.getUpdate().$set?.phone;
+  if (phoneToUpdate) {
+    this.updateOne({}, { $set: { phone_verified: false } });
+  }
+
   next();
 });
 
 schema.pre("updateMany", function (next) {
   this.setOptions({ runValidators: true });
+
+  const emailToUpdate = this.getUpdate().$set?.email;
+  if (emailToUpdate) {
+    this.updateOne({}, { $set: { email_verified: false } });
+  }
+
+  const phoneToUpdate = this.getUpdate().$set?.phone;
+  if (phoneToUpdate) {
+    this.updateOne({}, { $set: { phone_verified: false } });
+  }
+
   next();
 });
 

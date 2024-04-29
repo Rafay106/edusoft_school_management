@@ -18,7 +18,7 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.name === "ValidationError") {
     const message = Object.keys(err.errors).map((key) =>
-      err.errors[key].message.replace("%F%", key)
+      err.errors[key].message.replace("%F%", `${key}: ${err.errors[key].value}`)
     );
 
     errObj.message = message;

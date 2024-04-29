@@ -28,8 +28,8 @@ router.post(
     }
 
     const user = await User.findOne({ email })
-      .select("email username name phone type manager school password")
-      .populate("manager school", "name")
+      .select("email username name phone type school password")
+      .populate("school", "name")
       .lean();
 
     if (user) {
@@ -54,8 +54,8 @@ router.post(
     const admissionNo = email.toUpperCase();
 
     const parentUser = await User.findOne({ username: admissionNo })
-      .select("email username name phone type manager school password")
-      .populate("manager school", "name")
+      .select("email username name phone type school password")
+      .populate("school", "name")
       .lean();
 
     if (parentUser) {
@@ -91,19 +91,21 @@ router.post(
 
       return res.status(200).json({ ...parentUser, ...token });
     } else {
-      const student = await Student.findOne({
-        admission_no: admissionNo,
-      }).lean();
+      const student = await Student.findOne({ admission_no: admissionNo })
+        .select("roll_no photo class section bus")
+        .populate("class section", "name")
+        .populate("bus", "name no_plate")
+        .lean();
 
       if (!student) {
         res.status(401);
-        throw new Error(C.INVALID_CREDENTIALS);
+        throw new Error(C.INVALID_ADMNO);
       }
 
       if (student.parent) {
         const parent = await User.findById(student.parent)
-          .select("email username name phone type manager school password")
-          .populate("manager school", "name")
+          .select("email username name phone type school password")
+          .populate("school", "name")
           .lean();
 
         if (parent) {
@@ -112,26 +114,13 @@ router.post(
             throw new Error(C.INVALID_CREDENTIALS);
           }
 
-          const student_ = await Student.findOne({ admission_no: admissionNo })
-            .select("roll_no photo class section bus")
-            .populate("class section", "name")
-            .populate("bus", "name no_plate")
-            .lean();
-
-          if (!student_) {
-            res.status(404);
-            throw new Error(
-              `Student not found with admission_no: ${admissionNo}`
-            );
-          }
-
           const token = generateToken(parent._id);
 
           delete parent.privileges;
           delete parent.password;
           delete parent.__v;
 
-          parent.student = student_;
+          parent.student = student;
 
           return res.status(200).json({ ...parent, ...token });
         }
@@ -144,7 +133,6 @@ router.post(
       const newParentUser = await User.create({
         email: student.email,
         password: "123456",
-        username: student.admission_no,
         name: `${UC.getPersonName(student.name)}'s parent`,
         phone: student.phone,
         type: C.PARENT,
@@ -162,7 +150,6 @@ router.post(
 
       const parentObj = {
         email: newParentUser.email,
-        username: newParentUser.username,
         name: newParentUser.name,
         phone: newParentUser.phone,
         type: newParentUser.type,

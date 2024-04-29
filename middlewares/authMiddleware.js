@@ -92,7 +92,7 @@ const authorize = asyncHandler(async (req, res, next) => {
   if (C.isAdmins(userType)) return next();
 
   if (bUrl === "/api/system" && url.includes("/user")) {
-    if (C.isManager(userType)) next();
+    if (C.isManager(userType) || C.isSchool(userType)) next();
     else {
       res.status(403);
       throw new Error("Access Denied!");

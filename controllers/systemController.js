@@ -229,14 +229,13 @@ const init = asyncHandler(async (req, res) => {
   const superadmin = await User.create({
     email: req.body.email,
     password: req.body.password,
-    username: UC.getUsernameFromEmail(req.body.email),
     name: req.body.name,
     phone: req.body.phone,
     type: C.SUPERADMIN,
     privileges: templatePrivilege.privileges,
   });
 
-  res.status(201).json({ success: true, msg: superadmin._id });
+  res.status(201).json({ msg: superadmin._id });
 });
 
 /** 1. TemplatePrivilege */
@@ -311,24 +310,18 @@ const getUsers = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "email";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   const query = {};
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user.school;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["email", "name", "mobile", "type"];
+  if (search) {
+    const fields = ["email", "name", "mobile", "type"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const select = "email name mobile type";
@@ -354,7 +347,7 @@ const getUser = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const user = await User.findOne(query)
     .select("-password")
@@ -400,6 +393,7 @@ const requiredDataUser = asyncHandler(async (req, res) => {
 const createUser = asyncHandler(async (req, res) => {
   const { email, name, phone, type } = req.body;
   let school = req.body.school;
+  let manager = req.body.manager;
 
   // Validate type
   const notType = [C.SUPERADMIN, C.ADMIN];
@@ -409,13 +403,15 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error(C.getValueNotSup(type));
     }
   } else if (C.isManager(req.user.type)) {
+    manager = req.user._id;
     notType.push(C.MANAGER);
     if (notType.includes(type)) {
       res.status(400);
       throw new Error(C.getValueNotSup(type));
     }
   } else if (C.isSchool(req.user.type)) {
-    school = req.user._id;
+    school = req.user.school;
+    manager = req.user.manager;
     notType.push(C.SCHOOL);
     if (notType.includes(type)) {
       res.status(400);
@@ -426,16 +422,32 @@ const createUser = asyncHandler(async (req, res) => {
   // Validate school
   if (
     (C.isAdmins(req.user.type) || C.isManager(req.user.type)) &&
-    ![C.SUPERADMIN, C.ADMIN, C.MANAGER, C.SCHOOL].includes(type)
+    ![C.SUPERADMIN, C.ADMIN, C.MANAGER].includes(type)
   ) {
     if (!school) {
       res.status(400);
       throw new Error(C.getFieldIsReq("school"));
     }
 
-    if (!(await UC.schoolAccExists(school))) {
+    if (!(await School.any({ _id: school }))) {
       res.status(400);
       throw new Error(C.getResourse404Error("school", school));
+    }
+  }
+
+  // Validate manager
+  if (
+    C.isAdmins(req.user.type) &&
+    ![C.SUPERADMIN, C.ADMIN, C.MANAGER].includes(type)
+  ) {
+    if (!manager) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("manager"));
+    }
+
+    if (!(await UC.managerExists(manager))) {
+      res.status(400);
+      throw new Error(C.getResourse404Error("manager", manager));
     }
   }
 
@@ -450,34 +462,16 @@ const createUser = asyncHandler(async (req, res) => {
     }
   } else req.body.school_limit = 0;
 
-  // Check school_limit
-  if (C.isSchool(type)) {
-    const manager_ = await User.findById(manager).select("school_limit").lean();
-
-    const schools = await User.find({ type: C.SCHOOL, manager })
-      .select("_id")
-      .lean();
-
-    if (
-      manager_.school_limit !== 0 &&
-      manager_.school_limit <= schools.length
-    ) {
-      res.status(400);
-      throw new Error("Unable to create School account, limit reached!");
-    }
-  }
-
   const user = await User.create({
     email,
     password: "123456",
-    username: UC.getUsernameFromEmail(email),
     name,
     phone,
     type,
     privileges,
     school_limit: req.body.school_limit,
-    manager,
     school,
+    manager,
   });
 
   res.status(201).json({ msg: user._id });
@@ -489,7 +483,7 @@ const createUser = asyncHandler(async (req, res) => {
 const updateUser = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const user = await User.findOne(query);
@@ -580,33 +574,27 @@ const getSchools = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   const query = {};
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user.school;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = [
-        "name",
-        "email",
-        "phone",
-        "address",
-        "country",
-        "state",
-        "city",
-        "pincode",
-      ];
+  if (search) {
+    const fields = [
+      "name",
+      "email",
+      "phone",
+      "address",
+      "country",
+      "state",
+      "city",
+      "pincode",
+    ];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -630,7 +618,7 @@ const getSchool = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  else if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const school = await School.findOne(query)
     .populate("manager school", "name")
@@ -648,22 +636,9 @@ const getSchool = asyncHandler(async (req, res) => {
 // @route   POST /api/system/school
 // @access  Private
 const addSchool = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const manager = await UC.validateManager(req.user, req.body.manager);
 
-  if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const school_ = await School.create({
+  const school = await School.create({
     name: req.body.name,
     email: req.body.email,
     phone: req.body.phone,
@@ -677,11 +652,11 @@ const addSchool = asyncHandler(async (req, res) => {
     radius: req.body.radius,
     timings: req.body.timings,
     bus_incharge: req.body.bus_incharge,
-    manager: req.body.manager,
-    school: req.body.school,
+    library: req.body.library,
+    manager,
   });
 
-  res.status(201).json({ msg: school_._id });
+  res.status(201).json({ msg: school._id });
 });
 
 // @desc    Update a school
@@ -690,7 +665,7 @@ const addSchool = asyncHandler(async (req, res) => {
 const updateSchool = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await School.any(query))) {
@@ -756,75 +731,6 @@ const deleteSchool = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
-// TODO
-// @desc    Bulk operations for school
-// @route   POST /api/system/school/bulk
-// @access  Private
-const bulkOpsSchool = asyncHandler(async (req, res) => {
-  const cmd = req.body.cmd;
-  const schools = req.body.schools;
-
-  if (!cmd) {
-    res.status(400);
-    throw new Error("cmd is required!");
-  }
-
-  if (cmd === "import") {
-    const fileData = JSON.parse(req.file.buffer.toString("utf8"));
-
-    const result = await UC.addMultipleSchools(req.user._id, fileData);
-
-    if (result.status === 400) {
-      res.status(result.status);
-      throw new Error(result.body);
-    }
-
-    return res.status(200).json({ msg: result.msg });
-  }
-
-  if (!schools) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("schools"));
-  }
-
-  if (schools.length === 0) {
-    res.status(400);
-    throw new Error("schools array is empty!");
-  }
-
-  const query = [C.SUPERADMIN, C.ADMIN].includes
-    ? { _id: schools }
-    : { _id: schools, manager: req.user._id };
-
-  if (cmd === "delete") {
-    const result = await School.deleteMany(query);
-
-    return res.status(200).json(result);
-  } else if (cmd === "export-json") {
-    const schoolsToExport = await School.find(query)
-      .select("-createdAt -updatedAt")
-      .sort("name")
-      .lean();
-
-    const dt = new Date();
-    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
-    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const D = String(dt.getUTCDate()).padStart(2, "0");
-
-    const fileName = `School_${Y}-${M}-${D}.json`;
-    const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
-
-    fs.writeFileSync(fileDir, JSON.stringify(schoolsToExport));
-
-    return res.download(fileDir, fileName, () => {
-      fs.unlinkSync(fileDir);
-    });
-  } else {
-    res.status(400);
-    throw new Error("cmd not found!");
-  }
-});
-
 module.exports = {
   init,
 
@@ -847,5 +753,4 @@ module.exports = {
   addSchool,
   updateSchool,
   deleteSchool,
-  bulkOpsSchool,
 };

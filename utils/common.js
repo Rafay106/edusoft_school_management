@@ -87,16 +87,19 @@ const schoolAccExists = async (_id) => await User.any({ _id, type: C.SCHOOL });
 // ************************
 
 const getCurrentAcademicYear = async (schoolId) => {
-  const school = await School.findOne({ school: schoolId })
+  const school = await School.findById(schoolId)
     .select("current_academic_year")
     .lean();
 
-  if (!school.current_academic_year) {
-    const err = new Error(
-      "Current academic year not set, please set the current academic year!"
-    );
+  if (!school) {
+    const err = new Error(C.getResourse404Error("School", schoolId));
     err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
 
+  if (!school.current_academic_year) {
+    const err = new Error(C.CUR_AYEAR_NOT_SET);
+    err.name = C.CUSTOMVALIDATION;
     throw err;
   }
 
@@ -359,55 +362,73 @@ const validateAndSetDate = (date, fieldName) => {
   return date_;
 };
 
-const validateSchool = async (user, school) => {
-  const err = new Error();
-  err.name = C.CUSTOMVALIDATION;
-
-  if (C.isSchool(user.type)) school = user._id;
-
-  if (!school) {
-    err.message = C.getFieldIsReq("school");
-    throw err;
-  }
-
-  if (!(await schoolAccExists(school))) {
-    err.message = C.getResourse404Error("school", school);
-    throw err;
-  }
-
-  return school;
-};
-
 const validateManagerAndSchool = async (user, manager, school) => {
-  const err = new Error();
-  err.name = C.CUSTOMVALIDATION;
-
   if (C.isSchool(user.type)) {
-    school = user._id;
+    school = user.school;
     manager = user.manager;
   } else if (C.isManager(user.type)) manager = user._id;
 
   if (!manager) {
-    err.message = C.getFieldIsReq("manager");
+    const err = new Error(C.getFieldIsReq("manager"));
+    err.name = C.CUSTOMVALIDATION;
     throw err;
   }
 
   if (!(await managerExists(manager))) {
-    err.message = C.getResourse404Error("manager", manager);
+    const err = new Error(C.getResourse404Error("manager", manager));
+    err.name = C.CUSTOMVALIDATION;
     throw err;
   }
 
   if (!school) {
-    err.message = C.getFieldIsReq("school");
+    const err = new Error(C.getFieldIsReq("school"));
+    err.name = C.CUSTOMVALIDATION;
     throw err;
   }
 
-  if (!(await schoolAccExists(school, manager))) {
-    err.message = C.getResourse404Error("school", school);
+  if (!(await School.any({ _id: school, manager }))) {
+    const err = new Error(C.getResourse404Error("school", school));
+    err.name = C.CUSTOMVALIDATION;
     throw err;
   }
 
   return [manager, school];
+};
+
+const validateManager = async (user, manager) => {
+  if (C.isManager(user.type)) manager = user._id;
+
+  if (!manager) {
+    const err = new Error(C.getFieldIsReq("manager"));
+    err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
+
+  if (!(await managerExists(manager))) {
+    const err = new Error(C.getResourse404Error("manager", manager));
+    err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
+
+  return manager;
+};
+
+const validateSchool = async (user, school) => {
+  if (C.isSchool(user.type)) school = user.school;
+
+  if (!school) {
+    const err = new Error(C.getFieldIsReq("school"));
+    err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
+
+  if (!(await School.any({ _id: school }))) {
+    const err = new Error(C.getResourse404Error("school", school));
+    err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
+
+  return school;
 };
 
 // ************************
@@ -619,8 +640,9 @@ module.exports = {
   getBusIcon,
 
   validateAndSetDate,
-  validateSchool,
   validateManagerAndSchool,
+  validateManager,
+  validateSchool,
 
   getYMD,
   getDDMMYYYY,

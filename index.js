@@ -22,6 +22,7 @@ const { listenDeviceData } = require("./services/listener");
 const {
   serviceClearHistory,
   serviceResetAlternateBus,
+  serviceInsertData,
 } = require("./services/service");
 const UC = require("./utils/common");
 const { sendNotifications } = require("./tools/notifications");
@@ -155,6 +156,14 @@ cron.schedule("0 0 * * *", async () => {
   try {
     await serviceClearHistory();
     await serviceResetAlternateBus();
+  } catch (err) {
+    UC.writeLog("errors", `${err.stack}`);
+  }
+});
+
+cron.schedule("*/5 * * * * *", async () => {
+  try {
+    await serviceInsertData();
   } catch (err) {
     UC.writeLog("errors", `${err.stack}`);
   }
