@@ -7,6 +7,7 @@ const School = require("../models/system/schoolModel");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/studentInfo/studentModel");
 const { isUsernameValid } = require("./validators");
+
 const User = require("../models/system/userModel");
 
 const createSearchQuery = (fields, value) => {
@@ -104,6 +105,18 @@ const getCurrentAcademicYear = async (schoolId) => {
   }
 
   return school.current_academic_year;
+};
+
+const getLibraryVariables = async (schoolId) => {
+  const school = await School.findById(schoolId).select("library").lean();
+
+  if (!school) {
+    const err = new Error(C.getResourse404Error("School", schoolId));
+    err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
+
+  return school.library;
 };
 
 const addMultipleSchools = async (userId, fileData) => {
@@ -631,6 +644,7 @@ module.exports = {
   schoolAccExists,
 
   getCurrentAcademicYear,
+  getLibraryVariables,
   addMultipleSchools,
 
   addMultipleStudents,

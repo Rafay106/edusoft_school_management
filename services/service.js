@@ -1,5 +1,8 @@
 const { default: axios } = require("axios");
 const Bus = require("../models/transport/busModel");
+const Student = require('../models/studentInfo/studentModel');
+const School = require('../models/system/schoolModel');
+const IssueBooks = require('../models/library/issueBookModel');
 const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
 const { insert_db_loc } = require("./insert");
 
@@ -58,8 +61,38 @@ const serviceInsertData = async () => {
   }
 };
 
+const serviceCalculateOverdueAndApplyFine = async () => {
+  try {
+    const schools = await  School.find();
+     const issueBooks = await IssueBooks.find();
+
+    for (const issueBook of issueBooks) {
+      const school = schools.find(sch => sch._id.equals(issueBook.school));
+      if(school){
+      const current_date = new Date();
+      const issue_date = issueBook.issued_date;
+      const fine_per_day = school.library.fine_per_day;
+      const overDueDays = Math.max(0,Math.ceil((current_date - issue_date)/(1000*60*60*24)));
+      if(overDueDays>0){
+          const fine = overDueDays* fine_per_day;
+          const student = Student.findById(issueBook.student);
+        
+            // Apply fine to the student's record
+            student.fine += fine;
+            await student.save();
+          
+
+          // await issueBooks.updateOne({_id:issueBook._id},{$set:{fine : fine } });
+
+
+      } }} } catch(err){   
+        console.error('issue books and schools not found',err);
+ }
+};
+
 module.exports = {
   serviceClearHistory,
   serviceResetAlternateBus,
   serviceInsertData,
+  serviceCalculateOverdueAndApplyFine
 };

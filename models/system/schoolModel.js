@@ -19,6 +19,7 @@ const schema = new mongoose.Schema(
         validator: isEmailValid,
         message: C.FIELD_IS_INVALID,
       },
+      
       lowercase: true,
       trim: true,
     },
