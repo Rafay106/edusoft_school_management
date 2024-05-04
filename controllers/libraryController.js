@@ -20,7 +20,7 @@ const getCategories = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -54,7 +54,7 @@ const getCategories = asyncHandler(async (req, res) => {
 const getCategory = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
   // else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const category = await LibraryCategory.findOne(query);
@@ -93,7 +93,7 @@ const addCategory = asyncHandler(async (req, res) => {
 const updateCategory = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await LibraryCategory.any(query))) {
     res.status(404);
@@ -130,7 +130,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user._id;
+  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
 
   console.log(delQuery);
 
@@ -151,7 +151,7 @@ const getSubjects = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -183,7 +183,7 @@ const getSubjects = asyncHandler(async (req, res) => {
 // @access  Private
 const getSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const subject = await LibrarySubject.findOne(query);
   if (!subject) {
@@ -219,7 +219,7 @@ const addSubject = asyncHandler(async (req, res) => {
 const updateSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await LibrarySubject.any(query))) {
     res.status(404);
@@ -240,15 +240,15 @@ const deleteSubject = asyncHandler(async (req, res) => {
   const subject = await LibrarySubject.findById(req.params.id)
     .select("_id")
     .lean();
-
+console.log(subject);
   if (!subject) {
     res.status(400);
-    throw new Error(C.getResourse404Error("library", req.params.id));
+    throw new Error(C.getResourse404Error("subject", req.params.id));
   }
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user._id;
+  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
 
   console.log(delQuery);
 
@@ -271,7 +271,7 @@ const getBooks = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (searchField && searchValue) {
     if (searchField === "all") {
@@ -304,12 +304,12 @@ const getBooks = asyncHandler(async (req, res) => {
 // @access  Private
 const getBook = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const book = await LibraryBook.findOne(query);
   if (!book) {
     res.status(400);
-    throw new Error(C.getResourse404Error("subject", req.params.id));
+    throw new Error(C.getResourse404Error("book", req.params.id));
   }
   res.status(200).json(book);
 });
@@ -348,7 +348,7 @@ const addBook = asyncHandler(async (req, res) => {
 const updateBook = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await LibraryBook.any(query))) {
     res.status(404);
@@ -375,7 +375,7 @@ const deleteBook = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user._id;
+  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
 
   console.log(delQuery);
 
@@ -395,7 +395,7 @@ const getIssueBooks = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (search) {
     const fields = ["title"];
@@ -458,9 +458,27 @@ const addIssueBook = asyncHandler(async (req, res) => {
   };
 
   if (type === "student") {
-    if (!(await Student.any({ _id: id, school }))) {
+    const student = await Student.findOne({ _id: id, school })
+      .select("_id")
+      .lean();
+
+    if (!student) {
       res.status(400);
       throw new Error(C.getResourse404Error("student", id));
+    }
+
+    const issuedBooks = await LibraryIssueBook.countDocuments({
+      student: id,
+      status: "issued",
+    });
+
+    const libraryVars = await UC.getLibraryVariables(school);
+
+    if (
+      libraryVars.book_issue_limit !== 0 &&
+      libraryVars.book_issue_limit <= issuedBooks
+    ) {
+      return res.status(200).json({ msg: "Student book issue limit reached!" });
     }
 
     issueBook.student = id;
@@ -494,7 +512,7 @@ const getMemberList = asyncHandler(async (req, res) => {
   const query = {};
   const select = "admission_no name phone email class section";
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   let results;
   if (type === "student") {
@@ -564,7 +582,7 @@ const getMemberDetail = asyncHandler(async (req, res) => {
 const returnIssueBook = asyncHandler(async (req, res) => {
   const query = { _id: req.body.issueId, status: "issued" };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   console.log(query);
 

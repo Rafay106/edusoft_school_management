@@ -23,6 +23,7 @@ const {
   serviceClearHistory,
   serviceResetAlternateBus,
   serviceInsertData,
+  serviceCalculateOverdueAndApplyFine
 } = require("./services/service");
 const UC = require("./utils/common");
 const { sendNotifications } = require("./tools/notifications");
@@ -135,7 +136,7 @@ app.use(
   parentAuthorize,
   require("./routes/parentRoutes")
 );
-app.use("/api/library",authenticate,require("./routes/libraryRoutes"));
+app.use("/api/library", authenticate, require("./routes/libraryRoutes"));
 
 app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
@@ -154,21 +155,28 @@ app.use("/api/razorpay", require("./tools/razorpay"));
 // });
 
 cron.schedule("0 0 * * *", async () => {
-  try {
-    await serviceClearHistory();
-    await serviceResetAlternateBus();
-  } catch (err) {
-    UC.writeLog("errors", `${err.stack}`);
+  if (process.env.NODE_ENV == "production") {
+    try {
+      await serviceClearHistory();
+      await serviceResetAlternateBus();
+    } catch (err) {
+      UC.writeLog("errors", `${err.stack}`);
+    }
   }
 });
 
 cron.schedule("*/5 * * * * *", async () => {
-  try {
-    await serviceInsertData();
-  } catch (err) {
-    UC.writeLog("errors", `${err.stack}`);
+  if (process.env.NODE_ENV == "production") {
+    try {
+      await serviceInsertData();
+    } catch (err) {
+      UC.writeLog("errors", `${err.stack}`);
+    }
   }
 });
+cron.schedule("0 0 * * *",async()=>{
+    await  serviceCalculateOverdueAndApplyFine();
+    })
 
 /*************
  * Cron Jobs *

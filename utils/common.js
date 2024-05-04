@@ -107,6 +107,18 @@ const getCurrentAcademicYear = async (schoolId) => {
   return school.current_academic_year;
 };
 
+const getLibraryVariables = async (schoolId) => {
+  const school = await School.findById(schoolId).select("library").lean();
+
+  if (!school) {
+    const err = new Error(C.getResourse404Error("School", schoolId));
+    err.name = C.CUSTOMVALIDATION;
+    throw err;
+  }
+
+  return school.library;
+};
+
 const addMultipleSchools = async (userId, fileData) => {
   const schools = [];
 
@@ -632,6 +644,7 @@ module.exports = {
   schoolAccExists,
 
   getCurrentAcademicYear,
+  getLibraryVariables,
   addMultipleSchools,
 
   addMultipleStudents,

@@ -24,7 +24,7 @@ const issueBookSchema = new mongoose.Schema({
     required: [true, C.FIELD_IS_REQ],
     ref: "academic_years",
   },
-  school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+  school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "schools" },
 });
 
 issueBookSchema.plugin(any);
