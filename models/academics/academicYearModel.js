@@ -15,10 +15,11 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "schools",
     },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true, versionKey: false }
 );
+
+schema.index({ year: 1 }, { unique: true });
 
 schema.plugin(any);
 

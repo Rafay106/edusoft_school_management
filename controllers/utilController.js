@@ -74,7 +74,7 @@ const getSchoolList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   const query = { type: C.SCHOOL, manager };
@@ -139,12 +139,12 @@ const getStudentTypeList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const types = await StudentType.find({ manager, school })
@@ -181,12 +181,12 @@ const getBusStopList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const busStops = await BusStop.find({ manager, school })
@@ -224,12 +224,12 @@ const getDriverList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const query = { type: "d", manager, school };
@@ -300,12 +300,12 @@ const getConductorList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const query = { type: "c", manager, school };
@@ -374,12 +374,12 @@ const getBusList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const buses = await Bus.find({ manager, school }).select("name").lean();
@@ -413,12 +413,12 @@ const getAcademicYearList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const years = await AcademicYear.find({ manager, school })
@@ -432,15 +432,9 @@ const getAcademicYearList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/section-list
 // @access  Private
 const getSectionList = asyncHandler(async (req, res) => {
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.query.manager,
-    req.query.school
-  );
+  const academic_year = await UC.getCurrentAcademicYear(req.school);
 
-  const academic_year = await UC.getCurrentAcademicYear(school);
-
-  const sections = await Section.find({ manager, school, academic_year })
+  const sections = await Section.find({ academic_year })
     .select("name")
     .sort("name")
     .lean();
@@ -452,43 +446,9 @@ const getSectionList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/class-list
 // @access  Private
 const getClassList = asyncHandler(async (req, res) => {
-  let manager = req.query.manager;
-  let school = req.query.school;
-  const academic_year = req.query.ayear;
+  const academic_year = await UC.getCurrentAcademicYear(req.school);
 
-  if (C.isManager(req.user.type)) {
-    manager = req.user._id;
-  } else if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  }
-
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!academic_year) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const classes = await Class.find({ manager, school, academic_year })
+  const classes = await Class.find({ academic_year })
     .select("name")
     .sort("name")
     .lean();
@@ -526,12 +486,12 @@ const getFeeGroupList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const groups = await FeeGroup.find({ manager, school, academic_year })
@@ -546,41 +506,9 @@ const getFeeGroupList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/fee-type-list
 // @access  Private
 const getFeeTypeList = asyncHandler(async (req, res) => {
-  let manager = req.query.manager;
-  let school = req.query.school;
-  const academic_year = req.query.ayear;
+  const academic_year = await UC.getCurrentAcademicYear(req.school);
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!academic_year) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const types = await FeeType.find({ manager, school, academic_year })
+  const types = await FeeType.find({ academic_year })
     .select("name")
     .sort("name")
     .lean();
@@ -592,41 +520,9 @@ const getFeeTypeList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/fee-term-list
 // @access  Private
 const getFeeTermList = asyncHandler(async (req, res) => {
-  let manager = req.query.manager;
-  let school = req.query.school;
-  const academic_year = req.query.ayear;
+  const academic_year = await UC.getCurrentAcademicYear(req.school);
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!manager) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("manager"));
-  }
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("school"));
-  }
-
-  if (!academic_year) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const terms = await FeeTerm.find({ manager, school, academic_year })
+  const terms = await FeeTerm.find({ academic_year })
     .select("name")
     .sort("name")
     .lean();
@@ -664,12 +560,12 @@ const getFeeHeadList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const heads = await FeeHead.find({ manager, school, academic_year })
@@ -704,12 +600,12 @@ const getDesignationList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const designations = await Designation.find({ manager, school })
@@ -744,12 +640,12 @@ const getDepartmentList = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const departments = await Department.find({ manager, school })

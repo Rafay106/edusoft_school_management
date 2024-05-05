@@ -18,18 +18,20 @@ const authenticate = asyncHandler(async (req, res, next) => {
     try {
       const decode = jwt.verify(token, process.env.SECRET);
 
-      req.user = await User.findById(decode._id).select("-password").lean();
-
-      if (C.isSchool(req.user.type)) {
-        const school = await School.findOne({ school: req.user._id }).lean();
-
-        if (school) req.school = school;
-      }
+      req.user = await User.findOne({
+        _id: decode._id,
+        password: decode.password,
+      })
+        .select("-password")
+        .populate("school")
+        .lean();
 
       if (!req.user) {
         res.status(404);
         throw new Error("404");
       }
+
+      req.school = await School.findOne().lean();
     } catch (err) {
       res.status(401);
       throw new Error("Not Authorized!");

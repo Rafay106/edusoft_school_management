@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const C = require("../../constants");
-const { isEmailValid, isUsernameValid } = require("../../utils/validators");
+const { isEmailValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
@@ -256,6 +256,7 @@ const privilegesSchema = new mongoose.Schema({
 
 const schema = new mongoose.Schema(
   {
+    name: { type: String, required: [true, C.FIELD_IS_REQ] },
     email: {
       type: String,
       required: [true, C.FIELD_IS_REQ],
@@ -268,7 +269,6 @@ const schema = new mongoose.Schema(
     },
     email_verified: { type: Boolean, default: false },
     password: { type: String, required: [true, C.FIELD_IS_REQ] },
-    name: { type: String, required: [true, C.FIELD_IS_REQ] },
     phone: { type: String, required: [true, C.FIELD_IS_REQ] },
     phone_verified: { type: Boolean, default: false },
     type: {
@@ -278,7 +278,6 @@ const schema = new mongoose.Schema(
         values: [
           C.SUPERADMIN,
           C.ADMIN,
-          C.MANAGER,
           C.SCHOOL,
           C.TEACHER,
           C.PARENT,
@@ -292,28 +291,18 @@ const schema = new mongoose.Schema(
       },
     },
     privileges: { type: privilegesSchema, required: [true, C.FIELD_IS_REQ] },
-    school_limit: { type: Number, default: 0 },
     school: { type: ObjectId, ref: "schools" },
-    manager: { type: ObjectId, ref: "users" },
   },
   { timestamps: true, versionKey: false }
 );
 
 schema.index({ email: 1 }, { unique: true });
 schema.index({ phone: 1 }, { unique: true });
-// schema.index({ username: 1 }, { unique: true });
 
 schema.pre("save", async function (next) {
   if (this.isModified("password")) {
     this.password = await bcrypt.hash(this.password, 10);
   }
-
-  if (this.type === C.SCHOOL) {
-    if (!this.manager) {
-      throw new Error("manager is required!");
-    }
-  }
-
   next();
 });
 

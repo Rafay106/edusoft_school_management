@@ -64,7 +64,7 @@ const getCategory = asyncHandler(async (req, res) => {
 
   if (!category) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Category", req.params.id));
+    throw new Error(C.getResourse404Id("Category", req.params.id));
   }
 
   res.status(200).json(category);
@@ -97,7 +97,7 @@ const updateCategory = asyncHandler(async (req, res) => {
 
   if (!(await LibraryCategory.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("LibraryCategory", req.params.id));
+    throw new Error(C.getResourse404Id("LibraryCategory", req.params.id));
   }
 
   const result = await LibraryCategory.updateOne(query, {
@@ -117,7 +117,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
 
   if (!category) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Category", req.params.id));
+    throw new Error(C.getResourse404Id("Category", req.params.id));
   }
 
   // if (await Section.any({ academic_year: ayear._id })) {

@@ -17,10 +17,6 @@ const getChildrenOfParent = asyncHandler(async (req, res) => {
     .select("admission_no name")
     .lean();
 
-  for (const s of students) {
-    s.name = UC.getPersonName(s.name);
-  }
-
   res.status(200).json(students);
 });
 

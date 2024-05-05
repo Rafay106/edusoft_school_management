@@ -93,7 +93,7 @@ const getCurrentAcademicYear = async (schoolId) => {
     .lean();
 
   if (!school) {
-    const err = new Error(C.getResourse404Error("School", schoolId));
+    const err = new Error(C.getResourse404Id("School", schoolId));
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }
@@ -225,7 +225,7 @@ const addMultipleStudents = async (userId, userType, fileData) => {
       .select("_id")
       .lean();
 
-    if (!school) errors.push(C.getResourse404Error("school", row.school));
+    if (!school) errors.push(C.getResourse404Id("school", row.school));
 
     if (!row.bus) errors.push(C.getFieldIsReqAtIdx("bus", i));
 
@@ -236,7 +236,7 @@ const addMultipleStudents = async (userId, userType, fileData) => {
       .select("_id")
       .lean();
 
-    if (!bus) errors.push(C.getResourse404Error("bus", row.bus));
+    if (!bus) errors.push(C.getResourse404Id("bus", row.bus));
 
     if (!row.address) errors.push(C.getFieldIsReqAtIdx("address", i));
     if (!row.lat) errors.push(C.getFieldIsReqAtIdx("lat", i));
@@ -388,7 +388,7 @@ const validateManagerAndSchool = async (user, manager, school) => {
   }
 
   if (!(await managerExists(manager))) {
-    const err = new Error(C.getResourse404Error("manager", manager));
+    const err = new Error(C.getResourse404Id("manager", manager));
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }
@@ -400,7 +400,7 @@ const validateManagerAndSchool = async (user, manager, school) => {
   }
 
   if (!(await School.any({ _id: school, manager }))) {
-    const err = new Error(C.getResourse404Error("school", school));
+    const err = new Error(C.getResourse404Id("school", school));
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }
@@ -418,7 +418,7 @@ const validateManager = async (user, manager) => {
   }
 
   if (!(await managerExists(manager))) {
-    const err = new Error(C.getResourse404Error("manager", manager));
+    const err = new Error(C.getResourse404Id("manager", manager));
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }
@@ -436,7 +436,7 @@ const validateSchool = async (user, school) => {
   }
 
   if (!(await School.any({ _id: school }))) {
-    const err = new Error(C.getResourse404Error("school", school));
+    const err = new Error(C.getResourse404Id("school", school));
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }

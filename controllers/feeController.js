@@ -12,6 +12,7 @@ const StudentType = require("../models/studentInfo/boardingTypeModel");
 const FeeStructure = require("../models/fees/feeStructureModel");
 const FeeFine = require("../models/fees/feeFineModel");
 const FeeConcession = require("../models/fees/feeConcessionModel");
+const Student = require("../models/studentInfo/studentModel");
 
 /** 1. Fee Group */
 
@@ -71,7 +72,7 @@ const getFeeGroup = asyncHandler(async (req, res) => {
 
   if (!feeGroup) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeGroup", req.params.id));
+    throw new Error(C.getResourse404Id("FeeGroup", req.params.id));
   }
 
   res.status(200).json(feeGroup);
@@ -81,42 +82,13 @@ const getFeeGroup = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-group
 // @access  Private
 const addFeeGroup = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const ayear = req.body.ayear;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
-  }
+  const ayear = await UC.getCurrentAcademicYear(req.school);
 
   const feeGroup = await FeeGroup.create({
     name: req.body.name,
     description: req.body.desc,
     academic_year: ayear,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeGroup._id });
@@ -133,7 +105,7 @@ const updateFeeGroup = asyncHandler(async (req, res) => {
 
   if (!(await FeeGroup.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeGroup", req.params.id));
+    throw new Error(C.getResourse404Id("FeeGroup", req.params.id));
   }
 
   const result = await FeeGroup.updateOne(query, {
@@ -156,7 +128,7 @@ const deleteFeeGroup = asyncHandler(async (req, res) => {
 
   if (!feeGroup) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeGroup", req.params.id));
+    throw new Error(C.getResourse404Id("FeeGroup", req.params.id));
   }
 
   if (await FeeType.any({ fee_group: feeGroup._id })) {
@@ -227,7 +199,7 @@ const getFeeType = asyncHandler(async (req, res) => {
 
   if (!feeType) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeType", req.params.id));
+    throw new Error(C.getResourse404Id("FeeType", req.params.id));
   }
 
   res.status(200).json(feeType);
@@ -237,25 +209,8 @@ const getFeeType = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-type
 // @access  Private
 const addFeeType = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const ayear = req.body.ayear;
+  const ayear = await UC.getCurrentAcademicYear(req.school);
   const feeGroup = req.body.group;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
 
   // Validate FeeGroup
   if (!feeGroup) {
@@ -263,20 +218,9 @@ const addFeeType = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("group"));
   }
 
-  if (!(await FeeGroup.any({ _id: feeGroup, manager, school }))) {
+  if (!(await FeeGroup.any({ _id: feeGroup }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("group", feeGroup));
-  }
-
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
+    throw new Error(C.getResourse404Id("group", feeGroup));
   }
 
   const feeType = await FeeType.create({
@@ -284,8 +228,7 @@ const addFeeType = asyncHandler(async (req, res) => {
     description: req.body.desc,
     fee_group: feeGroup,
     academic_year: ayear,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeType._id });
@@ -304,12 +247,12 @@ const updateFeeType = asyncHandler(async (req, res) => {
 
   if (!(await FeeType.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeType", req.params.id));
+    throw new Error(C.getResourse404Id("FeeType", req.params.id));
   }
 
   if (group && !(await FeeGroup.any({ ...query, _id: group }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("group", group));
+    throw new Error(C.getResourse404Id("group", group));
   }
 
   const result = await FeeType.updateOne(query, {
@@ -338,7 +281,7 @@ const deleteFeeType = asyncHandler(async (req, res) => {
 
   if (!feeType) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeType", req.params.id));
+    throw new Error(C.getResourse404Id("FeeType", req.params.id));
   }
 
   if (await Class.any({ feeType: feeType._id })) {
@@ -409,7 +352,7 @@ const getFeeTerm = asyncHandler(async (req, res) => {
 
   if (!feeTerm) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeTerm", req.params.id));
+    throw new Error(C.getResourse404Id("FeeTerm", req.params.id));
   }
 
   res.status(200).json(feeTerm);
@@ -419,25 +362,8 @@ const getFeeTerm = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-term
 // @access  Private
 const addFeeTerm = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const ayear = await UC.getCurrentAcademicYear(req.school);
   const year = req.body.year;
-  const ayear = req.body.ayear;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
 
   // Validate Year
   if (!year) {
@@ -513,17 +439,6 @@ const addFeeTerm = asyncHandler(async (req, res) => {
       break;
   }
 
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
-  }
-
   const feeTerm = await FeeTerm.create({
     name,
     term_type: req.body.term_type,
@@ -531,8 +446,7 @@ const addFeeTerm = asyncHandler(async (req, res) => {
     start_month: req.body.start_month,
     late_fee_date: req.body.late_fee_date,
     academic_year: ayear,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeTerm._id });
@@ -549,7 +463,7 @@ const updateFeeTerm = asyncHandler(async (req, res) => {
 
   if (!(await FeeTerm.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeTerm", req.params.id));
+    throw new Error(C.getResourse404Id("FeeTerm", req.params.id));
   }
 
   const result = await FeeTerm.updateOne(query, {
@@ -584,7 +498,7 @@ const deleteFeeTerm = asyncHandler(async (req, res) => {
 
   if (!feeTerm) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeTerm", req.params.id));
+    throw new Error(C.getResourse404Id("FeeTerm", req.params.id));
   }
 
   if (await Class.any({ feeTerm: feeTerm._id })) {
@@ -655,7 +569,7 @@ const getFeeHead = asyncHandler(async (req, res) => {
 
   if (!feeHead) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeHead", req.params.id));
+    throw new Error(C.getResourse404Id("FeeHead", req.params.id));
   }
 
   res.status(200).json(feeHead);
@@ -665,25 +579,8 @@ const getFeeHead = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-head
 // @access  Private
 const addFeeHead = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
   const feeType = req.body.fee_type;
   const ayear = req.body.ayear;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
 
   // Validate FeeType
   if (!feeType) {
@@ -693,18 +590,7 @@ const addFeeHead = asyncHandler(async (req, res) => {
 
   if (!(await FeeType.any({ _id: feeType, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("type", feeType));
-  }
-
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
+    throw new Error(C.getResourse404Id("type", feeType));
   }
 
   const feeHead = await FeeHead.create({
@@ -714,7 +600,7 @@ const addFeeHead = asyncHandler(async (req, res) => {
     ledger: req.body.ledger,
     academic_year: ayear,
     manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeHead._id });
@@ -734,7 +620,7 @@ const updateFeeHead = asyncHandler(async (req, res) => {
   if (feeType) {
     if (!(await FeeType.any({ _id: feeType, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("type", feeType));
+      throw new Error(C.getResourse404Id("type", feeType));
     }
   }
 
@@ -769,7 +655,7 @@ const deleteFeeHead = asyncHandler(async (req, res) => {
 
   if (!feeHead) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeHead", req.params.id));
+    throw new Error(C.getResourse404Id("FeeHead", req.params.id));
   }
 
   if (await Class.any({ feeHead: feeHead._id })) {
@@ -840,7 +726,7 @@ const getFeeStructure = asyncHandler(async (req, res) => {
 
   if (!feeStructure) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeStructure", req.params.id));
+    throw new Error(C.getResourse404Id("FeeStructure", req.params.id));
   }
 
   res.status(200).json(feeStructure);
@@ -850,36 +736,35 @@ const getFeeStructure = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-structure
 // @access  Private
 const addFeeStructure = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const class_ = req.body.class;
   const feeTypes = req.body.fee_types;
   const ayear = req.body.ayear;
 
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  // Validate class
-  if (!class_) {
+  if (!req.body.class) {
     res.status(400);
     throw new Error(C.getFieldIsReq("class"));
   }
 
-  if (!(await Class.any({ _id: class_, manager, school }))) {
+  const class_ = await Class.findOne({ name: req.body.class })
+    .select("_id")
+    .lean();
+
+  if (!class_) {
     res.status(400);
-    throw new Error(C.getResourse404Error("class", class_));
+    throw new Error(C.getResourse404Id("class", req.body.class));
+  }
+
+  if (!req.body.fee_term) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("fee_term"));
+  }
+
+  const feeTerm = await FeeTerm.findOne({ name: req.body.fee_term })
+    .select("_id")
+    .lean();
+
+  if (!feeTerm) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("fee_term", req.body.fee_term));
   }
 
   // Validate feeTypes
@@ -892,9 +777,7 @@ const addFeeStructure = asyncHandler(async (req, res) => {
 
     if (!(await FeeHead.any({ _id: fees.fee_head, manager, school }))) {
       res.status(400);
-      throw new Error(
-        C.getResourse404Error("fee_types.fee_head", fees.fee_head)
-      );
+      throw new Error(C.getResourse404Id("fee_types.fee_head", fees.fee_head));
     }
 
     // Validate amounts
@@ -907,32 +790,19 @@ const addFeeStructure = asyncHandler(async (req, res) => {
 
       if (!(await StudentType.any({ _id: amt.type, manager, school }))) {
         res.status(400);
-        throw new Error(
-          C.getResourse404Error("fee_types.amounts.type", amt.type)
-        );
+        throw new Error(C.getResourse404Id("fee_types.amounts.type", amt.type));
       }
     }
   }
 
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
-  }
-
   const feeStructure = await FeeStructure.create({
     class: class_,
-    fee_period: req.body.fee_period,
+    fee_term: feeTerm._id,
     stream: req.body.stream,
     fee_types: feeTypes,
     academic_year: ayear,
     manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeStructure._id });
@@ -954,7 +824,7 @@ const updateFeeStructure = asyncHandler(async (req, res) => {
   if (!class_) {
     if (!(await Class.any({ _id: class_, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("class", class_));
+      throw new Error(C.getResourse404Id("class", class_));
     }
   }
 
@@ -968,7 +838,7 @@ const updateFeeStructure = asyncHandler(async (req, res) => {
 
       if (!(await FeeHead.any({ _id: fees.head, manager, school }))) {
         res.status(400);
-        throw new Error(C.getResourse404Error("types.head", fees.head));
+        throw new Error(C.getResourse404Id("types.head", fees.head));
       }
 
       // Validate amounts
@@ -981,7 +851,7 @@ const updateFeeStructure = asyncHandler(async (req, res) => {
 
         if (!(await StudentType.any({ _id: amt.type, manager, school }))) {
           res.status(400);
-          throw new Error(C.getResourse404Error("amounts.type", amt.type));
+          throw new Error(C.getResourse404Id("amounts.type", amt.type));
         }
       }
     }
@@ -1018,7 +888,7 @@ const deleteFeeStructure = asyncHandler(async (req, res) => {
 
   if (!feeStructure) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeStructure", req.params.id));
+    throw new Error(C.getResourse404Id("FeeStructure", req.params.id));
   }
 
   if (await Class.any({ feeStructure: feeStructure._id })) {
@@ -1089,7 +959,7 @@ const getFeeFine = asyncHandler(async (req, res) => {
 
   if (!feeFine) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeFine", req.params.id));
+    throw new Error(C.getResourse404Id("FeeFine", req.params.id));
   }
 
   res.status(200).json(feeFine);
@@ -1099,27 +969,10 @@ const getFeeFine = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-fine
 // @access  Private
 const addFeeFine = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
   const class_ = req.body.class;
   const feeTerm = req.body.fee_term;
   const stuType = req.body.stu_type;
   const ayear = req.body.ayear;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
 
   // Validate Class
   if (!class_) {
@@ -1129,7 +982,7 @@ const addFeeFine = asyncHandler(async (req, res) => {
 
   if (!(await Class.any({ _id: class_, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("class", class_));
+    throw new Error(C.getResourse404Id("class", class_));
   }
 
   // Validate FeeTerm
@@ -1140,7 +993,7 @@ const addFeeFine = asyncHandler(async (req, res) => {
 
   if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("fee_term", feeTerm));
+    throw new Error(C.getResourse404Id("fee_term", feeTerm));
   }
 
   // Validate StudentType
@@ -1151,18 +1004,7 @@ const addFeeFine = asyncHandler(async (req, res) => {
 
   if (!(await StudentType.any({ _id: stuType, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("stu_type", stuType));
-  }
-
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
+    throw new Error(C.getResourse404Id("stu_type", stuType));
   }
 
   const feeFine = await FeeFine.create({
@@ -1176,7 +1018,7 @@ const addFeeFine = asyncHandler(async (req, res) => {
     date_range: req.body.date_range,
     academic_year: ayear,
     manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeFine._id });
@@ -1199,7 +1041,7 @@ const updateFeeFine = asyncHandler(async (req, res) => {
   if (!class_) {
     if (!(await Class.any({ _id: class_, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("class", class_));
+      throw new Error(C.getResourse404Id("class", class_));
     }
   }
 
@@ -1207,7 +1049,7 @@ const updateFeeFine = asyncHandler(async (req, res) => {
   if (feeTerm) {
     if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("fee_term", feeTerm));
+      throw new Error(C.getResourse404Id("fee_term", feeTerm));
     }
   }
 
@@ -1215,7 +1057,7 @@ const updateFeeFine = asyncHandler(async (req, res) => {
   if (stuType) {
     if (!(await StudentType.any({ _id: stuType, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("stu_type", stuType));
+      throw new Error(C.getResourse404Id("stu_type", stuType));
     }
   }
 
@@ -1254,7 +1096,7 @@ const deleteFeeFine = asyncHandler(async (req, res) => {
 
   if (!feeFine) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeFine", req.params.id));
+    throw new Error(C.getResourse404Id("FeeFine", req.params.id));
   }
 
   if (await Class.any({ feeFine: feeFine._id })) {
@@ -1325,7 +1167,7 @@ const getFeeConcession = asyncHandler(async (req, res) => {
 
   if (!feeConcession) {
     res.status(404);
-    throw new Error(C.getResourse404Error("FeeConcession", req.params.id));
+    throw new Error(C.getResourse404Id("FeeConcession", req.params.id));
   }
 
   res.status(200).json(feeConcession);
@@ -1335,28 +1177,11 @@ const getFeeConcession = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-concession
 // @access  Private
 const addFeeConcession = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
   const stuType = req.body.stu_type;
   const class_ = req.body.class;
   const feeTerm = req.body.fee_term;
   const feeHeads = req.body.fee_heads;
   const ayear = req.body.ayear;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
-  }
 
   // Validate StudentType
   if (!stuType) {
@@ -1366,7 +1191,7 @@ const addFeeConcession = asyncHandler(async (req, res) => {
 
   if (!(await StudentType.any({ _id: stuType, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("stu_type", stuType));
+    throw new Error(C.getResourse404Id("stu_type", stuType));
   }
 
   // Validate Class
@@ -1377,7 +1202,7 @@ const addFeeConcession = asyncHandler(async (req, res) => {
 
   if (!(await Class.any({ _id: class_, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("class", class_));
+    throw new Error(C.getResourse404Id("class", class_));
   }
 
   // Validate FeeTerm
@@ -1388,7 +1213,7 @@ const addFeeConcession = asyncHandler(async (req, res) => {
 
   if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("fee_term", feeTerm));
+    throw new Error(C.getResourse404Id("fee_term", feeTerm));
   }
 
   // Validate FeeHeads
@@ -1400,19 +1225,8 @@ const addFeeConcession = asyncHandler(async (req, res) => {
   for (const fh of feeHeads) {
     if (!(await FeeHead.any({ _id: fh.fee_head, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("fee_heads", fh.fee_head));
+      throw new Error(C.getResourse404Id("fee_heads", fh.fee_head));
     }
-  }
-
-  // Validate AcademicYear
-  if (!ayear) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ayear"));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
   }
 
   const feeConcession = await FeeConcession.create({
@@ -1422,7 +1236,7 @@ const addFeeConcession = asyncHandler(async (req, res) => {
     fee_heads: feeHeads,
     academic_year: ayear,
     manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: feeConcession._id });
@@ -1446,7 +1260,7 @@ const updateFeeConcession = asyncHandler(async (req, res) => {
   if (stuType) {
     if (!(await StudentType.any({ _id: stuType, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("stu_type", stuType));
+      throw new Error(C.getResourse404Id("stu_type", stuType));
     }
   }
 
@@ -1454,7 +1268,7 @@ const updateFeeConcession = asyncHandler(async (req, res) => {
   if (!class_) {
     if (!(await Class.any({ _id: class_, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("class", class_));
+      throw new Error(C.getResourse404Id("class", class_));
     }
   }
 
@@ -1462,7 +1276,7 @@ const updateFeeConcession = asyncHandler(async (req, res) => {
   if (feeTerm) {
     if (!(await FeeTerm.any({ _id: feeTerm, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("fee_term", feeTerm));
+      throw new Error(C.getResourse404Id("fee_term", feeTerm));
     }
   }
 
@@ -1471,7 +1285,7 @@ const updateFeeConcession = asyncHandler(async (req, res) => {
     for (const fh of feeHeads) {
       if (!(await FeeHead.any({ _id: fh.fee_head, manager, school }))) {
         res.status(400);
-        throw new Error(C.getResourse404Error("fee_heads", fh.fee_head));
+        throw new Error(C.getResourse404Id("fee_heads", fh.fee_head));
       }
     }
   }
@@ -1507,7 +1321,7 @@ const deleteFeeConcession = asyncHandler(async (req, res) => {
 
   if (!feeConcession) {
     res.status(400);
-    throw new Error(C.getResourse404Error("FeeConcession", req.params.id));
+    throw new Error(C.getResourse404Id("FeeConcession", req.params.id));
   }
 
   if (await Class.any({ feeConcession: feeConcession._id })) {
@@ -1518,6 +1332,15 @@ const deleteFeeConcession = asyncHandler(async (req, res) => {
   const result = await FeeConcession.deleteOne(query);
 
   res.status(200).json(result);
+});
+
+// @desc    Generate fees
+// @route   POST /api/fee/fee-concession/:id
+// @access  Private
+const generateFees = asyncHandler(async (req, res) => {
+  const students = await Student.find();
+
+  const feeStructure = await FeeStructure.findOne();
 });
 
 module.exports = {

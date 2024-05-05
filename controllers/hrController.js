@@ -66,7 +66,7 @@ const getDesignation = asyncHandler(async (req, res) => {
 
   if (!designation) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Designation", req.params.id));
+    throw new Error(C.getResourse404Id("Designation", req.params.id));
   }
 
   res.status(200).json(designation);
@@ -86,12 +86,12 @@ const addDesignation = asyncHandler(async (req, res) => {
 
   if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const designation = await Designation.create({
@@ -116,7 +116,7 @@ const updateDesignation = asyncHandler(async (req, res) => {
 
   if (!designation) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Designation", req.params.id));
+    throw new Error(C.getResourse404Id("Designation", req.params.id));
   }
 
   const result = await Designation.updateOne(query, {
@@ -204,7 +204,7 @@ const getDepartment = asyncHandler(async (req, res) => {
 
   if (!department) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Department", req.params.id));
+    throw new Error(C.getResourse404Id("Department", req.params.id));
   }
 
   res.status(200).json(department);
@@ -224,12 +224,12 @@ const addDepartment = asyncHandler(async (req, res) => {
 
   if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const department = await Department.create({
@@ -254,7 +254,7 @@ const updateDepartment = asyncHandler(async (req, res) => {
 
   if (!department) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Department", req.params.id));
+    throw new Error(C.getResourse404Id("Department", req.params.id));
   }
 
   const result = await Department.updateOne(query, {
@@ -335,7 +335,7 @@ const getStaff = asyncHandler(async (req, res) => {
 
   if (!staff) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Staff", req.params.id));
+    throw new Error(C.getResourse404Id("Staff", req.params.id));
   }
 
   res.status(200).json(staff);
@@ -357,12 +357,12 @@ const addStaff = asyncHandler(async (req, res) => {
 
   if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   // Validate Designation
@@ -373,7 +373,7 @@ const addStaff = asyncHandler(async (req, res) => {
 
   if (!(await Designation.any({ _id: designation, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("designation", designation));
+    throw new Error(C.getResourse404Id("designation", designation));
   }
 
   // Validate Department
@@ -384,7 +384,7 @@ const addStaff = asyncHandler(async (req, res) => {
 
   if (!(await Department.any({ _id: department, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("department", department));
+    throw new Error(C.getResourse404Id("department", department));
   }
 
   const name = {
@@ -480,14 +480,14 @@ const updateStaff = asyncHandler(async (req, res) => {
 
   if (!staff) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Staff", req.params.id));
+    throw new Error(C.getResourse404Id("Staff", req.params.id));
   }
 
   // Validate Designation
   if (designation) {
     if (!(await Designation.any({ _id: designation, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("designation", designation));
+      throw new Error(C.getResourse404Id("designation", designation));
     }
   }
 
@@ -495,7 +495,7 @@ const updateStaff = asyncHandler(async (req, res) => {
   if (department) {
     if (!(await Department.any({ _id: department, manager, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("department", department));
+      throw new Error(C.getResourse404Id("department", department));
     }
   }
 

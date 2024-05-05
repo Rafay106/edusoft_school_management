@@ -18,7 +18,7 @@ const errorHandler = (err, req, res, next) => {
 
   if (err.name === "ValidationError") {
     const message = Object.keys(err.errors).map((key) =>
-      err.errors[key].message.replace("%F%", `${key}: ${err.errors[key].value}`)
+      err.errors[key].message.replace("%F%", `${key}`)
     );
 
     errObj.message = message;
@@ -37,7 +37,8 @@ const errorHandler = (err, req, res, next) => {
     statusCode = 400;
   }
 
-  errObj.stack = NODE_ENV === "production" ? null : err.stack.split("\n");
+  // errObj.stack = NODE_ENV === "production" ? null : err.stack.split("\n");
+  errObj.stack = err.stack.split("\n");
 
   res.status(statusCode).json(errObj);
 };

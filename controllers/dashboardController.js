@@ -37,7 +37,7 @@ const schoolDashboard = asyncHandler(async (req, res) => {
 
       if (!isBus) {
         res.status(400);
-        throw new Error(C.getResourse404Error("Bus", _id));
+        throw new Error(C.getResourse404Id("Bus", _id));
       }
     }
     if (busIds.length !== 0) stuQuery.bus = busIds;

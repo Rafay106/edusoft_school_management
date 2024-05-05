@@ -20,13 +20,7 @@ const getAcademicYears = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "year";
   const search = req.query.search;
 
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.query.manager,
-    req.query.school
-  );
-
-  const query = { school, manager };
+  const query = { school: req.school };
 
   if (search) {
     const fields = ["year", "title"];
@@ -41,7 +35,7 @@ const getAcademicYears = asyncHandler(async (req, res) => {
     page,
     limit,
     sort,
-    ["school manager", "name"]
+    ["school", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -56,15 +50,14 @@ const getAcademicYear = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const academicYear = await AcademicYear.findOne(query)
-    .populate("manager school", "name")
+    .populate("school", "name")
     .lean();
 
   if (!academicYear) {
     res.status(404);
-    throw new Error(C.getResourse404Error("AcademicYear", req.params.id));
+    throw new Error(C.getResourse404Id("AcademicYear", req.params.id));
   }
 
   res.status(200).json(academicYear);
@@ -74,12 +67,6 @@ const getAcademicYear = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/academic-year
 // @access  Private
 const addAcademicYear = asyncHandler(async (req, res) => {
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.body.manager,
-    req.body.school
-  );
-
   const year = req.body.year;
   let starting_date = req.body.starting_date;
   let ending_date = req.body.ending_date;
@@ -103,13 +90,12 @@ const addAcademicYear = asyncHandler(async (req, res) => {
     title: req.body.title,
     starting_date,
     ending_date,
-    school,
-    manager,
+    school: req.school,
   });
 
   if (setDefault) {
     await School.updateOne(
-      { _id: school },
+      { _id: req.school },
       { $set: { current_academic_year: academicYear._id } }
     );
   }
@@ -124,11 +110,10 @@ const updateAcademicYear = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await AcademicYear.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("AcademicYear", req.params.id));
+    throw new Error(C.getResourse404Id("AcademicYear", req.params.id));
   }
 
   const year = req.body.year;
@@ -175,7 +160,7 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
 
   if (!ayear) {
     res.status(400);
-    throw new Error(C.getResourse404Error("AcademicYear", req.params.id));
+    throw new Error(C.getResourse404Id("AcademicYear", req.params.id));
   }
 
   if (await Section.any({ academic_year: ayear._id })) {
@@ -189,7 +174,6 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
   const delQuery = { _id: req.params.id };
 
   if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
-  else if (C.isManager(req.user.type)) delQuery.manager = req.user._id;
 
   const result = await AcademicYear.deleteOne(delQuery);
 
@@ -214,7 +198,7 @@ const setCurrentAcademicYear = asyncHandler(async (req, res) => {
 
   if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
+    throw new Error(C.getResourse404Id("ayear", ayear));
   }
 
   const result = await School.updateOne(
@@ -236,8 +220,7 @@ const getSections = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const school = await UC.validateSchool(req.user, req.query.school);
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = await UC.getCurrentAcademicYear(req.school);
 
   const query = { academic_year: ayear };
 
@@ -276,7 +259,7 @@ const getSection = asyncHandler(async (req, res) => {
 
   if (!section) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Section", req.params.id));
+    throw new Error(C.getResourse404Id("Section", req.params.id));
   }
 
   res.status(200).json(section);
@@ -286,19 +269,12 @@ const getSection = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/section
 // @access  Private
 const addSection = asyncHandler(async (req, res) => {
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.body.manager,
-    req.body.school
-  );
-
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = await UC.getCurrentAcademicYear(req.school);
 
   const section = await Section.create({
     name: req.body.name,
     academic_year: ayear,
-    school,
-    manager,
+    school: req.school,
   });
 
   res.status(201).json({ msg: section._id });
@@ -315,7 +291,7 @@ const updateSection = asyncHandler(async (req, res) => {
 
   if (!(await Section.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Section", req.params.id));
+    throw new Error(C.getResourse404Id("Section", req.params.id));
   }
 
   const result = await Section.updateOne(query, {
@@ -344,7 +320,7 @@ const deleteSection = asyncHandler(async (req, res) => {
 
   if (!section) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Section", req.params.id));
+    throw new Error(C.getResourse404Id("Section", req.params.id));
   }
 
   if (await Class.any({ section: section._id })) {
@@ -368,8 +344,8 @@ const getClasses = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const school = await UC.validateSchool(req.user, req.query.school);
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const school = await UC.validateSchool(req.user, req.school);
+  const ayear = await UC.getCurrentAcademicYear(req.school);
 
   const query = { academic_year: ayear };
 
@@ -422,7 +398,7 @@ const getClass = asyncHandler(async (req, res) => {
 
   if (!stuClass) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Class", req.params.id));
+    throw new Error(C.getResourse404Id("Class", req.params.id));
   }
 
   res.status(200).json(stuClass);
@@ -434,12 +410,7 @@ const getClass = asyncHandler(async (req, res) => {
 const addClass = asyncHandler(async (req, res) => {
   const sections = req.body.sections;
 
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.body.manager,
-    req.body.school
-  );
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = await UC.getCurrentAcademicYear(req.school);
 
   // Validate Section
   if (!sections || sections.length === 0) {
@@ -458,7 +429,7 @@ const addClass = asyncHandler(async (req, res) => {
 
     if (!section) {
       res.status(400);
-      throw new Error(C.getResourse404Error("section", s));
+      throw new Error(C.getResourse404Id("section", s));
     }
 
     sectionIds.push(section._id);
@@ -468,8 +439,7 @@ const addClass = asyncHandler(async (req, res) => {
     name: req.body.name,
     sections: sectionIds, //: sections.map((section) => ({ section })),
     academic_year: ayear,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: class_._id });
@@ -486,7 +456,7 @@ const updateClass = asyncHandler(async (req, res) => {
 
   if (!(await Class.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Class", req.params.id));
+    throw new Error(C.getResourse404Id("Class", req.params.id));
   }
 
   const section = req.body.section;
@@ -494,7 +464,7 @@ const updateClass = asyncHandler(async (req, res) => {
   if (section) {
     if (!(await Section.any({ ...query, _id: section }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("Section", section));
+      throw new Error(C.getResourse404Id("Section", section));
     }
   }
 
@@ -524,7 +494,7 @@ const deleteClass = asyncHandler(async (req, res) => {
 
   if (!class_) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Class", req.params.id));
+    throw new Error(C.getResourse404Id("Class", req.params.id));
   }
 
   if (await Student.any({ class: class_._id })) {
@@ -557,7 +527,7 @@ const getSubjects = asyncHandler(async (req, res) => {
     school
   );
 
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = await UC.getCurrentAcademicYear(req.school);
 
   const query = { academic_year: ayear };
 
@@ -597,7 +567,7 @@ const getSubject = asyncHandler(async (req, res) => {
 
   if (!subject) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Subject", req.params.id));
+    throw new Error(C.getResourse404Id("Subject", req.params.id));
   }
 
   res.status(200).json(subject);
@@ -618,17 +588,17 @@ const addSubject = asyncHandler(async (req, res) => {
 
   if (!(await UC.managerExists(manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!(await UC.schoolAccExists(school, manager))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("ayear", ayear));
+    throw new Error(C.getResourse404Id("ayear", ayear));
   }
 
   const subject = await Subject.create({
@@ -656,7 +626,7 @@ const updateSubject = asyncHandler(async (req, res) => {
 
   if (!subject) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Subject", req.params.id));
+    throw new Error(C.getResourse404Id("Subject", req.params.id));
   }
 
   const result = await Subject.updateOne(query, {

@@ -5,21 +5,12 @@ const { any } = require("../../plugins/schemaPlugins");
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
 const feetypeSchema = new mongoose.Schema({
-  fee_head: {
+  fee_type: {
     type: ObjectId,
     required: [true, C.FIELD_IS_REQ],
-    ref: "fee_heads",
+    ref: "fee_types",
   },
-  amounts: [
-    {
-      type: {
-        type: ObjectId,
-        required: [true, C.FIELD_IS_REQ],
-        ref: "student_types",
-      },
-      amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    },
-  ],
+  amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
 });
 
 const schema = new mongoose.Schema(
@@ -33,10 +24,13 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "academic_years",
     },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "schools",
+    },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.plugin(any);

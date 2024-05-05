@@ -57,7 +57,7 @@ const getIdCard = asyncHandler(async (req, res) => {
 
   if (!idCard) {
     res.status(404);
-    throw new Error(C.getResourse404Error("IdCard", req.params.id));
+    throw new Error(C.getResourse404Id("IdCard", req.params.id));
   }
 
   if (idCard.card.background) {
@@ -152,7 +152,7 @@ const updateIdCard = asyncHandler(async (req, res) => {
 
   if (!(await IdCard.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("IdCard", req.params.id));
+    throw new Error(C.getResourse404Id("IdCard", req.params.id));
   }
 
   if (year) {
@@ -234,7 +234,7 @@ const deleteIdCard = asyncHandler(async (req, res) => {
 
   if (!idCard) {
     res.status(400);
-    throw new Error(C.getResourse404Error("IdCard", req.params.id));
+    throw new Error(C.getResourse404Id("IdCard", req.params.id));
   }
 
   const delQuery = { _id: req.params.id };
@@ -376,15 +376,9 @@ const generateStudentIdCard = async (student, template) => {
     .replace("{{class}}", `${student.class.name}-${student.section.name}`)
     .replace("{{dob}}", UC.getDDMMYYYY(student.dob) || "NA")
     .replace("{{house}}", student.house || "NA")
-    .replace("{{name}}", UC.getPersonName(student.name))
-    .replace(
-      "{{father}}",
-      UC.getPersonName(student.father_details?.name) || "NA"
-    )
-    .replace(
-      "{{mother}}",
-      UC.getPersonName(student.mother_details?.name) || "NA"
-    )
+    .replace("{{name}}", student.name)
+    .replace("{{father}}", student.father_details?.name || "NA")
+    .replace("{{mother}}", student.mother_details?.name || "NA")
     .replace("{{bus-logo}}", `data:image/jpeg;base64,${busLogo}`)
     .replace("{{bus-name}}", student.bus?.name || "NA")
     .replace("{{address}}", student.address.permanent.slice(0, 20) || "NA")

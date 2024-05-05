@@ -38,7 +38,7 @@ router.post(
         throw new Error(C.INVALID_CREDENTIALS);
       }
 
-      const token = generateToken(user._id);
+      const token = generateToken(user._id, user.password);
 
       delete user.privileges;
       delete user.password;
@@ -65,9 +65,11 @@ router.post(
       }
 
       const student = await Student.findOne({ admission_no: admissionNo })
-        .select("roll_no name email phone photo age class section bus")
+        .select(
+          "roll_no name email phone photo age class section bus_pick bus_drop"
+        )
         .populate("class section", "name")
-        .populate("bus", "name no_plate")
+        .populate("bus_pick bus_drop", "name no_plate")
         .lean();
 
       if (!student) {
@@ -75,13 +77,9 @@ router.post(
         throw new Error(`Student not found with admission_no: ${admissionNo}`);
       }
 
-      student.name = UC.getPersonName(student.name);
       if (!student.photo) student.photo = "/user-blank.svg";
-      student.class = student.class.name;
-      student.section = student.section.name;
-      student.bus = student.bus.name;
 
-      const token = generateToken(parentUser._id);
+      const token = generateToken(parentUser._id, parentUser.password);
 
       delete parentUser.privileges;
       delete parentUser.password;
@@ -92,9 +90,11 @@ router.post(
       return res.status(200).json({ ...parentUser, ...token });
     } else {
       const student = await Student.findOne({ admission_no: admissionNo })
-        .select("roll_no photo class section bus")
+        .select(
+          "roll_no photo class section bus_pick bus_drop email phone parent"
+        )
         .populate("class section", "name")
-        .populate("bus", "name no_plate")
+        .populate("bus_pick bus_drop", "name no_plate")
         .lean();
 
       if (!student) {
@@ -114,7 +114,7 @@ router.post(
             throw new Error(C.INVALID_CREDENTIALS);
           }
 
-          const token = generateToken(parent._id);
+          const token = generateToken(parent._id, parent.password);
 
           delete parent.privileges;
           delete parent.password;
@@ -133,11 +133,10 @@ router.post(
       const newParentUser = await User.create({
         email: student.email,
         password: "123456",
-        name: `${UC.getPersonName(student.name)}'s parent`,
+        name: `${student.name}'s parent`,
         phone: student.phone,
         type: C.PARENT,
         privileges: template.privileges,
-        manager: student.manager,
         school: student.school,
       });
 
@@ -146,14 +145,13 @@ router.post(
         { $set: { parent: newParentUser._id } }
       );
 
-      const token = generateToken(newParentUser._id);
+      const token = generateToken(newParentUser._id, newParentUser.password);
 
       const parentObj = {
         email: newParentUser.email,
         name: newParentUser.name,
         phone: newParentUser.phone,
         type: newParentUser.type,
-        manager: newParentUser.manager,
         school: newParentUser.school,
       };
 

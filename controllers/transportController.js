@@ -67,7 +67,7 @@ const getBusStaff = asyncHandler(async (req, res) => {
 
   if (!busStaff) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
+    throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
   res.status(200).json(busStaff);
@@ -118,7 +118,7 @@ const updateBusStaff = asyncHandler(async (req, res) => {
 
   if (!busStaff) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
+    throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
   const name = {};
@@ -168,7 +168,7 @@ const deleteBusStaff = asyncHandler(async (req, res) => {
 
   if (!staff) {
     res.status(400);
-    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
+    throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
   if (
@@ -236,7 +236,7 @@ const getBusStop = asyncHandler(async (req, res) => {
 
   if (!busStop) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+    throw new Error(C.getResourse404Id("BusStop", req.params.id));
   }
 
   res.status(200).json(busStop);
@@ -276,7 +276,7 @@ const updateBusStop = asyncHandler(async (req, res) => {
 
   if (!(await BusStop.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+    throw new Error(C.getResourse404Id("BusStop", req.params.id));
   }
 
   if (req.body.lat) req.body.lat = parseFloat(req.body.lat).toFixed(6);
@@ -307,7 +307,7 @@ const deleteBusStop = asyncHandler(async (req, res) => {
 
   if (!stop) {
     res.status(400);
-    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+    throw new Error(C.getResourse404Id("BusStop", req.params.id));
   }
 
   if (await Student.any({ bus_stop: stop._id })) {
@@ -378,7 +378,7 @@ const getBus = asyncHandler(async (req, res) => {
 
   if (!bus) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   res.status(200).json(bus);
@@ -405,18 +405,18 @@ const addBus = asyncHandler(async (req, res) => {
 
   if (!(await BusStaff.any({ _id: driver, type: "d", school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("driver", driver));
+    throw new Error(C.getResourse404Id("driver", driver));
   }
 
   if (!(await BusStaff.any({ _id: conductor, type: "c", school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("conductor", conductor));
+    throw new Error(C.getResourse404Id("conductor", conductor));
   }
 
   for (const stop of stops) {
     if (!(await BusStop.any({ _id: stop, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("stop", stop));
+      throw new Error(C.getResourse404Id("stop", stop));
     }
   }
 
@@ -466,7 +466,7 @@ const updateBus = asyncHandler(async (req, res) => {
       for (const stop of stops) {
         if (!(await BusStop.any({ ...query, _id: stop }))) {
           res.status(400);
-          throw new Error(C.getResourse404Error("stops", stop));
+          throw new Error(C.getResourse404Id("stops", stop));
         }
       }
     }
@@ -475,14 +475,14 @@ const updateBus = asyncHandler(async (req, res) => {
   if (driver) {
     if (!(await BusStaff.any({ ...query, _id: driver, type: "d" }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("driver", driver));
+      throw new Error(C.getResourse404Id("driver", driver));
     }
   }
 
   if (conductor) {
     if (!(await BusStaff.any({ ...query, _id: conductor, type: "c" }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("conductor", conductor));
+      throw new Error(C.getResourse404Id("conductor", conductor));
     }
   }
 
@@ -490,7 +490,7 @@ const updateBus = asyncHandler(async (req, res) => {
 
   if (!bus) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   const update = {
@@ -526,7 +526,7 @@ const deleteBus = asyncHandler(async (req, res) => {
 
   if (!bus) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   if (await Student.any({ bus: bus._id })) {
@@ -553,19 +553,19 @@ const setAlternateBus = asyncHandler(async (req, res) => {
 
   if (!UC.managerExists(manager)) {
     res.status(200);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!UC.schoolAccExists(school, manager)) {
     res.status(200);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const query = { _id: req.params.id, manager, school };
 
   if (!(await Bus.any(query))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   if (!req.body.alt_bus) {
@@ -575,7 +575,7 @@ const setAlternateBus = asyncHandler(async (req, res) => {
 
   if (!(await Bus.any({ ...query, _id: req.body.alt_bus }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.body.alt_bus));
+    throw new Error(C.getResourse404Id("Bus", req.body.alt_bus));
   }
 
   if (!req.body.status) {
@@ -607,19 +607,19 @@ const unsetAlternateBus = asyncHandler(async (req, res) => {
 
   if (!UC.managerExists(manager)) {
     res.status(200);
-    throw new Error(C.getResourse404Error("manager", manager));
+    throw new Error(C.getResourse404Id("manager", manager));
   }
 
   if (!UC.schoolAccExists(school, manager)) {
     res.status(200);
-    throw new Error(C.getResourse404Error("school", school));
+    throw new Error(C.getResourse404Id("school", school));
   }
 
   const query = { _id: req.params.id, manager, school };
 
   if (!(await Bus.any(query))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   const result = await Bus.updateOne(query, {

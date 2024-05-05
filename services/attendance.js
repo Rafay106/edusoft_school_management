@@ -24,15 +24,15 @@ const checkStuBusAttendance = async (loc) => {
         name: 1,
         email: 1,
         phone: 1,
-        bus_arrival: 1,
-        bus_departure: 1,
+        bus_pick: 1,
+        bus_drop: 1,
         bus_stop: 1,
         manager: 1,
         school: 1,
       })
       .populate("bus_stop")
       .populate("class section", "name")
-      .populate("bus_arrival bus_departure", "name alternate")
+      .populate("bus_pick bus_drop", "name alternate")
       .lean();
 
     if (!student) {
@@ -65,8 +65,8 @@ const checkStuBusAttendance = async (loc) => {
     let busToFetch;
 
     if (isMorningTime(loc.dt_tracker, morningTime)) {
-      busToFetch = student.bus_arrival._id;
-    } else busToFetch = student.bus_departure._id;
+      busToFetch = student.bus_pick._id;
+    } else busToFetch = student.bus_drop._id;
 
     if (!currBus._id.equals(busToFetch)) {
       busToFetch = currBus._id;
@@ -238,7 +238,7 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
     .select("_id name")
     .lean();
 
-  const sName = getPersonName(student.name);
+  const sName = student.name;
   const class_ = student.class.name;
   const section = student.section.name;
   const admNo = student.admission_no;
@@ -252,8 +252,8 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
   let defaultBus;
 
   if (isMorningTime(loc.dt_tracker, timings.morning)) {
-    defaultBus = student.bus_arrival;
-  } else defaultBus = student.bus_departure;
+    defaultBus = student.bus_pick;
+  } else defaultBus = student.bus_drop;
 
   if (!cBus._id.equals(defaultBus._id)) {
     const alt = defaultBus.alternate;
@@ -335,4 +335,6 @@ const switchBus = async (oldBusId, newBusId) => {
 
 module.exports = {
   checkStuBusAttendance,
+  isMorningTime,
+  isAfternoonTime,
 };
