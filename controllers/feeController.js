@@ -1360,6 +1360,9 @@ const calculateFees = asyncHandler(async (req, res) => {
     academic_year: ayear,
   })
     .select()
+    .populate(
+      "class section stream boarding_type sub_ward bus_pick bus_drop bus_stop"
+    )
     .lean();
 
   if (!student) {
@@ -1374,6 +1377,10 @@ const calculateFees = asyncHandler(async (req, res) => {
     academic_year: ayear,
   })
     .select("-school")
+    .populate(
+      "fee_term class stream fee_types.boarding_type fee_types.amounts.fee_type academic_year",
+      "name"
+    )
     .lean();
 
   if (!feeStructure) {
@@ -1416,7 +1423,7 @@ const calculateFees = asyncHandler(async (req, res) => {
   }
 
   const stuFeeStruct = feeStructure.fee_types.find((ele) =>
-    ele.boarding_type.equals(student.boarding_type)
+    ele.boarding_type._id.equals(student.boarding_type._id)
   );
 
   if (!stuFeeStruct) {
@@ -1426,7 +1433,27 @@ const calculateFees = asyncHandler(async (req, res) => {
 
   const fees = stuFeeStruct.amounts;
 
-  for (const fee of fees) {
+  if (feeConcession) {
+    for (const fee of fees) {
+      const feeConType = feeConcession.fee_types.find((ele) =>
+        ele.fee_type.equals(fee.fee_type._id)
+      );
+
+      if (!feeConType) continue;
+
+      let conAmt = 0;
+      if (feeConType.is_percentage) {
+        conAmt = fee.amount * (feeConType.amount / 100);
+      } else conAmt = feeConType.amount;
+
+      fee.amount -= conAmt;
+    }
+  }
+
+  if (feeFine) {
+    if (feeTerm.term_type == "m") {
+      
+    } 
   }
 
   return res.status(200).json(fees);
