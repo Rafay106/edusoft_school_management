@@ -4,30 +4,34 @@ const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
-const feeHeadSchema = new mongoose.Schema({
-  fee_head: {
-    type: ObjectId,
-    required: [true, C.FIELD_IS_REQ],
-    ref: "fee_heads",
-  },
-  is_percentage: { type: Boolean, default: false },
-  amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
-});
-
 const schema = new mongoose.Schema(
   {
-    type: {
+    subward: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
-      ref: "student_types",
+      ref: "sub_wards",
     },
-    class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
+    class: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "academics_classes",
+    },
     fee_term: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "fee_terms",
     },
-    fee_heads: [feeHeadSchema],
+    fee_types: [
+      {
+        fee_type: {
+          type: ObjectId,
+          required: [true, C.FIELD_IS_REQ],
+          ref: "fee_types",
+        },
+        is_percentage: { type: Boolean, default: false },
+        amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
+      },
+    ],
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
@@ -42,6 +46,7 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+schema.index({ subward: 1, class: 1, fee_term: 1 });
 schema.plugin(any);
 
 const FeeConcession = mongoose.model("fee_concessions", schema);

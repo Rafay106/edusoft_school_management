@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
 const C = require("../../constants");
-const { any } = require("../../plugins/schemaPlugins");
+const { any, findByAdmNo } = require("../../plugins/schemaPlugins");
 const { isEmailValid } = require("../../utils/validators");
 const bcrypt = require("bcrypt");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const addressSchema = new mongoose.Schema(
   {
@@ -19,42 +20,34 @@ const addressSchema = new mongoose.Schema(
 
 const schema = new mongoose.Schema(
   {
-    admission_no: {
-      type: String,
-      required: [true, C.FIELD_IS_REQ],
-      uppercase: true,
-    },
+    admission_no: { type: String, required, uppercase: true },
     admission_serial: { type: String, default: "" },
     student_id: { type: String, default: "" },
     roll_no: { type: String, default: "", uppercase: true },
-    name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
-    section: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "sections",
-    },
-    stream: { type: String, default: "" },
+    name: { type: String, required, uppercase: true },
+    class: { type: ObjectId, required, ref: "academics_classes" },
+    section: { type: ObjectId, required, ref: "academics_sections" },
+    stream: { type: ObjectId, required, ref: "academics_streams" },
     admission_time_class: {
       type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "classes",
+      required,
+      ref: "academics_classes",
     },
     gender: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       enum: { values: ["m", "f", "o", "na"], message: C.VALUE_NOT_SUP },
     },
     house: { type: String, default: "", uppercase: true },
     blood_group: { type: String, default: "", uppercase: true },
     staff_child: { type: Boolean, default: false },
-    doa: { type: Date, required: [true, C.FIELD_IS_REQ] },
+    doa: { type: Date, required },
     student_status: {
       type: String,
       enum: { values: ["n", "o"], message: C.VALUE_NOT_SUP },
     },
     student_left: { type: Boolean, default: false },
-    phone: { type: String, required: [true, C.FIELD_IS_REQ] },
+    phone: { type: String, required },
     father_details: {
       name: { type: String, uppercase: true },
       phone: { type: String, default: "" },
@@ -69,7 +62,7 @@ const schema = new mongoose.Schema(
       job_title: { type: String, default: "" },
       adhaar: { type: String, default: "" },
     },
-    dob: { type: Date, required: [true, C.FIELD_IS_REQ] },
+    dob: { type: Date, required },
     age: { type: Number, default: 0 },
     address: {
       permanent: { type: String, default: "", uppercase: true },
@@ -85,16 +78,8 @@ const schema = new mongoose.Schema(
         message: C.VALUE_NOT_SUP,
       },
     },
-    boarding_type: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "boarding_types",
-    },
-    sub_ward: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "sub_wards",
-    },
+    boarding_type: { type: ObjectId, required, ref: "boarding_types" },
+    sub_ward: { type: ObjectId, required, ref: "sub_wards" },
     student_club: { type: String, default: "" },
     student_work_exp: { type: String, default: "" },
     language_2nd: { type: String, default: "" },
@@ -121,16 +106,16 @@ const schema = new mongoose.Schema(
     },
     relation_with_student: { type: String, default: "", uppercase: true },
     class_teacher: { type: String, default: "", uppercase: true },
-    bus_pick: { type: ObjectId, ref: "buses" },
-    bus_drop: { type: ObjectId, ref: "buses" },
-    bus_stop: { type: ObjectId, ref: "bus_stops" },
+    bus_pick: { type: ObjectId, ref: "transport_buses" },
+    bus_drop: { type: ObjectId, ref: "transport_buses" },
+    bus_stop: { type: ObjectId, ref: "transport_bus_stops" },
     student_adhaar: { type: String, default: "" },
     sibling: { type: Boolean, default: false },
     single_girl_child: { type: Boolean, default: false },
     handicapped: { type: Boolean, default: false },
     email: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       validate: { validator: isEmailValid, message: C.FIELD_IS_INVALID },
       lowercase: true,
       trim: true,
@@ -139,19 +124,10 @@ const schema = new mongoose.Schema(
     age: { type: Number, default: 0 },
     height: { type: Number, default: 0 },
     weight: { type: Number, default: 0 },
-    rfid: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
+    rfid: { type: String, required, uppercase: true },
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
     parent: { type: ObjectId, ref: "users" },
-    school: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "schools",
-    },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true }
 );
@@ -176,6 +152,7 @@ schema.pre("updateMany", function (next) {
 });
 
 schema.plugin(any);
+schema.plugin(findByAdmNo);
 
 const Student = mongoose.model("students", schema);
 module.exports = Student;

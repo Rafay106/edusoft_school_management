@@ -15,11 +15,6 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "schools",
     },
-    manager: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
   },
   { timestamps: true, versionKey: false }
 );
@@ -27,5 +22,5 @@ const schema = new mongoose.Schema(
 schema.index({ name: 1, academic_year: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
-const Section = mongoose.model("sections", schema);
+const Section = mongoose.model("academics_sections", schema);
 module.exports = Section;

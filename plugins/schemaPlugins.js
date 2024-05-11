@@ -3,8 +3,15 @@ function any(schema, options) {
     const result = await this.findOne(query).select("_id").lean();
     return result ? true : false;
   };
-}1
+}
+
+function findByAdmNo(schema, options) {
+  schema.statics.findByAdmNo = async function (admission_no, select = "") {
+    return await this.findOne({ admission_no }).select(select).lean();
+  };
+}
 
 module.exports = {
   any,
+  findByAdmNo,
 };

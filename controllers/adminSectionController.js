@@ -84,7 +84,7 @@ const getIdCard = asyncHandler(async (req, res) => {
 // @access  Private
 const createIdCard = asyncHandler(async (req, res) => {
   const school = await UC.validateSchool(req.user, req.body.school);
-  const ayear = await UC.getCurrentAcademicYear(req.body.school);
+  const ayear = UC.getCurrentAcademicYear(req.body.school);
 
   const files = req.files;
   const orientation = req.body.orientation;

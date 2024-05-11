@@ -4,20 +4,44 @@ const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
-const feetypeSchema = new mongoose.Schema({
-  fee_type: {
-    type: ObjectId,
-    required: [true, C.FIELD_IS_REQ],
-    ref: "fee_types",
+const feetypeSchema = new mongoose.Schema(
+  {
+    boarding_type: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "boarding_types",
+    },
+    amounts: [
+      {
+        fee_type: {
+          type: ObjectId,
+          required: [true, C.FIELD_IS_REQ],
+          ref: "fee_types",
+        },
+        amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
+      },
+    ],
   },
-  amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
-});
+  { _id: false }
+);
 
 const schema = new mongoose.Schema(
   {
-    class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
-    fee_period: { type: String, required: [true, C.FIELD_IS_REQ] },
-    stream: { type: String, default: "" },
+    fee_term: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "fee_terms",
+    },
+    class: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "academics_classes",
+    },
+    stream: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "academics_streams",
+    },
     fee_types: [feetypeSchema],
     academic_year: {
       type: ObjectId,
@@ -33,6 +57,12 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+schema.index({ fee_term: 1, class: 1, stream: 1 }, { unique: true });
+schema.index({ _id: 1, "fee_types.fee_type": 1 }, { unique: true });
+schema.index(
+  { _id: 1, "fee_types.amounts.boarding_type": 1 },
+  { unique: true }
+);
 schema.plugin(any);
 
 const FeeStructure = mongoose.model("fee_structures", schema);

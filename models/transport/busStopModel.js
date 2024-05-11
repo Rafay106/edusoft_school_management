@@ -20,7 +20,6 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "schools",
     },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true, versionKey: false }
 );
@@ -29,5 +28,5 @@ schema.index({ name: 1, school: 1 }, { unique: true });
 
 schema.plugin(any);
 
-const BusStop = mongoose.model("bus_stops", schema);
+const BusStop = mongoose.model("transport_bus_stops", schema);
 module.exports = BusStop;

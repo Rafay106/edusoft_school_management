@@ -56,7 +56,7 @@ const addStudent = asyncHandler(async (req, res) => {
 // @route   POST /api/parent/bus/track
 // @access  Private
 const trackBus = asyncHandler(async (req, res) => {
-  const school = req.user.school;
+  const school = req.school;
   const busId = req.body.bus;
 
   const results = [];
@@ -66,35 +66,41 @@ const trackBus = asyncHandler(async (req, res) => {
       .select("name no_plate status device")
       .lean();
 
+    const device = await UC.getBusDevice(bus);
+
     return res.status(200).json([
       {
         busName: bus.name,
         no_plate: bus.no_plate,
         status: bus.status,
-        imei: bus.device.imei,
-        dt_server: bus.device.dt_server,
-        dt_tracker: bus.device.dt_tracker.toISOString(),
-        lat: bus.device.lat,
-        lon: bus.device.lon,
-        speed: bus.device.speed,
-        altitude: bus.device.altitude,
-        angle: bus.device.angle,
-        vehicle_status: bus.device.vehicle_status,
-        ignition: bus.device.params.io239 === "1",
+        imei: device.imei,
+        dt_server: new Date(
+          device.dt_server.toISOString().replace("Z", "-05:30")
+        ),
+        dt_tracker: new Date(
+          device.dt_tracker.toISOString().replace("Z", "-05:30")
+        ),
+        lat: device.lat,
+        lon: device.lon,
+        speed: device.speed,
+        altitude: device.altitude,
+        angle: device.angle,
+        vehicle_status: device.vehicle_status,
+        ignition: device.params.io239 === "1",
+        icon: UC.getBusIcon(device),
       },
     ]);
   }
 
-  const students = await Student.find({ parent: req.user._id, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name bus_pick bus_drop")
     .populate("bus_pick bus_drop", "alternate")
     .lean();
 
   for (const stu of students) {
-    let stuBus = stu.bus_pick;
-    if (isAfternoonTime(new Date(), school.timings.afternoon)) {
-      stuBus = stu.bus_drop;
-    }
+    const stuBus = isMorningTime(new Date(), school.timings.morning)
+      ? stu.bus_pick
+      : stu.bus_drop;
 
     if (!stuBus) {
       results.push({
@@ -113,8 +119,10 @@ const trackBus = asyncHandler(async (req, res) => {
       : stuBus._id;
 
     const bus = await Bus.findById(busToFetch)
-      .select("name no_plate status device")
+      .select("name no_plate status temp_device device")
       .lean();
+
+    const device = await UC.getBusDevice(bus);
 
     results.push({
       student: {
@@ -124,17 +132,21 @@ const trackBus = asyncHandler(async (req, res) => {
       busName: bus.name,
       no_plate: bus.no_plate,
       status: bus.status,
-      imei: bus.device.imei,
-      dt_server: bus.device.dt_server,
-      dt_tracker: bus.device.dt_tracker,
-      lat: bus.device.lat,
-      lon: bus.device.lon,
-      speed: bus.device.speed,
-      altitude: bus.device.altitude,
-      angle: bus.device.angle,
-      vehicle_status: bus.device.vehicle_status,
-      ignition: bus.device.params.io239 === "1",
-      icon: UC.getBusIcon(bus.device),
+      imei: device.imei,
+      dt_server: new Date(
+        device.dt_server.toISOString().replace("Z", "-05:30")
+      ),
+      dt_tracker: new Date(
+        device.dt_tracker.toISOString().replace("Z", "-05:30")
+      ),
+      lat: device.lat,
+      lon: device.lon,
+      speed: device.speed,
+      altitude: device.altitude,
+      angle: device.angle,
+      vehicle_status: device.vehicle_status,
+      ignition: device.params.io239 === "1",
+      icon: UC.getBusIcon(device),
     });
   }
 
@@ -149,13 +161,11 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "admission_no";
   const search = req.query.search;
-  const manager = req.user.manager;
-  const school = req.user.school;
 
   const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
   const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name")
     .lean();
 
@@ -190,11 +200,6 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
   for (const result of results.result) {
-    result.student = {
-      admission_no: result.student.admission_no,
-      name: result.student.name,
-    };
-
     for (const list of result.list) {
       if (list.tag === C.M_ENTRY) list.tag = "Picked from Stoppage";
       else if (list.tag === C.M_EXIT) list.tag = "Dropped at School";
@@ -257,7 +262,7 @@ const getStudentAttendanceCount = asyncHandler(async (req, res) => {
     cDate = new Date(cDate.getTime() + 86400000);
   }
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name photo")
     .lean();
 
@@ -295,16 +300,13 @@ const getStudentAttendanceCount = asyncHandler(async (req, res) => {
 const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "admission_no";
+  const sort = req.query.sort || "-date";
   const search = req.query.search;
-
-  const manager = req.user.manager;
-  const school = req.user.school;
 
   const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
   const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name")
     .lean();
 
@@ -315,13 +317,7 @@ const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
   };
 
   if (search) {
-    const fields = [
-      "admission_no",
-      "name",
-      "email",
-      "address.current",
-      "address.permanent",
-    ];
+    const fields = ["student.admission_no", "student.name", "student.email"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
     query["$or"] = searchQuery["$or"];
@@ -334,19 +330,10 @@ const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
     page,
     limit,
     sort,
-    ["student bus", "admission_no name"]
+    ["student bus", "admission_no name email"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
-
-  for (const result of results.result) {
-    result.student = {
-      admission_no: result.student.admission_no,
-      name: result.student.name,
-    };
-
-    result.bus = result.bus.name;
-  }
 
   res.status(200).json(results);
 });

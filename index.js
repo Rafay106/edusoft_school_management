@@ -23,7 +23,7 @@ const {
   serviceClearHistory,
   serviceResetAlternateBus,
   serviceInsertData,
-  serviceCalculateOverdueAndApplyFine
+  serviceCalculateOverdueAndApplyFine,
 } = require("./services/service");
 const UC = require("./utils/common");
 const { sendNotifications } = require("./tools/notifications");
@@ -47,10 +47,12 @@ app.use(function (req, res, next) {
   next();
 });
 
-const accessLogStream = fs.createWriteStream(
-  path.join(__dirname, "logs", "access.log"),
-  { flags: "a" }
-);
+const logPath = path.join(__dirname, "logs");
+if (!fs.existsSync(logPath)) fs.mkdirSync(logPath, { recursive: true });
+
+const accessLogStream = fs.createWriteStream(path.join(logPath, "access.log"), {
+  flags: "a",
+});
 
 app.use(morgan("combined", { stream: accessLogStream }));
 app.use(morgan("dev"));
@@ -148,35 +150,41 @@ app.use("/api/razorpay", require("./tools/razorpay"));
  * Cron Jobs *
  *************/
 
-// cron.schedule("* * * * * *", () => {
-//   console.time("sendPush");
-//   sendNotifications();
-//   console.timeEnd("sendPush");
-// });
+cron.schedule("* * * * * *", () => {
+  if (process.env.NODE_ENV != "production") return;
+  if (process.env.NODE_APP_INSTANCE != 0) return;
+
+  console.time("sendPush");
+  sendNotifications();
+  console.timeEnd("sendPush");
+});
 
 cron.schedule("0 0 * * *", async () => {
-  if (process.env.NODE_ENV == "production") {
-    try {
-      await serviceClearHistory();
-      await serviceResetAlternateBus();
-    } catch (err) {
-      UC.writeLog("errors", `${err.stack}`);
-    }
+  if (process.env.NODE_ENV != "production") return;
+  if (process.env.NODE_APP_INSTANCE != 0) return;
+
+  try {
+    await serviceClearHistory();
+    await serviceResetAlternateBus();
+  } catch (err) {
+    UC.writeLog("errors", `${err.stack}`);
   }
 });
 
 cron.schedule("*/5 * * * * *", async () => {
-  if (process.env.NODE_ENV == "production") {
-    try {
-      await serviceInsertData();
-    } catch (err) {
-      UC.writeLog("errors", `${err.stack}`);
-    }
+  if (process.env.NODE_ENV != "production") return;
+  if (process.env.NODE_APP_INSTANCE != 0) return;
+
+  try {
+    await serviceInsertData();
+  } catch (err) {
+    UC.writeLog("errors", `${err.stack}`);
   }
 });
-cron.schedule("0 0 * * *",async()=>{
-    await  serviceCalculateOverdueAndApplyFine();
-    })
+
+cron.schedule("0 0 * * *", async () => {
+  await serviceCalculateOverdueAndApplyFine();
+});
 
 /*************
  * Cron Jobs *

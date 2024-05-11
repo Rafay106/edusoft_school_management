@@ -9,6 +9,11 @@ const Student = require("../models/studentInfo/studentModel");
 const { isUsernameValid } = require("./validators");
 
 const User = require("../models/system/userModel");
+const FeeTerm = require("../models/fees/feeTermModel");
+const Class = require("../models/academics/classModel");
+const Stream = require("../models/academics/streamModel");
+const BoardingType = require("../models/studentInfo/boardingTypeModel");
+const BusStop = require("../models/transport/busStopModel");
 
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
@@ -87,13 +92,9 @@ const schoolAccExists = async (_id) => await User.any({ _id, type: C.SCHOOL });
 // SCHOOL FUNCTIONS START
 // ************************
 
-const getCurrentAcademicYear = async (schoolId) => {
-  const school = await School.findById(schoolId)
-    .select("current_academic_year")
-    .lean();
-
+const getCurrentAcademicYear = (school) => {
   if (!school) {
-    const err = new Error(C.getResourse404Id("School", schoolId));
+    const err = new Error("school is undefined!");
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }
@@ -111,7 +112,7 @@ const getLibraryVariables = async (schoolId) => {
   const school = await School.findById(schoolId).select("library").lean();
 
   if (!school) {
-    const err = new Error(C.getResourse404Error("School", schoolId));
+    const err = new Error(C.getResourse404Id("School", schoolId));
     err.name = C.CUSTOMVALIDATION;
     throw err;
   }
@@ -346,6 +347,16 @@ const getBusIcon = (device) => {
   } else return `${process.env.DOMAIN}/images/bus_idle.png`;
 };
 
+const getBusDevice = async (bus) => {
+  if (!bus.temp_device || !bus.temp_device.enabled) return bus.device;
+
+  const tempBus = await Bus.findOne({ "device.imei": bus.temp_device.imei })
+    .select("device")
+    .lean();
+
+  return tempBus ? tempBus.device : bus.device;
+};
+
 // ************************
 // BUS FUNCTIONS END
 // ************************
@@ -442,6 +453,137 @@ const validateSchool = async (user, school) => {
   }
 
   return school;
+};
+
+const validateFeeTerms = async (feeTerms) => {
+  if (!feeTerms || feeTerms.length === 0) {
+    const e = new Error(C.getFieldIsReq("fee_terms"));
+    e.name = C.CUSTOMVALIDATION;
+    throw e;
+  }
+
+  const result = [];
+
+  for (const name of feeTerms) {
+    const ft = await FeeTerm.findOne({ name: name.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!ft) {
+      const e = new Error(C.getResourse404Id("fee_terms", name));
+      e.name = C.CUSTOMVALIDATION;
+      throw e;
+    }
+
+    result.push(ft._id);
+  }
+
+  return result;
+};
+
+const validateClasses = async (classes) => {
+  if (!classes || classes.length === 0) {
+    const e = new Error(C.getFieldIsReq("classes"));
+    e.name = C.CUSTOMVALIDATION;
+    throw e;
+  }
+
+  const result = [];
+
+  for (const name of classes) {
+    const c = await Class.findOne({ name: name.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!c) {
+      const e = new Error(C.getResourse404Id("classes", name));
+      e.name = C.CUSTOMVALIDATION;
+      throw e;
+    }
+
+    result.push(c._id);
+  }
+
+  return result;
+};
+
+const validateStreams = async (streams) => {
+  if (!streams || streams.length === 0) {
+    streams = ["NA"];
+  }
+
+  if (!streams.map((e) => e.toUpperCase()).includes("NA")) {
+    streams.push("NA");
+  }
+
+  const result = [];
+  for (const name of streams) {
+    const s = await Stream.findOne({ name: name.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!s) {
+      const e = new Error(C.getResourse404Id("streams", name));
+      e.name = C.CUSTOMVALIDATION;
+      throw e;
+    }
+
+    result.push(s._id);
+  }
+
+  return result;
+};
+
+const validateBoardingTypes = async (boardingTypes) => {
+  if (!boardingTypes || boardingTypes.length === 0) {
+    const e = new Error(C.getFieldIsReq("boarding_types"));
+    e.name = C.CUSTOMVALIDATION;
+    throw e;
+  }
+
+  const result = [];
+
+  for (const name of boardingTypes) {
+    const bt = await BoardingType.findOne({ name: name.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!bt) {
+      const e = new Error(C.getResourse404Id("boarding_types", name));
+      e.name = C.CUSTOMVALIDATION;
+      throw e;
+    }
+
+    result.push(bt._id);
+  }
+
+  return result;
+};
+
+const validateBusStops = async (stops) => {
+  if (!stops || stops.length === 0) {
+    const e = new Error(C.getFieldIsReq("stops"));
+    e.name = C.CUSTOMVALIDATION;
+    throw e;
+  }
+
+  const result = [];
+
+  for (const name of stops) {
+    const stop = await BusStop.findOne({ name: name.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!stop) {
+      const e = new Error(C.getResourse404Id("stops", name));
+      e.name = C.CUSTOMVALIDATION;
+      throw e;
+    }
+
+    result.push(stop._id);
+  }
+
+  return result;
 };
 
 // ************************
@@ -648,15 +790,20 @@ module.exports = {
   addMultipleSchools,
 
   addMultipleStudents,
-  getPersonName,
   getStudentAddress,
 
   getBusIcon,
+  getBusDevice,
 
   validateAndSetDate,
   validateManagerAndSchool,
   validateManager,
   validateSchool,
+  validateFeeTerms,
+  validateClasses,
+  validateStreams,
+  validateBoardingTypes,
+  validateBusStops,
 
   getYMD,
   getDDMMYYYY,

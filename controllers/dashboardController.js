@@ -21,7 +21,7 @@ const schoolDashboard = asyncHandler(async (req, res) => {
     school
   );
 
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(school);
 
   // Validate date
   const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");

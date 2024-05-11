@@ -16,6 +16,8 @@ const Section = require("../models/academics/sectionModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
 const User = require("../models/system/userModel");
+const FeeTerm = require("../models/fees/feeTermModel");
+const FeeType = require("../models/fees/feeTypeModel");
 
 router.post(
   "/1",
@@ -226,46 +228,7 @@ router.post(
   "/4",
   bulkImportUpload.single("file"),
   asyncHandler(async (req, res) => {
-    const filePath = path.join("data", "imports", req.file.filename);
-    const fileData = UC.excelToJson(filePath);
-    fs.unlinkSync(filePath);
-
-    const drivers = await BusStaff.find({ type: "d" }).lean();
-    const conductors = await BusStaff.find({ type: "c" }).lean();
-
-    const driverNA = drivers.find((d) => d.name === "NA");
-    const conductorNA = conductors.find((c) => c.name === "NA");
-
-    const buses = [];
-    for (const row of fileData) {
-      const busNo = row.name.slice(2, 4);
-      const driver = drivers.find((d) => d.name.includes(busNo));
-      const driverId = driver ? driver._id : driverNA._id;
-
-      const conductor = conductors.find((c) => c.name.includes(busNo));
-      const conductorId = conductor ? conductor._id : conductorNA._id;
-
-      const bus = {
-        name: row.name,
-        no_plate: row.no_plate,
-        model: row.model,
-        year_made: "2024",
-        device: {
-          imei: row.imei,
-        },
-        stops: row.stops.split(","),
-        driver: driverId,
-        conductor: conductorId,
-        school: "662c385ecfa060f7e1b9a1ec",
-        manager: "662c364427e8f09bdec1f3c0",
-      };
-
-      buses.push(bus);
-    }
-
-    const bus = await Bus.create(buses);
-
-    res.json(bus);
+    res.json({ msg: "OK" });
   })
 );
 
