@@ -30,8 +30,6 @@ const getFeeGroups = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -59,12 +57,7 @@ const getFeeGroups = asyncHandler(async (req, res) => {
 const getFeeGroup = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const feeGroup = await FeeGroup.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const feeGroup = await FeeGroup.findOne(query).lean();
 
   if (!feeGroup) {
     res.status(404);
@@ -96,9 +89,6 @@ const addFeeGroup = asyncHandler(async (req, res) => {
 const updateFeeGroup = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   if (!(await FeeGroup.any(query))) {
     res.status(404);
     throw new Error(C.getResourse404Id("FeeGroup", req.params.id));
@@ -116,9 +106,6 @@ const updateFeeGroup = asyncHandler(async (req, res) => {
 // @access  Private
 const deleteFeeGroup = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const feeGroup = await FeeGroup.findOne(query).select("_id").lean();
 
@@ -150,8 +137,6 @@ const getFeeTypes = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -179,12 +164,7 @@ const getFeeTypes = asyncHandler(async (req, res) => {
 const getFeeType = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const feeType = await FeeType.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const feeType = await FeeType.findOne(query).lean();
 
   if (!feeType) {
     res.status(404);
@@ -230,9 +210,6 @@ const updateFeeType = asyncHandler(async (req, res) => {
   const group = req.body.group;
 
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await FeeType.any(query))) {
     res.status(404);
@@ -296,8 +273,6 @@ const getFeeTerms = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -325,11 +300,8 @@ const getFeeTerms = asyncHandler(async (req, res) => {
 const getFeeTerm = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const feeTerm = await FeeTerm.findOne(query)
-    .populate("manager school", "name")
+    .populate("academic_year", "title")
     .lean();
 
   if (!feeTerm) {
@@ -440,9 +412,6 @@ const addFeeTerm = asyncHandler(async (req, res) => {
 const updateFeeTerm = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   if (!(await FeeTerm.any(query))) {
     res.status(404);
     throw new Error(C.getResourse404Id("FeeTerm", req.params.id));
@@ -506,8 +475,6 @@ const getFeeHeads = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -535,12 +502,7 @@ const getFeeHeads = asyncHandler(async (req, res) => {
 const getFeeHead = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const feeHead = await FeeHead.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const feeHead = await FeeHead.findOne(query).lean();
 
   if (!feeHead) {
     res.status(404);
@@ -588,9 +550,6 @@ const updateFeeHead = asyncHandler(async (req, res) => {
   const feeType = req.body.type;
 
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (feeType) {
     if (!(await FeeType.any({ _id: feeType, manager, school }))) {
@@ -656,8 +615,6 @@ const getFeeStructures = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -673,7 +630,7 @@ const getFeeStructures = asyncHandler(async (req, res) => {
     limit,
     sort,
     [
-      "fee_term class stream fee_types.fee_type fee_types.amounts.boarding_type academic_year",
+      "fee_term class stream fee_types.boarding_type fee_types.amounts.fee_type academic_year",
       "name",
     ]
   );
@@ -689,12 +646,7 @@ const getFeeStructures = asyncHandler(async (req, res) => {
 const getFeeStructure = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const feeStructure = await FeeStructure.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const feeStructure = await FeeStructure.findOne(query).lean();
 
   if (!feeStructure) {
     res.status(404);
@@ -814,9 +766,6 @@ const updateFeeStructure = asyncHandler(async (req, res) => {
 
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   // Validate class
   if (!class_) {
     if (!(await Class.any({ _id: class_, manager, school }))) {
@@ -911,8 +860,6 @@ const getFeeFines = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -926,7 +873,8 @@ const getFeeFines = asyncHandler(async (req, res) => {
     {},
     page,
     limit,
-    sort
+    sort,
+    ["class fee_term boarding_type academic_year", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -940,11 +888,8 @@ const getFeeFines = asyncHandler(async (req, res) => {
 const getFeeFine = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const feeFine = await FeeFine.findOne(query)
-    .populate("manager school", "name")
+    .populate("class fee_term boarding_type academic_year", "name")
     .lean();
 
   if (!feeFine) {
@@ -1004,9 +949,6 @@ const updateFeeFine = asyncHandler(async (req, res) => {
   const stuType = req.body.stu_type;
 
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   // Validate Class
   if (!class_) {
@@ -1093,8 +1035,6 @@ const getFeeConcessions = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (search) {
     const fields = ["name"];
 
@@ -1123,12 +1063,7 @@ const getFeeConcessions = asyncHandler(async (req, res) => {
 const getFeeConcession = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const feeConcession = await FeeConcession.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const feeConcession = await FeeConcession.findOne(query).lean();
 
   if (!feeConcession) {
     res.status(404);
@@ -1246,9 +1181,6 @@ const updateFeeConcession = asyncHandler(async (req, res) => {
 
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   // Validate StudentType
   if (stuType) {
     if (!(await StudentType.any({ _id: stuType, manager, school }))) {
@@ -1346,9 +1278,7 @@ const calculateFees = asyncHandler(async (req, res) => {
 
   const feeTerm = await FeeTerm.findOne({
     name: req.body.fee_term.toUpperCase(),
-  })
-    .select("_id")
-    .lean();
+  }).lean();
 
   if (!feeTerm) {
     res.status(400);
@@ -1413,6 +1343,7 @@ const calculateFees = asyncHandler(async (req, res) => {
     academic_year: ayear,
   })
     .select("-school")
+    .populate("fee_types.fee_type", "name")
     .lean();
 
   if (!feeConcession) {
@@ -1431,12 +1362,18 @@ const calculateFees = asyncHandler(async (req, res) => {
     throw new Error(`Student FeeStructure not found for their BoardingType`);
   }
 
-  const fees = stuFeeStruct.amounts;
+  const result = {
+    fee_term: feeTerm.name,
+    concession: [],
+    fees: stuFeeStruct.amounts,
+    fine: 0,
+    total: 0,
+  };
 
   if (feeConcession) {
-    for (const fee of fees) {
+    for (const fee of result.fees) {
       const feeConType = feeConcession.fee_types.find((ele) =>
-        ele.fee_type.equals(fee.fee_type._id)
+        ele.fee_type._id.equals(fee.fee_type._id)
       );
 
       if (!feeConType) continue;
@@ -1446,17 +1383,30 @@ const calculateFees = asyncHandler(async (req, res) => {
         conAmt = fee.amount * (feeConType.amount / 100);
       } else conAmt = feeConType.amount;
 
-      fee.amount -= conAmt;
+      result.concession.push({
+        fee_type: feeConType.fee_type.name,
+        amount: conAmt,
+      });
+
+      // fee.amount -= conAmt;
     }
   }
 
   if (feeFine) {
     if (feeTerm.term_type == "m") {
-      
-    } 
+    }
   }
 
-  return res.status(200).json(fees);
+  for (const fee of result.fees) {
+    fee.fee_type = fee.fee_type.name;
+    result.total += fee.amount;
+  }
+
+  for (const con of result.concession) {
+    result.total -= con.amount;
+  }
+
+  return res.status(200).json(result);
 });
 
 module.exports = {

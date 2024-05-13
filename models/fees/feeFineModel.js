@@ -4,6 +4,27 @@ const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
+const findDescSchema = new mongoose.Schema(
+  {
+    serial: { type: Number, required: [true, C.FIELD_IS_REQ] },
+    type: {
+      type: String,
+      required: [true, C.FIELD_IS_REQ],
+      enum: {
+        values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly
+        message: C.VALUE_NOT_SUP,
+      },
+    },
+    amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
+    range: {
+      start: { type: Number, required: [true, C.FIELD_IS_REQ] },
+      end: { type: Number, required: [true, C.FIELD_IS_REQ] },
+    },
+    fixed: { type: Boolean, required: [true, C.FIELD_IS_REQ] },
+  },
+  { _id: false }
+);
+
 const schema = new mongoose.Schema(
   {
     class: {
@@ -21,25 +42,7 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "boarding_types",
     },
-    desc: [
-      {
-        serial: { type: Number, required: [true, C.FIELD_IS_REQ] },
-        type: {
-          type: String,
-          required: [true, C.FIELD_IS_REQ],
-          enum: {
-            values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly
-            message: C.VALUE_NOT_SUP,
-          },
-        },
-        amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
-        range: {
-          start: { type: Number, required: [true, C.FIELD_IS_REQ] },
-          end: { type: Number, required: [true, C.FIELD_IS_REQ] },
-        },
-        fixed: { type: Boolean, required: [true, C.FIELD_IS_REQ] },
-      },
-    ],
+    desc: [findDescSchema],
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],

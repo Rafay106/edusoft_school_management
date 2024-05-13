@@ -3,22 +3,15 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const feetypeSchema = new mongoose.Schema(
   {
-    boarding_type: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "boarding_types",
-    },
+    boarding_type: { type: ObjectId, required, ref: "boarding_types" },
     amounts: [
       {
-        fee_type: {
-          type: ObjectId,
-          required: [true, C.FIELD_IS_REQ],
-          ref: "fee_types",
-        },
-        amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
+        fee_type: { type: ObjectId, required, ref: "fee_types" },
+        amount: { type: Number, required },
       },
     ],
   },
@@ -27,32 +20,12 @@ const feetypeSchema = new mongoose.Schema(
 
 const schema = new mongoose.Schema(
   {
-    fee_term: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "fee_terms",
-    },
-    class: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academics_classes",
-    },
-    stream: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academics_streams",
-    },
+    fee_term: { type: ObjectId, required, ref: "fee_terms" },
+    class: { type: ObjectId, required, ref: "academics_classes" },
+    stream: { type: ObjectId, required, ref: "academics_streams" },
     fee_types: [feetypeSchema],
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
-    school: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "schools",
-    },
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }
 );
