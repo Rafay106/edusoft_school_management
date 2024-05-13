@@ -7,6 +7,7 @@ const School = require("../models/system/schoolModel");
 const User = require("../models/system/userModel");
 const TemplatePrivilege = require("../models/system/templatePrivilegeModel");
 const Student = require("../models/studentInfo/studentModel");
+const AcademicYear = require("../models/academics/academicYearModel");
 
 const init = asyncHandler(async (req, res) => {
   const key = req.body.key;
@@ -172,12 +173,6 @@ const init = asyncHandler(async (req, res) => {
     privileges: {},
   });
 
-  // Manager
-  await TemplatePrivilege.create({
-    type: C.MANAGER,
-    privileges: {},
-  });
-
   // School
   await TemplatePrivilege.create({
     type: C.SCHOOL,
@@ -259,7 +254,7 @@ const getTemplatePrivilege = asyncHandler(async (req, res) => {
 
   if (!template) {
     res.status(404);
-    throw new Error(C.getResourse404Error("TemplatePrivilege", req.params.id));
+    throw new Error(C.getResourse404Id("TemplatePrivilege", req.params.id));
   }
 
   res.status(200).json(template);
@@ -282,7 +277,7 @@ const updateTemplatePrivilege = asyncHandler(async (req, res) => {
 
   if (!(await TemplatePrivilege.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("TemplatePrivilege", req.params.id));
+    throw new Error(C.getResourse404Id("TemplatePrivilege", req.params.id));
   }
 
   const result = await TemplatePrivilege.updateOne(query, { $set: req.body });
@@ -313,12 +308,10 @@ const getUsers = asyncHandler(async (req, res) => {
   const search = req.query.search;
 
   const query = {};
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user.school;
+  if (C.isSchool(req.user.type)) query.school = req.user._id;
 
   if (search) {
-    const fields = ["email", "name", "mobile", "type"];
+    const fields = ["name", "email", "phone", "type"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
     query["$or"] = searchQuery["$or"];
@@ -346,17 +339,11 @@ const getUsers = asyncHandler(async (req, res) => {
 const getUser = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user.school;
-
-  const user = await User.findOne(query)
-    .select("-password")
-    .populate("manager school", "name")
-    .lean();
+  const user = await User.findOne(query).select("-password").lean();
 
   if (!user) {
     res.status(404);
-    throw new Error(C.getResourse404Error("User", req.params.id));
+    throw new Error(C.getResourse404Id("User", req.params.id));
   }
 
   res.status(200).json(user);
@@ -376,12 +363,10 @@ const requiredDataUser = asyncHandler(async (req, res) => {
     C.RECEPTIONIST,
   ];
 
-  if (C.isManager(req.user.type)) {
+  if (C.isAdmin(req.user.type)) {
     type.push(C.SCHOOL);
-  } else if (C.isAdmin(req.user.type)) {
-    type.push(C.SCHOOL, C.MANAGER);
   } else if (C.isSuperAdmin(req.user.type)) {
-    type.push(C.MANAGER, C.ADMIN, C.SUPERADMIN);
+    type.push(C.ADMIN, C.SUPERADMIN);
   }
 
   res.status(200).json({ type: type.sort() });
@@ -392,8 +377,6 @@ const requiredDataUser = asyncHandler(async (req, res) => {
 // @access  Private
 const createUser = asyncHandler(async (req, res) => {
   const { email, name, phone, type } = req.body;
-  let school = req.body.school;
-  let manager = req.body.manager;
 
   // Validate type
   const notType = [C.SUPERADMIN, C.ADMIN];
@@ -402,16 +385,7 @@ const createUser = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error(C.getValueNotSup(type));
     }
-  } else if (C.isManager(req.user.type)) {
-    manager = req.user._id;
-    notType.push(C.MANAGER);
-    if (notType.includes(type)) {
-      res.status(400);
-      throw new Error(C.getValueNotSup(type));
-    }
   } else if (C.isSchool(req.user.type)) {
-    school = req.user.school;
-    manager = req.user.manager;
     notType.push(C.SCHOOL);
     if (notType.includes(type)) {
       res.status(400);
@@ -419,59 +393,24 @@ const createUser = asyncHandler(async (req, res) => {
     }
   }
 
-  // Validate school
-  if (
-    (C.isAdmins(req.user.type) || C.isManager(req.user.type)) &&
-    ![C.SUPERADMIN, C.ADMIN, C.MANAGER].includes(type)
-  ) {
-    if (!school) {
-      res.status(400);
-      throw new Error(C.getFieldIsReq("school"));
-    }
-
-    if (!(await School.any({ _id: school }))) {
-      res.status(400);
-      throw new Error(C.getResourse404Error("school", school));
-    }
+  let school;
+  if (![C.SUPERADMIN, C.ADMIN].includes(type)) {
+    school = await UC.validateSchool(req.user, req.body.school);
   }
 
-  // Validate manager
-  if (
-    C.isAdmins(req.user.type) &&
-    ![C.SUPERADMIN, C.ADMIN, C.MANAGER].includes(type)
-  ) {
-    if (!manager) {
-      res.status(400);
-      throw new Error(C.getFieldIsReq("manager"));
-    }
-
-    if (!(await UC.managerExists(manager))) {
-      res.status(400);
-      throw new Error(C.getResourse404Error("manager", manager));
-    }
-  }
+  console.log("school :>> ", school);
 
   // Get privileges
   const privileges = await TemplatePrivilege.findOne({ type }).lean();
 
-  // Validate school_limit
-  if (C.isManager(type)) {
-    if (!req.body.school_limit) {
-      res.status(400);
-      throw new Error(C.getFieldIsReq("school_limit"));
-    }
-  } else req.body.school_limit = 0;
-
   const user = await User.create({
-    email,
-    password: "123456",
     name,
+    email,
+    password: req.body.password || "123456",
     phone,
     type,
     privileges,
-    school_limit: req.body.school_limit,
     school,
-    manager,
   });
 
   res.status(201).json({ msg: user._id });
@@ -483,24 +422,25 @@ const createUser = asyncHandler(async (req, res) => {
 const updateUser = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const user = await User.findOne(query);
+  const user = await User.findOne(query).select("type").lean();
 
   // Admin can not update superadmin
-  if (!user || (C.isAdmin(req.user.type) && C.isSuperAdmin(user.type))) {
+  if (
+    !user ||
+    (C.isAdmin(req.user.type) && [C.SUPERADMIN].includes(user.type)) ||
+    (C.isSchool(req.user.type) && [C.SUPERADMIN, C.ADMIN].includes(user.type))
+  ) {
     res.status(404);
-    throw new Error(C.getResourse404Error("User", req.params.id));
+    throw new Error(C.getResourse404Id("User", req.params.id));
   }
 
   const result = await User.updateOne(query, {
     $set: {
-      email: req.body.email,
-      username: req.body.username,
       name: req.body.name,
+      email: req.body.email,
       phone: req.body.phone,
       privileges: req.body.privileges,
+      school_details: req.body.school_details,
     },
   });
 
@@ -515,27 +455,12 @@ const deleteUser = asyncHandler(async (req, res) => {
 
   if (!user) {
     res.status(400);
-    throw new Error(C.getResourse404Error("User", req.params.id));
+    throw new Error(C.getResourse404Id("User", req.params.id));
   }
-
-  const query = {};
 
   if (C.isSuperAdmin(user.type)) {
     res.status(400);
     throw new Error(`Can not delete ${C.SUPERADMIN}!`);
-  }
-
-  if (C.isManager(user.type)) query.manager = user._id;
-  else if (C.isSchool(user.type)) query.school = user._id;
-
-  if (await School.any(query)) {
-    res.status(400);
-    throw new Error("Unable to delete: User assigned to a School");
-  }
-
-  if (await Student.any(query)) {
-    res.status(400);
-    throw new Error("Unable to delete: User assigned to a Student");
   }
 
   const result = await User.deleteOne({ _id: req.params.id });
@@ -567,66 +492,20 @@ const resetPassword = asyncHandler(async (req, res) => {
 
 /** 3. School */
 
-// @desc    Get all schools
+// @desc    Get a school
 // @route   GET /api/system/school
 // @access  Private
-const getSchools = asyncHandler(async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "name";
-  const search = req.query.search;
-
-  const query = {};
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user.school;
-
-  if (search) {
-    const fields = [
-      "name",
-      "email",
-      "phone",
-      "address",
-      "country",
-      "state",
-      "city",
-      "pincode",
-    ];
-
-    const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+const getSchool = asyncHandler(async (req, res) => {
+  if (!C.isAdmins(req.user.type) && !C.isSchool(req.user.type)) {
+    res.status(403);
+    throw new Error("Access Denied");
   }
 
-  const results = await UC.paginatedQuery(
-    School,
-    query,
-    "name email phone address",
-    page,
-    limit,
-    sort
-  );
-
-  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
-
-  res.status(200).json(results);
-});
-
-// @desc    Get a school
-// @route   GET /api/system/school/:id
-// @access  Private
-const getSchool = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user.school;
-
-  const school = await School.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const school = await School.findOne().lean();
 
   if (!school) {
     res.status(404);
-    throw new Error(C.getResourse404Error("School", req.params.id));
+    throw new Error(C.getResourse404("School"));
   }
 
   res.status(200).json(school);
@@ -636,7 +515,16 @@ const getSchool = asyncHandler(async (req, res) => {
 // @route   POST /api/system/school
 // @access  Private
 const addSchool = asyncHandler(async (req, res) => {
-  const manager = await UC.validateManager(req.user, req.body.manager);
+  if (!C.isAdmins(req.user.type) && !C.isSchool(req.user.type)) {
+    res.status(403);
+    throw new Error("Access Denied");
+  }
+
+  const count = await School.countDocuments();
+  if (count > 0) {
+    res.status(403);
+    throw new Error("A School already exists!");
+  }
 
   const school = await School.create({
     name: req.body.name,
@@ -650,83 +538,77 @@ const addSchool = asyncHandler(async (req, res) => {
     lat: parseFloat(req.body.lat).toFixed(6),
     lon: parseFloat(req.body.lon).toFixed(6),
     radius: req.body.radius,
-    timings: req.body.timings,
+    morning_attendance_end: req.body.morning_attendance_end,
     bus_incharge: req.body.bus_incharge,
     library: req.body.library,
-    manager,
   });
 
   res.status(201).json({ msg: school._id });
 });
 
 // @desc    Update a school
-// @route   PUT /api/system/school/:id
+// @route   PATCH /api/system/school
 // @access  Private
 const updateSchool = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  if (!(await School.any(query))) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("School", req.params.id));
+  if (!C.isAdmins(req.user.type) && !C.isSchool(req.user.type)) {
+    res.status(403);
+    throw new Error("Access Denied");
   }
 
   const lat = req.body.lat ? parseFloat(req.body.lat).toFixed(6) : undefined;
   const lon = req.body.lon ? parseFloat(req.body.lon).toFixed(6) : undefined;
-  const timings = req.body.timings;
   const busIncharge = req.body.bus_incharge;
+  const library = req.body.library;
 
-  const result = await School.updateOne(query, {
-    $set: {
-      name: req.body.name,
-      email: req.body.email,
-      phone: req.body.phone,
-      address: req.body.address,
-      country: req.body.country,
-      state: req.body.state,
-      city: req.body.city,
-      pincode: req.body.pincode,
-      lat,
-      lon,
-      radius: req.body.radius,
-      "timings.morning": timings?.morning,
-      "timings.afternoon": timings?.afternoon,
-      "bus_incharge.name": busIncharge?.name,
-      "bus_incharge.email": busIncharge?.email,
-      "bus_incharge.phone": busIncharge?.phone,
-    },
-  });
+  const result = await School.updateOne(
+    {},
+    {
+      $set: {
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        address: req.body.address,
+        country: req.body.country,
+        state: req.body.state,
+        city: req.body.city,
+        pincode: req.body.pincode,
+        lat,
+        lon,
+        radius: req.body.radius,
+        morning_attendance_end: req.body.morning_attendance_end,
+        "bus_incharge.name": busIncharge?.name,
+        "bus_incharge.email": busIncharge?.email,
+        "bus_incharge.phone": busIncharge?.phone,
+        "library.fine_per_day": library?.fine_per_day,
+        "library.book_issue_limit": library?.book_issue_limit,
+        "library.book_issue_days": library?.book_issue_days,
+      },
+    }
+  );
 
   res.status(200).json(result);
 });
 
 // @desc    Delete a school
-// @route   DELETE /api/system/school/:id
+// @route   DELETE /api/system/school
 // @access  Private
 const deleteSchool = asyncHandler(async (req, res) => {
-  const school = await School.findById(req.params.id)
-    .select("_id school")
-    .lean();
-
-  if (!school) {
-    res.status(400);
-    throw new Error(C.getResourse404Error("School", req.params.id));
+  if (!C.isAdmins(req.user.type) && !C.isSchool(req.user.type)) {
+    res.status(403);
+    throw new Error("Access Denied");
   }
 
-  const query = {};
-
-  if (await Student.any({ school: school.school })) {
+  if (await AcademicYear.any()) {
     res.status(400);
-    throw new Error("Unable to delete: School assigned to Student");
+    throw new Error(C.getUnableToDel("School", "AcademicYear"));
   }
 
-  const delQuery = { _id: req.params.id };
+  if (await Student.any()) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("School", "Student"));
+  }
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const result = await School.deleteOne(delQuery);
+  const result = await School.deleteOne();
 
   res.status(200).json(result);
 });
@@ -748,7 +630,6 @@ module.exports = {
   deleteUser,
   resetPassword,
 
-  getSchools,
   getSchool,
   addSchool,
   updateSchool,

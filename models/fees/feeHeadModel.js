@@ -19,10 +19,9 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       ref: "academic_years",
     },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "schools" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.plugin(any);

@@ -4,19 +4,17 @@ const { isIMEIValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const deviceSchema = new mongoose.Schema(
   {
     imei: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
-      validate: {
-        validator: isIMEIValid,
-        message: "Invalid imei!",
-      },
+      required,
+      validate: { validator: isIMEIValid, message: "Invalid imei!" },
       uppercase: true,
     },
-    // name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    // name: { type: String, required },
     protocol: { type: String, default: "" },
     net_protocol: { type: String, default: "" },
     ip: { type: String, default: "" },
@@ -44,21 +42,17 @@ const deviceSchema = new mongoose.Schema(
 
 const stopSchema = new mongoose.Schema(
   {
-    number: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    stop: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "bus_stops",
-    },
+    number: { type: Number, required },
+    stop: { type: ObjectId, required, ref: "bus_stops" },
   },
   { _id: false }
 );
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ] },
-    no_plate: { type: String, required: [true, C.FIELD_IS_REQ] },
-    model: { type: String, required: [true, C.FIELD_IS_REQ] },
+    name: { type: String, required },
+    no_plate: { type: String, required },
+    model: { type: String, required },
     year_made: { type: String, default: "" },
     status: {
       value: { type: String, default: "none" },
@@ -66,26 +60,18 @@ const schema = new mongoose.Schema(
     },
     alternate: {
       enabled: { type: Boolean, default: false },
-      bus: { type: ObjectId, ref: "buses" },
+      bus: { type: ObjectId, ref: "transport_buses" },
+    },
+    temp_device: {
+      enabled: { type: Boolean, default: false },
+      imei: { type: String, default: "" },
+      bus: { type: ObjectId, ref: "transport_buses" },
     },
     device: deviceSchema,
-    stops: [{ type: ObjectId, ref: "bus_stops" }],
-    driver: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "bus_staffs",
-    },
-    conductor: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "bus_staffs",
-    },
-    school: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "schools",
-    },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    stops: [{ type: ObjectId, ref: "transport_bus_stops" }],
+    driver: { type: ObjectId, required, ref: "transport_bus_staffs" },
+    conductor: { type: ObjectId, required, ref: "transport_bus_staffs" },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, minimize: false, versionKey: false }
 );
@@ -99,7 +85,6 @@ schema.pre("updateOne", function (next) {
   if (!data.vehicle_status) return next();
 
   const vStat = data.vehicle_status;
-  console.log("vStat :>> ", vStat);
 
   if (vStat.last_stop >= vStat.last_move) {
     vStat.is_stopped = true;
@@ -120,7 +105,6 @@ schema.pre("updateOne", function (next) {
     vStat.is_moving = false;
   }
 
-  console.log("vStat :>> ", vStat);
   this.device.vehicle_status = vStat;
 
   next();
@@ -128,5 +112,5 @@ schema.pre("updateOne", function (next) {
 
 schema.plugin(any);
 
-const Bus = mongoose.model("buses", schema);
+const Bus = mongoose.model("transport_buses", schema);
 module.exports = Bus;

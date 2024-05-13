@@ -18,11 +18,7 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const school = await UC.validateSchool(req.user, req.query.school);
-
-  const query = { school };
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  const query = {};
 
   if (search) {
     const fields = ["name"];
@@ -58,16 +54,11 @@ const getBusStaffs = asyncHandler(async (req, res) => {
 const getBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const busStaff = await BusStaff.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const busStaff = await BusStaff.findOne(query).lean();
 
   if (!busStaff) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
+    throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
   res.status(200).json(busStaff);
@@ -77,18 +68,7 @@ const getBusStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus-staff
 // @access  Private
 const addBusStaff = asyncHandler(async (req, res) => {
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.body.manager,
-    req.body.school
-  );
-
   const photo = req.file ? req.file.filename : "";
-
-  const driving_license = {
-    number: req.body.dl_no,
-    expiry_date: req.body.dl_exp,
-  };
 
   const busStaff = await BusStaff.create({
     type: req.body.type,
@@ -97,9 +77,11 @@ const addBusStaff = asyncHandler(async (req, res) => {
     email: req.body.email,
     phone: req.body.phone,
     photo,
-    driving_license,
-    school,
-    manager,
+    driving_license: {
+      number: req.body.dl_no,
+      expiry_date: req.body.dl_exp,
+    },
+    school: req.school,
   });
 
   res.status(201).json({ msg: busStaff._id });
@@ -111,14 +93,11 @@ const addBusStaff = asyncHandler(async (req, res) => {
 const updateBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const busStaff = await BusStaff.findOne(query).select("_id").lean();
 
   if (!busStaff) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
+    throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
   const name = {};
@@ -159,16 +138,11 @@ const updateBusStaff = asyncHandler(async (req, res) => {
 const deleteBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const staff = await BusStaff.findOne(query).select("_id").lean();
 
   if (!staff) {
     res.status(400);
-    throw new Error(C.getResourse404Error("BusStaff", req.params.id));
+    throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
   if (
@@ -194,11 +168,7 @@ const getBusStops = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const school = await UC.validateSchool(req.user, req.query.school);
-
-  const query = { school };
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  const query = {};
 
   if (search) {
     const fields = ["name", "address"];
@@ -212,8 +182,7 @@ const getBusStops = asyncHandler(async (req, res) => {
     {},
     page,
     limit,
-    sort,
-    ["school manager", "name"]
+    sort
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -227,16 +196,11 @@ const getBusStops = asyncHandler(async (req, res) => {
 const getBusStop = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const busStop = await BusStop.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const busStop = await BusStop.findOne(query).lean();
 
   if (!busStop) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+    throw new Error(C.getResourse404Id("BusStop", req.params.id));
   }
 
   res.status(200).json(busStop);
@@ -246,20 +210,13 @@ const getBusStop = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus-stop
 // @access  Private
 const addBusStop = asyncHandler(async (req, res) => {
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.body.manager,
-    req.body.school
-  );
-
   const busStop = await BusStop.create({
     name: req.body.name,
     address: req.body.address,
     fare: req.body.fare,
     lat: parseFloat(req.body.lat).toFixed(6),
     lon: parseFloat(req.body.lon).toFixed(6),
-    school,
-    manager,
+    school: req.school,
   });
 
   res.status(201).json({ msg: busStop._id });
@@ -271,12 +228,9 @@ const addBusStop = asyncHandler(async (req, res) => {
 const updateBusStop = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   if (!(await BusStop.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+    throw new Error(C.getResourse404Id("BusStop", req.params.id));
   }
 
   if (req.body.lat) req.body.lat = parseFloat(req.body.lat).toFixed(6);
@@ -300,14 +254,11 @@ const updateBusStop = asyncHandler(async (req, res) => {
 const deleteBusStop = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const stop = await BusStop.findOne(query).select("_id").lean();
 
   if (!stop) {
     res.status(400);
-    throw new Error(C.getResourse404Error("BusStop", req.params.id));
+    throw new Error(C.getResourse404Id("BusStop", req.params.id));
   }
 
   if (await Student.any({ bus_stop: stop._id })) {
@@ -336,11 +287,7 @@ const getBuses = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const school = await UC.validateSchool(req.user, req.query.school);
-
-  const query = { school };
-
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
+  const query = {};
 
   if (search) {
     const fields = ["name"];
@@ -355,7 +302,7 @@ const getBuses = asyncHandler(async (req, res) => {
     page,
     limit,
     sort,
-    ["driver conductor school manager", "name"]
+    ["driver conductor", "name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -369,16 +316,11 @@ const getBuses = asyncHandler(async (req, res) => {
 const getBus = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const bus = await Bus.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const bus = await Bus.findOne(query).lean();
 
   if (!bus) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   res.status(200).json(bus);
@@ -388,36 +330,37 @@ const getBus = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus
 // @access  Private
 const addBus = asyncHandler(async (req, res) => {
-  const [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    req.body.manager,
-    req.body.school
-  );
+  const stops = await UC.validateBusStops(req.body.stops);
 
-  const stops = req.body.stops;
-  const driver = req.body.driver;
-  const conductor = req.body.conductor;
-
-  if (!stops || stops.length < 1) {
+  if (!req.body.driver) {
     res.status(400);
-    throw new Error(C.getFieldIsReq("stops"));
+    throw new Error(C.getFieldIsReq("driver"));
   }
 
-  if (!(await BusStaff.any({ _id: driver, type: "d", school }))) {
+  const driver = await BusStaff.findOne({ _id: req.body.driver, type: "d" })
+    .select("_id")
+    .lean();
+
+  if (!driver) {
     res.status(400);
-    throw new Error(C.getResourse404Error("driver", driver));
+    throw new Error(C.getResourse404Id("driver", req.body.driver));
   }
 
-  if (!(await BusStaff.any({ _id: conductor, type: "c", school }))) {
+  if (!req.body.conductor) {
     res.status(400);
-    throw new Error(C.getResourse404Error("conductor", conductor));
+    throw new Error(C.getFieldIsReq("conductor"));
   }
 
-  for (const stop of stops) {
-    if (!(await BusStop.any({ _id: stop, school }))) {
-      res.status(400);
-      throw new Error(C.getResourse404Error("stop", stop));
-    }
+  const conductor = await BusStaff.findOne({
+    _id: req.body.conductor,
+    type: "c",
+  })
+    .select("_id")
+    .lean();
+
+  if (!conductor) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("conductor", req.body.conductor));
   }
 
   const bus = await Bus.create({
@@ -429,8 +372,7 @@ const addBus = asyncHandler(async (req, res) => {
     stops,
     driver,
     conductor,
-    school,
-    manager,
+    school: req.school,
   });
 
   res.status(201).json({ msg: bus._id });
@@ -445,9 +387,6 @@ const updateBus = asyncHandler(async (req, res) => {
   const stopOp = req.body.stop_op;
 
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (stops && stops.length > 0) {
     if (!stopOp) {
@@ -466,7 +405,7 @@ const updateBus = asyncHandler(async (req, res) => {
       for (const stop of stops) {
         if (!(await BusStop.any({ ...query, _id: stop }))) {
           res.status(400);
-          throw new Error(C.getResourse404Error("stops", stop));
+          throw new Error(C.getResourse404Id("stops", stop));
         }
       }
     }
@@ -475,14 +414,14 @@ const updateBus = asyncHandler(async (req, res) => {
   if (driver) {
     if (!(await BusStaff.any({ ...query, _id: driver, type: "d" }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("driver", driver));
+      throw new Error(C.getResourse404Id("driver", driver));
     }
   }
 
   if (conductor) {
     if (!(await BusStaff.any({ ...query, _id: conductor, type: "c" }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("conductor", conductor));
+      throw new Error(C.getResourse404Id("conductor", conductor));
     }
   }
 
@@ -490,7 +429,7 @@ const updateBus = asyncHandler(async (req, res) => {
 
   if (!bus) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   const update = {
@@ -519,14 +458,11 @@ const updateBus = asyncHandler(async (req, res) => {
 const deleteBus = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const bus = await Bus.findOne(query).select("_id").lean();
 
   if (!bus) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("Bus", req.params.id));
   }
 
   if (await Student.any({ bus: bus._id })) {
@@ -540,32 +476,21 @@ const deleteBus = asyncHandler(async (req, res) => {
 });
 
 // @desc    Set alternate bus
-// @route   POST /api/transport/bus/:id/set-alternate
+// @route   POST /api/transport/bus/set-alternate
 // @access  Private
 const setAlternateBus = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const bus = req.body.bus;
 
-  if (C.isSchool(req.user.type)) {
-    manager = req.user.manager;
-    school = req.user._id;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!UC.managerExists(manager)) {
-    res.status(200);
-    throw new Error(C.getResourse404Error("manager", manager));
+  if (!bus) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("bus"));
   }
 
-  if (!UC.schoolAccExists(school, manager)) {
-    res.status(200);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const query = { _id: req.params.id, manager, school };
+  const query = { name: bus.toUpperCase() };
 
   if (!(await Bus.any(query))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("bus", bus));
   }
 
   if (!req.body.alt_bus) {
@@ -573,9 +498,13 @@ const setAlternateBus = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("alt_bus"));
   }
 
-  if (!(await Bus.any({ ...query, _id: req.body.alt_bus }))) {
+  const altBus = await Bus.findOne({ name: req.body.alt_bus.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!altBus) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.body.alt_bus));
+    throw new Error(C.getResourse404Id("alt_bus", req.body.alt_bus));
   }
 
   if (!req.body.status) {
@@ -585,7 +514,7 @@ const setAlternateBus = asyncHandler(async (req, res) => {
 
   const result = await Bus.updateOne(query, {
     $set: {
-      alternate: { enabled: true, bus: req.body.alt_bus },
+      alternate: { enabled: true, bus: altBus._id },
       status: { value: req.body.status, dt: new Date() },
     },
   });
@@ -594,38 +523,27 @@ const setAlternateBus = asyncHandler(async (req, res) => {
 });
 
 // @desc    Set alternate bus
-// @route   POST /api/transport/bus/:id/unset-alternate
+// @route   POST /api/transport/bus/unset-alternate
 // @access  Private
 const unsetAlternateBus = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
+  const bus = req.body.bus;
 
-  if (C.isSchool(req.user.type)) {
-    manager = req.user.manager;
-    school = req.user._id;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!UC.managerExists(manager)) {
-    res.status(200);
-    throw new Error(C.getResourse404Error("manager", manager));
+  if (!bus) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("bus"));
   }
 
-  if (!UC.schoolAccExists(school, manager)) {
-    res.status(200);
-    throw new Error(C.getResourse404Error("school", school));
-  }
-
-  const query = { _id: req.params.id, manager, school };
+  const query = { name: bus.toUpperCase() };
 
   if (!(await Bus.any(query))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Bus", req.params.id));
+    throw new Error(C.getResourse404Id("bus", bus));
   }
 
   const result = await Bus.updateOne(query, {
     $set: {
       alternate: { enabled: false },
-      status: { value: "", dt: new Date() },
+      status: { value: "none", dt: new Date() },
     },
   });
 
@@ -710,26 +628,29 @@ const trackBus = asyncHandler(async (req, res) => {
 
   const result = [];
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const buses = await Bus.find(query).select("name device").lean();
+  const buses = await Bus.find(query).select("name temp_device device").lean();
 
   for (const bus of buses) {
+    const device = await UC.getBusDevice(bus);
+
     result.push({
       name: bus.name,
-      imei: bus.device.imei,
-      dt_server: bus.device.dt_server,
-      dt_tracker: bus.device.dt_tracker,
-      lat: bus.device.lat,
-      lon: bus.device.lon,
-      speed: bus.device.speed,
-      altitude: bus.device.altitude,
-      angle: bus.device.angle,
-      vehicle_status: bus.device.vehicle_status,
-      params: bus.device.params,
-      ignition: bus.device.params.io239 === "1",
-      icon: UC.getBusIcon(bus.device),
+      imei: device.imei,
+      dt_server: new Date(
+        device.dt_server.toISOString().replace("Z", "-05:30")
+      ),
+      dt_tracker: new Date(
+        device.dt_tracker.toISOString().replace("Z", "-05:30")
+      ),
+      lat: device.lat,
+      lon: device.lon,
+      speed: device.speed,
+      altitude: device.altitude,
+      angle: device.angle,
+      vehicle_status: device.vehicle_status,
+      params: device.params,
+      ignition: device.params.io239 === "1",
+      icon: UC.getBusIcon(device),
     });
   }
 
@@ -770,6 +691,51 @@ const getBusStatus = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Switch bus device
+// @route   POST /api/transport/bus/switch
+// @access  Private
+const switchBus = asyncHandler(async (req, res) => {
+  const bus = req.body.bus;
+
+  if (!bus) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("bus"));
+  }
+
+  const query = { name: bus.toUpperCase() };
+
+  if (!(await Bus.any(query))) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("bus", bus));
+  }
+
+  if (!req.body.temp_bus) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("temp_bus"));
+  }
+
+  const tempBus = await Bus.findOne({ name: req.body.temp_bus.toUpperCase() })
+    .select("device.imei")
+    .lean();
+
+  if (!tempBus) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("temp_bus", req.body.temp_bus));
+  }
+
+  const result = await Bus.updateOne(query, {
+    $set: {
+      temp_device: {
+        enabled: true,
+        imei: tempBus.device.imei,
+        bus: tempBus._id,
+      },
+    },
+  });
+
+  res.status(200).json(result);
+});
+
 module.exports = {
   getBusStaffs,
   getBusStaff,
@@ -793,4 +759,5 @@ module.exports = {
   bulkOpsBus,
   trackBus,
   getBusStatus,
+  switchBus,
 };

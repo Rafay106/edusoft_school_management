@@ -22,8 +22,8 @@ const STR = {
   PAGE_LIMIT_REACHED: "Page limit reached!",
   PARENT: "parent",
   RECEPTIONIST: "receptionist",
-  
-  RESOURSE_404: "%R% not found: %ID%",
+  RESOURSE_404: "%R% not found",
+  RESOURSE_404_ID: "%R% not found: %ID%",
   SCHOOL: "school",
   STAFF: "staff",
   STUDENT: "student",
@@ -43,8 +43,9 @@ const FUNCTIONS = {
   getFieldIsReq: (field) => STR.FIELD_IS_REQ.replace("%F%", field),
   getFieldIsReqAtIdx: (field, idx) =>
     STR.FIELD_IS_REQ_AT_IDX.replace("%F%", field).replace("%I%", idx),
-  getResourse404Error: (resource, id) =>
-    STR.RESOURSE_404.replace("%R%", resource).replace("%ID%", id),
+  getResourse404: (resource) => STR.RESOURSE_404.replace("%R%", resource),
+  getResourse404Id: (resource, id) =>
+    STR.RESOURSE_404_ID.replace("%R%", resource).replace("%ID%", id),
   getUnableToDel: (a, b) =>
     STR.UNABLE_TO_DEL.replace("%A%", a).replace("%B%", b),
   getValueNotSup: (val) => STR.VALUE_NOT_SUP.replace("{VALUE}", val),

@@ -2,17 +2,16 @@ const StuBusAtt = require("../models/attendance/stuBusAttModel");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/studentInfo/studentModel");
 const C = require("../constants");
+const UC = require("../utils/common");
 const {
   isPointInCircle,
   convUTCTo0530,
-  getPersonName,
   formatDateToAMPM,
   writeLog,
 } = require("../utils/common");
 
 const { stuAttEvent } = require("../tools/notifications");
 const School = require("../models/system/schoolModel");
-const BusStop = require("../models/transport/busStopModel");
 
 const checkStuBusAttendance = async (loc) => {
   console.log("*****checkStuBusAttendance() START*****");
@@ -24,15 +23,15 @@ const checkStuBusAttendance = async (loc) => {
         name: 1,
         email: 1,
         phone: 1,
-        bus_arrival: 1,
-        bus_departure: 1,
+        bus_pick: 1,
+        bus_drop: 1,
         bus_stop: 1,
         manager: 1,
         school: 1,
       })
       .populate("bus_stop")
       .populate("class section", "name")
-      .populate("bus_arrival bus_departure", "name alternate")
+      .populate("bus_pick bus_drop", "name alternate temp_device")
       .lean();
 
     if (!student) {
@@ -63,10 +62,19 @@ const checkStuBusAttendance = async (loc) => {
 
     const morningTime = school.timings.morning;
     let busToFetch;
+    let assignedBus = student.bus_drop._id;
 
     if (isMorningTime(loc.dt_tracker, morningTime)) {
-      busToFetch = student.bus_arrival._id;
-    } else busToFetch = student.bus_departure._id;
+      if (student.bus_pick?.temp_device?.enabled) {
+        busToFetch = student.bus_pick?.temp_device?.bus;
+      } else busToFetch = student.bus_pick._id;
+
+      assignedBus = student.bus_pick._id;
+    } else {
+      if (student.bus_drop?.temp_device?.enabled) {
+        busToFetch = student.bus_drop?.temp_device?.bus;
+      } else busToFetch = student.bus_drop._id;
+    }
 
     if (!currBus._id.equals(busToFetch)) {
       busToFetch = currBus._id;
@@ -84,7 +92,20 @@ const checkStuBusAttendance = async (loc) => {
       return false;
     }
 
+    if (!bus._id.equals(assignedBus)) {
+      const assignedBus_ = await Bus.findOne(assignedBus)
+        .select("stops")
+        .populate({ path: "stops", select: "name address lat lon fees" });
+
+      if (assignedBus_) bus.stops = assignedBus_.stops;
+    }
+
     loc.today = new Date(loc.dt_tracker).setUTCHours(0, 0, 0, 0);
+
+    UC.writeLog(
+      "attendance.js",
+      `Student: ${student.admission_no} | Bus: ${bus.name}`
+    );
 
     let isTaken = false;
 
@@ -238,7 +259,7 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
     .select("_id name")
     .lean();
 
-  const sName = getPersonName(student.name);
+  const sName = student.name;
   const class_ = student.class.name;
   const section = student.section.name;
   const admNo = student.admission_no;
@@ -252,8 +273,22 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
   let defaultBus;
 
   if (isMorningTime(loc.dt_tracker, timings.morning)) {
-    defaultBus = student.bus_arrival;
-  } else defaultBus = student.bus_departure;
+    if (student.bus_pick?.temp_device?.enabled) {
+      const tempBus = await Bus.findById(student.bus_pick?.temp_device?.bus)
+        .select("name alternate")
+        .lean();
+
+      defaultBus = tempBus;
+    } else defaultBus = student.bus_pick;
+  } else {
+    if (student.bus_drop?.temp_device?.enabled) {
+      const tempBus = await Bus.findById(student.bus_drop?.temp_device?.bus)
+        .select("name alternate")
+        .lean();
+
+      defaultBus = tempBus;
+    } else defaultBus = student.bus_drop;
+  }
 
   if (!cBus._id.equals(defaultBus._id)) {
     const alt = defaultBus.alternate;
@@ -268,7 +303,7 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
       }
     } else {
       // Wrong bus
-      busMsg = `${cBus.name} instead of ${student.bus.name}`;
+      busMsg = `${cBus.name} instead of ${defaultBus.name}`;
     }
   } else {
     // Correct bus
@@ -335,4 +370,6 @@ const switchBus = async (oldBusId, newBusId) => {
 
 module.exports = {
   checkStuBusAttendance,
+  isMorningTime,
+  isAfternoonTime,
 };

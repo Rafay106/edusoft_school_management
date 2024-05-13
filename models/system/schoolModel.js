@@ -17,7 +17,7 @@ const schema = new mongoose.Schema(
       required: [true, C.FIELD_IS_REQ],
       validate: {
         validator: isEmailValid,
-        message: C.FIELD_IS_INVALID,
+        message: (props) => `email: ${props.value} is invalid!`,
       },
       
       lowercase: true,
@@ -34,17 +34,10 @@ const schema = new mongoose.Schema(
     lat: { type: Number, required: [true, C.FIELD_IS_REQ] },
     lon: { type: Number, required: [true, C.FIELD_IS_REQ] },
     radius: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    timings: {
-      morning: {
-        type: String,
-        required: [true, C.FIELD_IS_REQ],
-        validate: { validator: timeValidator, message: timingErr },
-      },
-      afternoon: {
-        type: String,
-        required: [true, C.FIELD_IS_REQ],
-        validate: { validator: timeValidator, message: timingErr },
-      },
+    morning_attendance_end: {
+      type: String,
+      required: [true, C.FIELD_IS_REQ],
+      validate: { validator: timeValidator, message: timingErr },
     },
     bus_incharge: {
       name: { type: String, default: "" },
@@ -74,7 +67,6 @@ const schema = new mongoose.Schema(
       book_issue_days: { type: Number, default: 0 },
     },
     current_academic_year: { type: ObjectId, ref: "academic_years" },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
   },
   { timestamps: true, versionKey: false }
 );

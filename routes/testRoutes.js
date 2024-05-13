@@ -16,6 +16,8 @@ const Section = require("../models/academics/sectionModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
 const User = require("../models/system/userModel");
+const FeeTerm = require("../models/fees/feeTermModel");
+const FeeType = require("../models/fees/feeTypeModel");
 
 router.post(
   "/1",
@@ -47,6 +49,8 @@ router.post(
     const fileData = UC.excelToJson(filePath);
     fs.unlinkSync(filePath);
 
+    const baseDate = new Date("30-12-1899T00:00:00Z");
+
     const classes = await Class.find().lean();
     const sections = await Section.find().lean();
     const boardingTypes = await BoardingType.find().lean();
@@ -54,8 +58,13 @@ router.post(
     const buses = await Bus.find().lean();
     const busStops = await BusStop.find().lean();
 
+    const studentTransportDetails = UC.excelToJson(
+      path.join("data", "Student-Transport-Detail.xlsx")
+    );
+
     const students = [];
     let i = 1;
+
     for (const row of fileData) {
       if (row.phone) {
         row.phone = row.phone.toString().replace("+91", "").replaceAll(" ", "");
@@ -90,7 +99,17 @@ router.post(
         subward = subwards.find((sw) => sw.name === "NA");
       }
 
-      const bus = buses.find((b) => b.name === row.bus);
+      const stuTD = studentTransportDetails.find(
+        (std) => std.admno === row.admission_no
+      );
+
+      const bus_pick = stuTD
+        ? buses.find((b) => b.name === stuTD.busp)
+        : undefined;
+
+      const bus_drop = stuTD
+        ? buses.find((b) => b.name === stuTD.busd)
+        : undefined;
 
       const busStop = busStops.find((bs) => bs.name === row.bus_stop);
 
@@ -108,7 +127,7 @@ router.post(
         house: row.house,
         blood_group: row.blood_group,
         staff_child: row.staff_child,
-        doa: row.doa,
+        doa: new Date((row.doa - 25569) * 86400 * 1000),
         student_status: row.student_status === "New" ? "n" : "o",
         student_left: row.student_left === "Yes",
         phone: row.phone ? row.phone : "9123123123",
@@ -126,7 +145,7 @@ router.post(
           job_title: row.mother_job,
           adhaar: row.mother_adhaar,
         },
-        dob: row.dob,
+        dob: new Date((row.dob - 25569) * 86400 * 1000),
         age: row.age,
         address: {
           permanent: row.permanent_address,
@@ -162,7 +181,8 @@ router.post(
         },
         relation_with_student: row.relation_with_student,
         class_teacher: row.class_teacher,
-        bus: bus ? bus._id : undefined,
+        bus_pick: bus_pick ? bus_pick._id : undefined,
+        bus_drop: bus_drop ? bus_drop._id : undefined,
         bus_stop: busStop ? busStop._id : undefined,
         student_adhaar: row.student_adhaar,
         sibling: row.sibling === "Yes",
@@ -184,25 +204,23 @@ router.post(
 
     const student = await Student.create(students);
 
-    res.json(students);
+    res.json(student);
   })
 );
 
 router.post(
   "/3",
   asyncHandler(async (req, res) => {
-    const filePath = path.join("data", "edusoft_new.sub_wards.json");
-    const fileData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const parents = await User.find({ type: "parent" }).select("phone").lean();
 
-    for (const row of fileData) {
-      await SubWard.create({
-        name: row.name,
-        school: "662c385ecfa060f7e1b9a1ec",
-        manager: "662c364427e8f09bdec1f3c0",
-      });
+    for (const parent of parents) {
+      await Student.updateMany(
+        { phone: parent.phone },
+        { $set: { parent: parent._id } }
+      );
     }
 
-    res.json(fileData);
+    res.json({ msg: "success" });
   })
 );
 
@@ -210,46 +228,7 @@ router.post(
   "/4",
   bulkImportUpload.single("file"),
   asyncHandler(async (req, res) => {
-    const filePath = path.join("data", "imports", req.file.filename);
-    const fileData = UC.excelToJson(filePath);
-    fs.unlinkSync(filePath);
-
-    const drivers = await BusStaff.find({ type: "d" }).lean();
-    const conductors = await BusStaff.find({ type: "c" }).lean();
-
-    const driverNA = drivers.find((d) => d.name === "NA");
-    const conductorNA = conductors.find((c) => c.name === "NA");
-
-    const buses = [];
-    for (const row of fileData) {
-      const busNo = row.name.slice(2, 4);
-      const driver = drivers.find((d) => d.name.includes(busNo));
-      const driverId = driver ? driver._id : driverNA._id;
-
-      const conductor = conductors.find((c) => c.name.includes(busNo));
-      const conductorId = conductor ? conductor._id : conductorNA._id;
-
-      const bus = {
-        name: row.name,
-        no_plate: row.no_plate,
-        model: row.model,
-        year_made: "2024",
-        device: {
-          imei: row.imei,
-        },
-        stops: row.stops.split(","),
-        driver: driverId,
-        conductor: conductorId,
-        school: "662c385ecfa060f7e1b9a1ec",
-        manager: "662c364427e8f09bdec1f3c0",
-      };
-
-      buses.push(bus);
-    }
-
-    const bus = await Bus.create(buses);
-
-    res.json(bus);
+    res.json({ msg: "OK" });
   })
 );
 

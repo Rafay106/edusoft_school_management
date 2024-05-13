@@ -32,10 +32,10 @@ userRouter
 // 3. School Routes
 const schoolRouter = express.Router();
 
-schoolRouter.route("/").get(SC.getSchools).post(SC.addSchool);
 schoolRouter
-  .route("/:id")
+  .route("/")
   .get(SC.getSchool)
+  .post(SC.addSchool)
   .patch(SC.updateSchool)
   .delete(SC.deleteSchool);
 

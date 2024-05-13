@@ -64,7 +64,7 @@ const getCategory = asyncHandler(async (req, res) => {
 
   if (!category) {
     res.status(404);
-    throw new Error(C.getResourse404Error("Category", req.params.id));
+    throw new Error(C.getResourse404Id("Category", req.params.id));
   }
 
   res.status(200).json(category);
@@ -76,7 +76,7 @@ const getCategory = asyncHandler(async (req, res) => {
 const addCategory = asyncHandler(async (req, res) => {
   const school = await UC.validateSchool(req.user, req.body.school);
 
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(school);
 
   const category = await LibraryCategory.create({
     title: req.body.title,
@@ -97,7 +97,7 @@ const updateCategory = asyncHandler(async (req, res) => {
 
   if (!(await LibraryCategory.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("LibraryCategory", req.params.id));
+    throw new Error(C.getResourse404Id("LibraryCategory", req.params.id));
   }
 
   const result = await LibraryCategory.updateOne(query, {
@@ -117,7 +117,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
 
   if (!category) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Category", req.params.id));
+    throw new Error(C.getResourse404Id("Category", req.params.id));
   }
 
   // if (await Section.any({ academic_year: ayear._id })) {
@@ -188,7 +188,7 @@ const getSubject = asyncHandler(async (req, res) => {
   const subject = await LibrarySubject.findOne(query);
   if (!subject) {
     res.status(400);
-    throw new Error(C.getResourse404Error("subject", req.params.id));
+    throw new Error(C.getResourse404Id("subject", req.params.id));
   }
   res.status(200).json(subject);
 });
@@ -200,7 +200,7 @@ const getSubject = asyncHandler(async (req, res) => {
 const addSubject = asyncHandler(async (req, res) => {
   const school = await UC.validateSchool(req.user, req.body.school);
 
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(school);
 
   const subject = await LibrarySubject.create({
     name: req.body.name,
@@ -223,7 +223,7 @@ const updateSubject = asyncHandler(async (req, res) => {
 
   if (!(await LibrarySubject.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("LibrarySubject", req.params.id));
+    throw new Error(C.getResourse404Id("LibrarySubject", req.params.id));
   }
 
   const updatedSubject = await LibrarySubject.updateOne(query, {
@@ -243,7 +243,7 @@ const deleteSubject = asyncHandler(async (req, res) => {
 console.log(subject);
   if (!subject) {
     res.status(400);
-    throw new Error(C.getResourse404Error("subject", req.params.id));
+    throw new Error(C.getResourse404Id("subject", req.params.id));
   }
 
   const delQuery = { _id: req.params.id };
@@ -309,7 +309,7 @@ const getBook = asyncHandler(async (req, res) => {
   const book = await LibraryBook.findOne(query);
   if (!book) {
     res.status(400);
-    throw new Error(C.getResourse404Error("book", req.params.id));
+    throw new Error(C.getResourse404Id("book", req.params.id));
   }
   res.status(200).json(book);
 });
@@ -320,7 +320,7 @@ const getBook = asyncHandler(async (req, res) => {
 const addBook = asyncHandler(async (req, res) => {
   const school = await UC.validateSchool(req.user, req.body.school);
 
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(school);
 
   const book = await LibraryBook.create({
     title: req.body.title,
@@ -352,7 +352,7 @@ const updateBook = asyncHandler(async (req, res) => {
 
   if (!(await LibraryBook.any(query))) {
     res.status(404);
-    throw new Error(C.getResourse404Error("LibraryBook", req.params.id));
+    throw new Error(C.getResourse404Id("LibraryBook", req.params.id));
   }
 
   const updatedBook = await LibraryBook.updateOne(query, {
@@ -370,7 +370,7 @@ const deleteBook = asyncHandler(async (req, res) => {
 
   if (!book) {
     res.status(400);
-    throw new Error(C.getResourse404Error("book", req.params.id));
+    throw new Error(C.getResourse404Id("book", req.params.id));
   }
 
   const delQuery = { _id: req.params.id };
@@ -427,7 +427,7 @@ const addIssueBook = asyncHandler(async (req, res) => {
   const issueDate = req.body.issue_date;
 
   const school = await UC.validateSchool(req.user, req.body.school);
-  const ayear = await UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(school);
 
   if (!type) {
     res.status(400);
@@ -446,7 +446,7 @@ const addIssueBook = asyncHandler(async (req, res) => {
 
   if (!(await LibraryBook.any({ _id: book, school }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("book", book));
+    throw new Error(C.getResourse404Id("book", book));
   }
 
   const issueBook = {
@@ -464,7 +464,7 @@ const addIssueBook = asyncHandler(async (req, res) => {
 
     if (!student) {
       res.status(400);
-      throw new Error(C.getResourse404Error("student", id));
+      throw new Error(C.getResourse404Id("student", id));
     }
 
     const issuedBooks = await LibraryIssueBook.countDocuments({
@@ -485,7 +485,7 @@ const addIssueBook = asyncHandler(async (req, res) => {
   } else if (type === "staff") {
     if (!(await Staff.any({ _id: id, school }))) {
       res.status(400);
-      throw new Error(C.getResourse404Error("staff", id));
+      throw new Error(C.getResourse404Id("staff", id));
     }
 
     issueBook.staff = id;
@@ -591,7 +591,7 @@ const returnIssueBook = asyncHandler(async (req, res) => {
 
   if (!issueRecord) {
     res.status(404);
-    throw new Error(C.getResourse404Error("issueId", req.body.issueId));
+    throw new Error(C.getResourse404Id("issueId", req.body.issueId));
   }
 
   // Update the issue book record with the return date and mark it as returned

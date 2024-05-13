@@ -28,5 +28,5 @@ schema.index({ name: 1, school: 1 }, { unique: true });
 schema.index({ code: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
-const Subject = mongoose.model("subjects", schema);
+const Subject = mongoose.model("academics_subjects", schema);
 module.exports = Subject;

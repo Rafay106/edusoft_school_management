@@ -4,19 +4,9 @@ const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 
-const schema = new mongoose.Schema(
+const findDescSchema = new mongoose.Schema(
   {
-    class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
-    fee_term: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "fee_terms",
-    },
-    student_type: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "student_types",
-    },
+    serial: { type: Number, required: [true, C.FIELD_IS_REQ] },
     type: {
       type: String,
       required: [true, C.FIELD_IS_REQ],
@@ -31,21 +21,44 @@ const schema = new mongoose.Schema(
       end: { type: Number, required: [true, C.FIELD_IS_REQ] },
     },
     fixed: { type: Boolean, required: [true, C.FIELD_IS_REQ] },
-    date_range: {
-      start: { type: Date, required: [true, C.FIELD_IS_REQ] },
-      end: { type: Date, required: [true, C.FIELD_IS_REQ] },
+  },
+  { _id: false }
+);
+
+const schema = new mongoose.Schema(
+  {
+    class: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "academics_classes",
     },
+    fee_term: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "fee_terms",
+    },
+    boarding_type: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "boarding_types",
+    },
+    desc: [findDescSchema],
     academic_year: {
       type: ObjectId,
       required: [true, C.FIELD_IS_REQ],
       ref: "academic_years",
     },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    school: {
+      type: ObjectId,
+      required: [true, C.FIELD_IS_REQ],
+      ref: "schools",
+    },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
+schema.index({ class: 1, fee_term: 1, boarding_type: 1 }, { unique: true });
+schema.index({ _id: 1, "desc.serial": 1 }, { unique: true });
 schema.plugin(any);
 
 const FeeFine = mongoose.model("fee_fines", schema);

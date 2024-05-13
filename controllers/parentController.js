@@ -7,6 +7,7 @@ const StuBusAtt = require("../models/attendance/stuBusAttModel");
 const StuAttEvent = require("../models/attendance/stuAttEventModel");
 const Bus = require("../models/transport/busModel");
 const School = require("../models/system/schoolModel");
+const { isAfternoonTime } = require("../services/attendance");
 
 // @desc    Get parent info
 // @route   POST /api/parent/account-info
@@ -19,7 +20,7 @@ const getParentAccountInfo = asyncHandler(async (req, res) => {
 
   if (!parent) {
     res.status(400);
-    throw new Error(C.getResourse404Error("User", req.user._id));
+    throw new Error(C.getResourse404Id("User", req.user._id));
   }
 
   const students = await Student.find({ parent: parent._id })
@@ -41,7 +42,7 @@ const addStudent = asyncHandler(async (req, res) => {
 
   if (!(await Student.any(query))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("Student", admNo));
+    throw new Error(C.getResourse404Id("Student", admNo));
   }
 
   const result = await Student.updateOne(query, {
@@ -55,7 +56,7 @@ const addStudent = asyncHandler(async (req, res) => {
 // @route   POST /api/parent/bus/track
 // @access  Private
 const trackBus = asyncHandler(async (req, res) => {
-  const school = req.user.school;
+  const school = req.school;
   const busId = req.body.bus;
 
   const results = [];
@@ -65,36 +66,47 @@ const trackBus = asyncHandler(async (req, res) => {
       .select("name no_plate status device")
       .lean();
 
+    const device = await UC.getBusDevice(bus);
+
     return res.status(200).json([
       {
         busName: bus.name,
         no_plate: bus.no_plate,
         status: bus.status,
-        imei: bus.device.imei,
-        dt_server: bus.device.dt_server,
-        dt_tracker: bus.device.dt_tracker.toISOString(),
-        lat: bus.device.lat,
-        lon: bus.device.lon,
-        speed: bus.device.speed,
-        altitude: bus.device.altitude,
-        angle: bus.device.angle,
-        vehicle_status: bus.device.vehicle_status,
-        ignition: bus.device.params.io239 === "1",
+        imei: device.imei,
+        dt_server: new Date(
+          device.dt_server.toISOString().replace("Z", "-05:30")
+        ),
+        dt_tracker: new Date(
+          device.dt_tracker.toISOString().replace("Z", "-05:30")
+        ),
+        lat: device.lat,
+        lon: device.lon,
+        speed: device.speed,
+        altitude: device.altitude,
+        angle: device.angle,
+        vehicle_status: device.vehicle_status,
+        ignition: device.params.io239 === "1",
+        icon: UC.getBusIcon(device),
       },
     ]);
   }
 
-  const students = await Student.find({ parent: req.user._id, school })
-    .select("_id admission_no name bus")
-    .populate("bus", "alternate")
+  const students = await Student.find({ parent: req.user._id })
+    .select("_id admission_no name bus_pick bus_drop")
+    .populate("bus_pick bus_drop", "alternate")
     .lean();
 
   for (const stu of students) {
-    if (!stu.bus) {
+    const stuBus = isMorningTime(new Date(), school.timings.morning)
+      ? stu.bus_pick
+      : stu.bus_drop;
+
+    if (!stuBus) {
       results.push({
         student: {
           admission_no: stu.admission_no,
-          name: UC.getPersonName(stu.name),
+          name: stu.name,
         },
         msg: "Pedestrian",
       });
@@ -102,33 +114,39 @@ const trackBus = asyncHandler(async (req, res) => {
       continue;
     }
 
-    const busToFetch = stu.bus.alternate.enabled
-      ? stu.bus.alternate.bus
-      : stu.bus._id;
+    const busToFetch = stuBus.alternate.enabled
+      ? stuBus.alternate.bus
+      : stuBus._id;
 
     const bus = await Bus.findById(busToFetch)
-      .select("name no_plate status device")
+      .select("name no_plate status temp_device device")
       .lean();
+
+    const device = await UC.getBusDevice(bus);
 
     results.push({
       student: {
         admission_no: stu.admission_no,
-        name: UC.getPersonName(stu.name),
+        name: stu.name,
       },
       busName: bus.name,
       no_plate: bus.no_plate,
       status: bus.status,
-      imei: bus.device.imei,
-      dt_server: bus.device.dt_server,
-      dt_tracker: bus.device.dt_tracker,
-      lat: bus.device.lat,
-      lon: bus.device.lon,
-      speed: bus.device.speed,
-      altitude: bus.device.altitude,
-      angle: bus.device.angle,
-      vehicle_status: bus.device.vehicle_status,
-      ignition: bus.device.params.io239 === "1",
-      icon: UC.getBusIcon(bus.device),
+      imei: device.imei,
+      dt_server: new Date(
+        device.dt_server.toISOString().replace("Z", "-05:30")
+      ),
+      dt_tracker: new Date(
+        device.dt_tracker.toISOString().replace("Z", "-05:30")
+      ),
+      lat: device.lat,
+      lon: device.lon,
+      speed: device.speed,
+      altitude: device.altitude,
+      angle: device.angle,
+      vehicle_status: device.vehicle_status,
+      ignition: device.params.io239 === "1",
+      icon: UC.getBusIcon(device),
     });
   }
 
@@ -142,15 +160,12 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "admission_no";
-  const searchField = "all";
-  const searchValue = req.query.search;
-  const manager = req.user.manager;
-  const school = req.user.school;
+  const search = req.query.search;
 
   const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
   const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name")
     .lean();
 
@@ -159,24 +174,17 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
     student: students.map((s) => s._id),
   };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = [
-        "admission_no",
-        "name.f",
-        "name.m",
-        "name.l",
-        "email",
-        "address.current",
-        "address.permanent",
-      ];
+  if (search) {
+    const fields = [
+      "admission_no",
+      "name",
+      "email",
+      "address.permanent",
+      "address.correspondence",
+    ];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -192,13 +200,6 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
   for (const result of results.result) {
-    result.student = {
-      admission_no: result.student.admission_no,
-      name: UC.getPersonName(result.student.name),
-    };
-
-    result.bus = result.bus.name;
-
     for (const list of result.list) {
       if (list.tag === C.M_ENTRY) list.tag = "Picked from Stoppage";
       else if (list.tag === C.M_EXIT) list.tag = "Dropped at School";
@@ -261,7 +262,7 @@ const getStudentAttendanceCount = asyncHandler(async (req, res) => {
     cDate = new Date(cDate.getTime() + 86400000);
   }
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name photo")
     .lean();
 
@@ -284,7 +285,7 @@ const getStudentAttendanceCount = asyncHandler(async (req, res) => {
 
     result.push({
       admission_no: stu.admission_no,
-      name: UC.getPersonName(stu.name),
+      name: stu.name,
       photo: stu.photo || "/user-blank.svg",
       ...count,
     });
@@ -299,17 +300,13 @@ const getStudentAttendanceCount = asyncHandler(async (req, res) => {
 const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "admission_no";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
-
-  const manager = req.user.manager;
-  const school = req.user.school;
+  const sort = req.query.sort || "-date";
+  const search = req.query.search;
 
   const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
   const dtEnd = UC.validateAndSetDate(req.body.dt_end, "dt_end");
 
-  const students = await Student.find({ parent: req.user._id, manager, school })
+  const students = await Student.find({ parent: req.user._id })
     .select("_id admission_no name")
     .lean();
 
@@ -319,24 +316,11 @@ const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
     // sent: true,
   };
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = [
-        "admission_no",
-        "name.f",
-        "name.m",
-        "name.l",
-        "email",
-        "address.current",
-        "address.permanent",
-      ];
+  if (search) {
+    const fields = ["student.admission_no", "student.name", "student.email"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -346,19 +330,10 @@ const getStudentAttendanceNotification = asyncHandler(async (req, res) => {
     page,
     limit,
     sort,
-    ["student bus", "admission_no name"]
+    ["student bus", "admission_no name email"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
-
-  for (const result of results.result) {
-    result.student = {
-      admission_no: result.student.admission_no,
-      name: UC.getPersonName(result.student.name),
-    };
-
-    result.bus = result.bus.name;
-  }
 
   res.status(200).json(results);
 });
@@ -370,35 +345,39 @@ const getStudentBusContactInfo = asyncHandler(async (req, res) => {
   const manager = req.user.manager;
   const school = req.user.school;
 
-  const school_ = await School.findOne({ school })
-    .select("bus_incharge")
-    .lean();
-
   const students = await Student.find({ parent: req.user._id, manager, school })
-    .select("_id admission_no name bus")
-    .populate("bus", "alternate")
+    .select("_id admission_no name bus_pick bus_drop")
+    .populate("bus_pick bus_drop", "alternate")
     .lean();
 
   const results = [];
 
   for (const s of students) {
-    let busToFetch = s.bus.alternate.enabled ? s.bus.alternate.bus : s.bus._id;
+    let stuBus = s.bus_pick;
+    if (isAfternoonTime(new Date(), school.timings.afternoon)) {
+      stuBus = s.bus_drop;
+    }
+
+    let busToFetch = stuBus.alternate.enabled
+      ? stuBus.alternate.bus
+      : stuBus._id;
+
     const bus = await Bus.findById(busToFetch)
       .select("name driver conductor")
       .populate("driver conductor", "name email phone")
       .lean();
 
     results.push({
-      student: { admission_no: s.admission_no, name: UC.getPersonName(s.name) },
+      student: { admission_no: s.admission_no, name: s.name },
       bus: bus.name,
-      bus_incharge: school_?.bus_incharge,
+      bus_incharge: school?.bus_incharge,
       driver: {
-        name: UC.getPersonName(bus.driver.name),
+        name: bus.driver.name,
         email: bus.driver.email,
         phone: bus.driver.phone,
       },
       conductor: {
-        name: UC.getPersonName(bus.conductor.name),
+        name: bus.conductor.name,
         email: bus.conductor.email,
         phone: bus.conductor.phone,
       },
@@ -421,7 +400,7 @@ const getStudentAttendanceCalendar = asyncHandler(async (req, res) => {
 
   if (!(await Student.any({ _id: studentId, parent: req.user._id }))) {
     res.status(400);
-    throw new Error(C.getResourse404Error("student", studentId));
+    throw new Error(C.getResourse404Id("student", studentId));
   }
 
   if (!req.body.month) {

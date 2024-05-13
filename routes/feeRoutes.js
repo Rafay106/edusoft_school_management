@@ -72,7 +72,10 @@ feeFineRouter
 // 7. FeeConcession Routes
 const feeConcessionRouter = express.Router();
 
-feeConcessionRouter.route("/").get(FC.getFeeConcessions).post(FC.addFeeConcession);
+feeConcessionRouter
+  .route("/")
+  .get(FC.getFeeConcessions)
+  .post(FC.addFeeConcession);
 
 feeConcessionRouter
   .route("/:id")
@@ -87,5 +90,6 @@ feeRouter.use("/fee-head", feeHeadRouter);
 feeRouter.use("/fee-structure", feeStructureRouter);
 feeRouter.use("/fee-fine", feeFineRouter);
 feeRouter.use("/fee-concession", feeConcessionRouter);
+feeRouter.post("/calculate", FC.calculateFees);
 
 module.exports = feeRouter;
