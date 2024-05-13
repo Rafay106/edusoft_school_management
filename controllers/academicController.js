@@ -752,8 +752,8 @@ const getSubject = asyncHandler(async (req, res) => {
 // @access  Private
 const addSubject = asyncHandler(async (req, res) => {
   let manager = req.body.manager;
-  let school = req.body.school;
-  const ayear = req.body.ayear;
+  let school = await UC.validateSchool(req.user,req.body.school);
+  const ayear =   await UC.getCurrentAcademicYear(school);
 
   if (C.isSchool(req.user.type)) {
     school = req.user._id;
@@ -779,9 +779,10 @@ const addSubject = asyncHandler(async (req, res) => {
     name: req.body.name,
     code: req.body.code,
     type: req.body.type,
-    academic_year: req.body.ayear,
     manager,
     school,
+    academic_year: ayear,
+    
   });
 
   res.status(201).json({ msg: subject._id });

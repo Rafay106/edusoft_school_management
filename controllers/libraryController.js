@@ -15,23 +15,17 @@ const getCategories = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "title";
-  const searchField = "all";
-  const searchValue = req.query.search;
+  const search = req.query.search;
 
   const query = {};
 
   if (C.isSchool(req.user.type)) query.school = req.user.school;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["title"];
+  if (search) {
+    const fields = ["title"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -147,22 +141,17 @@ const getSubjects = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "title" || "name";
   const searchField = "all";
-  const searchValue = req.query.search;
+  const search = req.query.search;
 
   const query = {};
 
   if (C.isSchool(req.user.type)) query.school = req.user.school;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["title", "name"];
+  if (search) {
+    const fields = ["title", "name"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
   const results = await UC.paginatedQuery(
     LibrarySubject,
@@ -240,7 +229,7 @@ const deleteSubject = asyncHandler(async (req, res) => {
   const subject = await LibrarySubject.findById(req.params.id)
     .select("_id")
     .lean();
-console.log(subject);
+  console.log(subject);
   if (!subject) {
     res.status(400);
     throw new Error(C.getResourse404Id("subject", req.params.id));
@@ -267,22 +256,17 @@ const getBooks = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "title";
   const searchField = "all";
-  const searchValue = req.query.search;
+  const search = req.query.search;
 
   const query = {};
 
   if (C.isSchool(req.user.type)) query.school = req.user.school;
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["title", "category", "subject", "book_no", "ISBN_no"];
+  if (search) {
+    const fields = ["title", "category", "subject", "book_no", "ISBN_no"];
 
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
