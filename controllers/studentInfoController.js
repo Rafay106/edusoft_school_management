@@ -264,7 +264,7 @@ const getStudent = asyncHandler(async (req, res) => {
 
   const student = await Student.findOne(query)
     .populate(
-      "academic_year class section bus bus_stop parent manager school",
+      "academic_year class section bus_pick bus_drop bus_stop parent school",
       "name title"
     )
     .lean();

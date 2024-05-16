@@ -692,15 +692,6 @@ const getSubjects = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  let manager = req.query.manager;
-  let school = req.query.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    manager,
-    school
-  );
-
   const ayear = UC.getCurrentAcademicYear(req.school);
 
   const query = { academic_year: ayear };
@@ -735,9 +726,7 @@ const getSubject = asyncHandler(async (req, res) => {
   if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
-  const subject = await Subject.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const subject = await Subject.findOne(query).lean();
 
   if (!subject) {
     res.status(404);
@@ -751,37 +740,14 @@ const getSubject = asyncHandler(async (req, res) => {
 // @route   POST /api/academics/subject
 // @access  Private
 const addSubject = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const ayear = req.body.ayear;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await UC.managerExists(manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("manager", manager));
-  }
-
-  if (!(await UC.schoolAccExists(school, manager))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("school", school));
-  }
-
-  if (!(await AcademicYear.any({ _id: ayear, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("ayear", ayear));
-  }
+  const ayear = UC.getCurrentAcademicYear(req.school);
 
   const subject = await Subject.create({
     name: req.body.name,
     code: req.body.code,
     type: req.body.type,
     academic_year: req.body.ayear,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: subject._id });
@@ -792,9 +758,6 @@ const addSubject = asyncHandler(async (req, res) => {
 // @access  Private
 const updateSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const subject = await Subject.findOne(query).select("_id").lean();
 
@@ -819,15 +782,6 @@ const updateSubject = asyncHandler(async (req, res) => {
 // @access  Private
 const deleteSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user.school;
-    query.manager = req.user.manager;
-  }
-
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
-  }
 
   const result = await Subject.deleteOne(query);
 

@@ -144,7 +144,7 @@ app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
 
 // Razorpay
-app.use("/api/razorpay", require("./tools/razorpay"));
+app.use("/api/razorpay", require("./tools/razorpay_old"));
 
 /*************
  * Cron Jobs *

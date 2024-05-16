@@ -3,23 +3,19 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    code: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+    name: { type: String, required, uppercase: true },
+    code: { type: String, required, uppercase: true },
     type: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       enum: { values: ["T", "P"], message: C.VALUE_NOT_SUP },
     },
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true }
 );

@@ -28,8 +28,8 @@ router.post(
     }
 
     const user = await User.findOne({ email })
-      .select("email username name phone type school password")
-      .populate("school", "name")
+      .select("name email password phone type school")
+      .populate("school")
       .lean();
 
     if (user) {
@@ -40,13 +40,7 @@ router.post(
 
       const token = generateToken(user._id, user.password);
 
-      delete user.privileges;
       delete user.password;
-      delete user.__v;
-
-      if (C.isSchool(user.type)) {
-        user.school = await School.findOne({ school: user._id }).lean();
-      }
 
       return res.status(200).json({ ...user, ...token });
     }
