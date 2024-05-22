@@ -48,8 +48,16 @@ staffRouter
   .patch(C.updateStaff)
   .delete(C.deleteStaff);
 
+
+  // 4. Attendance routes
+   const AttendanceRouter = express.Router();
+   AttendanceRouter.route("/")
+      .post();
+
+
 hrRouter.use("/designation", designationRouter);
 hrRouter.use("/department", departmentRouter);
 hrRouter.use("/staff", staffRouter);
+hrRouter.use("/attendance",AttendanceRouter);
 
 module.exports = hrRouter;

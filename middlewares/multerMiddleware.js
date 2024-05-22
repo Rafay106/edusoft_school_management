@@ -73,6 +73,7 @@ const studentBulkImportUpload = multer({
     },
   }),
 });
+
 const bulkImportUpload = multer({
   storage: multer.diskStorage({
     destination: function (req, file, cb) {
@@ -132,6 +133,34 @@ const idCardUpload = multer({
   },
 });
 
+const homeworkUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const filePath = path.join("static", "uploads", "homework");
+      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
+      cb(null, filePath);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${req.user._id}_${Date.now()}${ext}`);
+    },
+  }),
+});
+
+const homeworkEvaluationUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const filePath = path.join("static", "uploads", "homework");
+      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
+      cb(null, filePath);
+    },
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${req.user._id}_${Date.now()}${ext}`);
+    },
+  }),
+});
+
 module.exports = {
   memoryUpload,
   busStaffPhotoUpload,
@@ -140,4 +169,6 @@ module.exports = {
   bulkImportUpload,
   staffUpload,
   idCardUpload,
+  homeworkUpload,
+  homeworkEvaluationUpload,
 };

@@ -4,24 +4,25 @@ const { any } = require("../../plugins/schemaPlugins");
 const { isEmailValid } = require("../../utils/validators");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const staffSchema = new mongoose.Schema({
   role: {
     type: String,
-    required: [true, C.FIELD_IS_REQ],
+    required,
     enum: {
       values: [C.ACCOUNTANT, C.LIBRARIAN, C.RECEPTIONIST, C.TEACHER],
       message: C.VALUE_NOT_SUP,
     },
   },
-  name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
+  name: { type: String, required, uppercase: true },
   father_name: { type: String, default: "", uppercase: true },
   mother_name: { type: String, default: "", uppercase: true },
-  dob: { type: Date, required: [true, C.FIELD_IS_REQ] },
-  doj: { type: Date, required: [true, C.FIELD_IS_REQ] },
+  dob: { type: Date, required },
+  doj: { type: Date, required },
   email: {
     type: String,
-    required: [true, C.FIELD_IS_REQ],
+    required,
     validate: {
       validator: isEmailValid,
       message: C.FIELD_IS_INVALID,
@@ -31,10 +32,10 @@ const staffSchema = new mongoose.Schema({
   },
   gender: {
     type: String,
-    required: [true, C.FIELD_IS_REQ],
+    required,
     enum: { values: ["m", "f", "o"], message: C.VALUE_NOT_SUP },
   },
-  mobile: { type: String, required: [true, C.FIELD_IS_REQ] },
+  mobile: { type: String, required },
   emergency_mobile: { type: String, default: "" },
   marital_status: {
     type: String,
@@ -62,7 +63,7 @@ const staffSchema = new mongoose.Schema({
     account_name: { type: String, default: "" },
     account_no: { type: String, default: "" },
     name: { type: String, default: "" },
-    brach: { type: String, default: "" },
+    branch: { type: String, default: "" },
   },
   url: {
     facebook: { type: String, default: "" },
@@ -78,13 +79,13 @@ const staffSchema = new mongoose.Schema({
   driving_license_ex_date: { type: Date, default: "" },
   department: { type: ObjectId, ref: "departments" },
   designation: { type: ObjectId, ref: "designations" },
-  manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-  school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+  manager: { type: ObjectId, required, ref: "users" },
+  school: { type: ObjectId, required, ref: "schools" },
 });
 
 staffSchema.index({ email: 1 }, { unique: true });
 
 staffSchema.plugin(any);
 
-const Staff = mongoose.model("staffs", staffSchema);
+const Staff = mongoose.model("hr_staffs", staffSchema);
 module.exports = Staff;

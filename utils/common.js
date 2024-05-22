@@ -41,6 +41,7 @@ const paginatedQuery = async (
   const total = await Model.countDocuments(query);
   const pages = Math.ceil(total / limit) || 1;
   if (page > pages) return false;
+  
   const startIdx = (page - 1) * limit;
   const results = { total: total, pages, page, result: [] };
 
