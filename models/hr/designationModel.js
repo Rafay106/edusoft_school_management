@@ -3,12 +3,13 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const schema = new mongoose.Schema(
   {
-    title: { type: String, required: [true, C.FIELD_IS_REQ] },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    title: { type: String, required },
+    school: { type: ObjectId, required, ref: "schools" },
+    academic_year: { type: ObjectId, required, ref: "academic_years" }
   },
   { timestamps: true }
 );

@@ -7,6 +7,7 @@ const User = require("../models/system/userModel");
 const Designation = require("../models/hr/designationModel");
 const Department = require("../models/hr/departmentModel");
 const Staff = require("../models/hr/staffModels");
+const StaffAttendance = require("../models/hr/staffAttendanceModel");
 
 /** 1. Designation */
 
@@ -591,6 +592,43 @@ const deleteStaff = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+//  4. Attendance
+
+/** 2. Department */
+
+// @desc    post attendance 
+// @route   POST  /api/hr/attendance
+// @access  Private
+
+const addHrAttendance = asyncHandler(async(req,res)=>{
+      if(!req.body.role){
+           res.status(400);
+           throw new Error(C.FIELD_IS_REQ("role"))
+      } 
+      const r = Staff.find({role : req.body.role.toUpperCase()})
+        .select("_id").lean();
+     
+    if(!r){
+         res.status(400);
+         throw new Error("role",req.body.role);
+    }    
+    if(!await req.body.attendance_date){
+         res.status(400);
+         throw new Error(C.FIELD_IS_REQ("attendance_date"));
+    }
+    
+    // const attendance = await StaffAttendance.create({
+    //       role: r._id,
+    //       date: req.body.attendance_date,
+    //       mark_holiday:req.body.mark_holiday,
+          
+
+    // }
+// )
+})
+
+
+
 module.exports = {
   getDesignations,
   getDesignation,
@@ -609,4 +647,6 @@ module.exports = {
   addStaff,
   updateStaff,
   deleteStaff,
+
+  addHrAttendance
 };

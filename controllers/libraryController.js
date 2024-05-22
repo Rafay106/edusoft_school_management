@@ -19,8 +19,6 @@ const getCategories = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-
   if (search) {
     const fields = ["title"];
 
@@ -48,13 +46,7 @@ const getCategories = asyncHandler(async (req, res) => {
 const getCategory = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  // else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const category = await LibraryCategory.findOne(query);
-
-  // .populate("manager school", "name")
-  // .lean();
+  const category = await LibraryCategory.findOne(query).lean();
 
   if (!category) {
     res.status(404);
@@ -68,14 +60,12 @@ const getCategory = asyncHandler(async (req, res) => {
 // @route   POST /api/library/category
 // @access  Private
 const addCategory = asyncHandler(async (req, res) => {
-  const school = await UC.validateSchool(req.user, req.body.school);
-
-  const ayear = UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(req.school);
 
   const category = await LibraryCategory.create({
     title: req.body.title,
     academic_year: ayear,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: category._id });
@@ -86,8 +76,6 @@ const addCategory = asyncHandler(async (req, res) => {
 // @access  Private
 const updateCategory = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await LibraryCategory.any(query))) {
     res.status(404);
@@ -145,8 +133,6 @@ const getSubjects = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-
   if (search) {
     const fields = ["title", "name"];
 
@@ -172,7 +158,6 @@ const getSubjects = asyncHandler(async (req, res) => {
 // @access  Private
 const getSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const subject = await LibrarySubject.findOne(query);
   if (!subject) {
@@ -185,18 +170,31 @@ const getSubject = asyncHandler(async (req, res) => {
 // @desc    Add a subject
 // @route   POST /api/library/subject
 // @access  Private
-
 const addSubject = asyncHandler(async (req, res) => {
-  const school = await UC.validateSchool(req.user, req.body.school);
+  const ayear = UC.getCurrentAcademicYear(req.school);
 
-  const ayear = UC.getCurrentAcademicYear(school);
+  if (!req.body.category) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("category"));
+  }
+
+  const category = await LibraryCategory.findOne({
+    title: req.body.category.toUpperCase(),
+  })
+    .select("_id")
+    .lean();
+
+  if (!category) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("category", req.body.category));
+  }
 
   const subject = await LibrarySubject.create({
     name: req.body.name,
-    category: req.body.category,
-    subjectCode: req.body.subjectCode,
+    category: category._id,
+    subject_code: req.body.subject_code,
     academic_year: ayear,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: subject._id });
@@ -207,8 +205,6 @@ const addSubject = asyncHandler(async (req, res) => {
 // @access  Private
 const updateSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await LibrarySubject.any(query))) {
     res.status(404);
@@ -260,8 +256,6 @@ const getBooks = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-
   if (search) {
     const fields = ["title", "category", "subject", "book_no", "ISBN_no"];
 
@@ -288,7 +282,6 @@ const getBooks = asyncHandler(async (req, res) => {
 // @access  Private
 const getBook = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const book = await LibraryBook.findOne(query);
   if (!book) {
@@ -302,9 +295,7 @@ const getBook = asyncHandler(async (req, res) => {
 // @route   POST /api/library/book
 // @access  Private
 const addBook = asyncHandler(async (req, res) => {
-  const school = await UC.validateSchool(req.user, req.body.school);
-
-  const ayear = UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(req.school);
 
   const book = await LibraryBook.create({
     title: req.body.title,
@@ -320,7 +311,7 @@ const addBook = asyncHandler(async (req, res) => {
     description: req.body.description,
 
     academic_year: ayear,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: book._id });
@@ -331,8 +322,6 @@ const addBook = asyncHandler(async (req, res) => {
 // @access  Private
 const updateBook = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await LibraryBook.any(query))) {
     res.status(404);
@@ -379,8 +368,6 @@ const getIssueBooks = asyncHandler(async (req, res) => {
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-
   if (search) {
     const fields = ["title"];
     const searchQuery = UC.createSearchQuery(fields, search);
@@ -410,8 +397,7 @@ const addIssueBook = asyncHandler(async (req, res) => {
   const book = req.body.book;
   const issueDate = req.body.issue_date;
 
-  const school = await UC.validateSchool(req.user, req.body.school);
-  const ayear = UC.getCurrentAcademicYear(school);
+  const ayear = UC.getCurrentAcademicYear(req.school);
 
   if (!type) {
     res.status(400);
@@ -438,7 +424,7 @@ const addIssueBook = asyncHandler(async (req, res) => {
     issued_date: issueDate,
     status: "issued",
     academic_year: ayear,
-    school,
+    school: req.school,
   };
 
   if (type === "student") {
@@ -495,8 +481,6 @@ const getMemberList = asyncHandler(async (req, res) => {
 
   const query = {};
   const select = "admission_no name phone email class section";
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   let results;
   if (type === "student") {
@@ -565,8 +549,6 @@ const getMemberDetail = asyncHandler(async (req, res) => {
 //@access   private
 const returnIssueBook = asyncHandler(async (req, res) => {
   const query = { _id: req.body.issueId, status: "issued" };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   console.log(query);
 

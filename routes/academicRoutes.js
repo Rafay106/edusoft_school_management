@@ -58,10 +58,17 @@ subjectRouter
   .patch(AC.updateSubject)
   .delete(AC.deleteSubject);
 
+// 6 class_Routine routes
+const classroutineRouter = express.Router();
+classroutineRouter.route("/").post(AC.addClassRoutine).get(AC.getClassRoutine);
+classroutineRouter.route("/:id").delete(AC.deleteClassRoutine);
+
+
 academicRouter.use("/academic-year", academicYearRouter);
 academicRouter.use("/section", sectionRouter);
 academicRouter.use("/stream", streamRouter);
 academicRouter.use("/class", classRouter);
 academicRouter.use("/subject", subjectRouter);
+academicRouter.use("/class-routine", classroutineRouter);
 
 module.exports = academicRouter;

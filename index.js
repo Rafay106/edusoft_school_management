@@ -138,8 +138,8 @@ app.use(
   parentAuthorize,
   require("./routes/parentRoutes")
 );
-app.use("/api/library", authenticate, require("./routes/libraryRoutes"));
-app.use("/api/homework", authenticate, require("./routes/homeworkRoutes"));
+app.use("/api/library", authenticate,adminAndManagerAuthorize, require("./routes/libraryRoutes"));
+app.use("/api/homework", authenticate,adminAndManagerAuthorize, require("./routes/homeworkRoutes"));
 
 app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
