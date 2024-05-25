@@ -32,7 +32,30 @@ const authenticate = asyncHandler(async (req, res, next) => {
       }
 
       req.school = await School.findOne().lean();
+
+      if (
+        req.school &&
+        req.school.current_academic_year &&
+        !req.user.current_academic_year
+      ) {
+        await User.updateOne(
+          { _id: req.user._id },
+          {
+            $set: { current_academic_year: req.school.current_academic_year },
+          }
+        );
+
+        req.user = await User.findOne({
+          _id: decode._id,
+        })
+          .select("-password")
+          .populate("school")
+          .lean();
+      }
+
+      req.ayear = req.user.current_academic_year;
     } catch (err) {
+      console.log(err);
       res.status(401);
       throw new Error("Not Authorized!");
     }
@@ -113,10 +136,8 @@ const adminAuthorize = asyncHandler(async (req, res, next) => {
   }
 });
 
-const adminAndManagerAuthorize = asyncHandler(async (req, res, next) => {
+const schoolAuthorize = asyncHandler(async (req, res, next) => {
   if (C.isAdmins(req.user.type)) {
-    next();
-  } else if (C.isManager(req.user.type)) {
     next();
   } else if (C.isSchool(req.user.type)) {
     next();
@@ -139,6 +160,6 @@ module.exports = {
   parentAuthenticate,
   authorize,
   adminAuthorize,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   parentAuthorize,
 };

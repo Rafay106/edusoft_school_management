@@ -50,9 +50,9 @@ const stopSchema = new mongoose.Schema(
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required },
-    no_plate: { type: String, required },
-    model: { type: String, required },
+    name: { type: String, required, uppercase: true },
+    no_plate: { type: String, required, uppercase: true },
+    model: { type: String, required, uppercase: true },
     year_made: { type: String, default: "" },
     status: {
       value: { type: String, default: "none" },

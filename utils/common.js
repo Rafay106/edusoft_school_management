@@ -14,6 +14,7 @@ const Class = require("../models/academics/classModel");
 const Stream = require("../models/academics/streamModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const BusStop = require("../models/transport/busStopModel");
+const BusStaff = require("../models/transport/busStaffModel");
 
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
@@ -327,6 +328,73 @@ const getStudentAddress = (address) => {
 // ************************
 
 // ************************
+// BUS-STOP FUNCTIONS START
+// ************************
+
+const addMultipleBusStops = async (data, school) => {
+  const stops = [];
+  const errors = [];
+
+  let i = 1;
+  for (const row of data) {
+    if (!row.name) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row.address) errors.push(C.getFieldIsReqAtIdx("address", i));
+    if (!row.fare && row.fare !== 0)
+      errors.push(C.getFieldIsReqAtIdx("fare", i));
+    if (!row.lat && row.lat !== 0) errors.push(C.getFieldIsReqAtIdx("lat", i));
+    if (!row.lon && row.lon !== 0) errors.push(C.getFieldIsReqAtIdx("lon", i));
+
+    row.name = row.name.toUpperCase();
+
+    if (stops.find((s) => s.name === row.name)) {
+      errors.push(`Duplicate Values: name [${row.name}]`);
+    }
+
+    stops.push({
+      name: row.name,
+      address: row.address,
+      fare: row.fare,
+      lat: parseFloat(row.lat).toFixed(6),
+      lon: parseFloat(row.lon).toFixed(6),
+      school: school._id,
+    });
+
+    i++;
+  }
+
+  if (errors.length > 0) return errors;
+
+  const busStops = [];
+  for (const stop of stops) {
+    if (await BusStop.any({ name: stop.name })) {
+      const update = await BusStop.updateOne(
+        { name: stop.name },
+        {
+          $set: {
+            address: stop.address,
+            fare: stop.fare,
+            lat: parseFloat(stop.lat).toFixed(6),
+            lon: parseFloat(stop.lon).toFixed(6),
+          },
+        }
+      );
+
+      busStops.push({ name: stop.name, msg: update });
+    } else {
+      const busStop = await BusStop.create(stop);
+
+      busStops.push(busStop._id);
+    }
+  }
+
+  return busStops;
+};
+
+// ************************
+// BUS-STOP FUNCTIONS END
+// ************************
+
+// ************************
 // BUS FUNCTIONS START
 // ************************
 
@@ -356,6 +424,115 @@ const getBusDevice = async (bus) => {
     .lean();
 
   return tempBus ? tempBus.device : bus.device;
+};
+
+const addMultipleBuses = async (data, school) => {
+  const buses = [];
+  const errors = [];
+
+  const BUS_STOPS = await BusStop.find({ school: school._id })
+    .select("name")
+    .lean();
+
+  const DRIVERS = await BusStaff.find({ type: "d", school: school._id })
+    .select("name")
+    .lean();
+
+  const CONDUCTORS = await BusStaff.find({ type: "c", school: school._id })
+    .select("name")
+    .lean();
+
+  let i = 1;
+  for (const row of data) {
+    if (!row.name) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row.no_plate) errors.push(C.getFieldIsReqAtIdx("no_plate", i));
+    if (!row.model) errors.push(C.getFieldIsReqAtIdx("model", i));
+    if (!row.imei) errors.push(C.getFieldIsReqAtIdx("imei", i));
+    if (!row.bus_stops) errors.push(C.getFieldIsReqAtIdx("bus_stops", i));
+    if (!row.driver) errors.push(C.getFieldIsReqAtIdx("driver", i));
+    if (!row.conductor) errors.push(C.getFieldIsReqAtIdx("conductor", i));
+
+    const name = String(row.name).toUpperCase();
+    const no_plate = String(row.no_plate).toUpperCase();
+    const model = String(row.model).toUpperCase();
+    const busStops = row.bus_stops.split("|");
+    const driverName = row.driver.toUpperCase();
+    const conductorName = row.conductor.toUpperCase();
+
+    if (buses.find((b) => b.name === name)) {
+      errors.push(`Duplicate Values: name [${row.name}]`);
+    }
+
+    if (buses.find((b) => b.device.imei === row.imei)) {
+      errors.push(`Duplicate Values: device [${row.device}]`);
+    }
+
+    if (busStops.length === 0) {
+      errors.push(C.getFieldIsReqAtIdx("bus_stops", i));
+    }
+
+    const stops = [];
+    for (const sname of busStops) {
+      const stop = BUS_STOPS.find((s) => s.name === sname);
+      if (!stop) {
+        errors.push(
+          `Bus Stop [${sname}] at row ${i} does not exists in database!`
+        );
+      } else {
+        stops.push(stop._id);
+      }
+    }
+
+    const driver = DRIVERS.find((d) => d.name === driverName);
+    if (!driver) {
+      errors.push(`Driver [${driverName}] doesn't exists in database!`);
+    }
+
+    const conductor = CONDUCTORS.find((c) => c.name === conductorName);
+    if (!conductor) {
+      errors.push(`Conductor [${conductorName}] doesn't exists in database!`);
+    }
+
+    buses.push({
+      name,
+      no_plate,
+      model,
+      device: { imei: row.imei },
+      stops,
+      driver: driver._id,
+      conductor: conductor._id,
+      school: school._id,
+    });
+
+    i++;
+  }
+
+  if (errors.length > 0) return errors;
+
+  const result = [];
+  for (const bus of buses) {
+    if (await Bus.any({ name: bus.name })) {
+      const update = await Bus.updateOne(
+        { name: bus.name },
+        {
+          $set: {
+            address: bus.address,
+            fare: bus.fare,
+            lat: parseFloat(bus.lat).toFixed(6),
+            lon: parseFloat(bus.lon).toFixed(6),
+          },
+        }
+      );
+
+      result.push({ name: bus.name, msg: update });
+    } else {
+      const newBus = await Bus.create(bus);
+
+      result.push(newBus._id);
+    }
+  }
+
+  return result;
 };
 
 // ************************
@@ -793,8 +970,11 @@ module.exports = {
   addMultipleStudents,
   getStudentAddress,
 
+  addMultipleBusStops,
+
   getBusIcon,
   getBusDevice,
+  addMultipleBuses,
 
   validateAndSetDate,
   validateManagerAndSchool,

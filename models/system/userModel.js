@@ -5,6 +5,7 @@ const { isEmailValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const privilegesSchema = new mongoose.Schema({
   sidebar_manager: { type: Boolean, default: false },
@@ -256,10 +257,10 @@ const privilegesSchema = new mongoose.Schema({
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    name: { type: String, required },
     email: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       validate: {
         validator: isEmailValid,
         message: (props) => `email: ${props.value} is invalid!`,
@@ -268,12 +269,12 @@ const schema = new mongoose.Schema(
       trim: true,
     },
     email_verified: { type: Boolean, default: false },
-    password: { type: String, required: [true, C.FIELD_IS_REQ] },
-    phone: { type: String, required: [true, C.FIELD_IS_REQ] },
+    password: { type: String, required },
+    phone: { type: String, required },
     phone_verified: { type: Boolean, default: false },
     type: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       enum: {
         values: [
           C.SUPERADMIN,
@@ -290,8 +291,9 @@ const schema = new mongoose.Schema(
         message: C.VALUE_NOT_SUP,
       },
     },
-    privileges: { type: privilegesSchema, required: [true, C.FIELD_IS_REQ] },
+    privileges: { type: privilegesSchema, required },
     school: { type: ObjectId, ref: "schools" },
+    current_academic_year: { type: ObjectId, ref: "academic_years" },
   },
   { timestamps: true, versionKey: false }
 );

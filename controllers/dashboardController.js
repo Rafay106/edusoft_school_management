@@ -29,7 +29,7 @@ const schoolDashboard = asyncHandler(async (req, res) => {
 
   const noOfDays = UC.daysBetween(dtStart, dtEnd);
 
-  const stuQuery = { academic_year: ayear, manager, school };
+  const stuQuery = { academic_year: req.ayear, manager, school };
 
   if (busIds) {
     for (const _id of busIds) {

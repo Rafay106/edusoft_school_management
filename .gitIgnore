@@ -2,6 +2,7 @@
 .env
 /logs
 test.js
+test1.js
 /static/uploads
 /data
 Edusoft School Management.zip

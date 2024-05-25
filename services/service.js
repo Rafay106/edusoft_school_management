@@ -5,6 +5,7 @@ const School = require("../models/system/schoolModel");
 const IssueBooks = require("../models/library/issueBookModel");
 const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
 const { insert_db_loc } = require("./insert");
+const User = require("../models/system/userModel");
 
 const serviceClearHistory = async () => {
   const days = parseInt(process.env.HISTORY_PERIOD);
@@ -31,6 +32,23 @@ const serviceResetAlternateBus = async () => {
     { "alternate.enabled": true },
     { $set: { "alternate.enabled": false } }
   );
+};
+
+const serviceResetCurrAcademicYear = async () => {
+  const SCHOOLS = await School.find().select("current_academic_year").lean();
+
+  for (const SCHOOL of SCHOOLS) {
+    if (!SCHOOL.current_academic_year) continue;
+
+    const USERS = await User.find({ school: SCHOOL._id })
+      .select("current_academic_year")
+      .lean();
+
+    await User.updateMany(
+      { _id: USERS.map((u) => u._id) },
+      { $set: { current_academic_year: SCHOOL.current_academic_year } }
+    );
+  }
 };
 
 const serviceInsertData = async () => {
@@ -68,27 +86,24 @@ const serviceCalculateOverdueAndApplyFine = async () => {
 
     for (const issueBook of issueBooks) {
       const school = schools.find((sch) => sch._id.equals(issueBook.school));
-
-      if (!school) continue;
-
-      const current_date = new Date();
-      const issue_date = issueBook.issued_date;
-      const fine_per_day = school.library.fine_per_day;
-      const overDueDays = Math.max(
-        0,
-        school.library.book_issue_limit -
+      if (school) {
+        const current_date = new Date();
+        const issue_date = issueBook.issued_date;
+        const fine_per_day = school.library.fine_per_day;
+        const overDueDays = Math.max(
+          0,
           Math.ceil((current_date - issue_date) / (1000 * 60 * 60 * 24))
-      );
+        );
+        if (overDueDays > 0) {
+          const fine = overDueDays * fine_per_day;
+          const student = Student.findById(issueBook.student);
 
-      if (overDueDays > 0) {
-        const fine = overDueDays * fine_per_day;
-        const student = Student.findById(issueBook.student);
+          // Apply fine to the student's record
+          student.fine += fine;
+          await student.save();
 
-        // Apply fine to the student's record
-        student.fine += fine;
-        await student.save();
-
-        // await issueBooks.updateOne({_id:issueBook._id},{$set:{fine : fine } });
+          // await issueBooks.updateOne({_id:issueBook._id},{$set:{fine : fine } });
+        }
       }
     }
   } catch (err) {
@@ -99,6 +114,7 @@ const serviceCalculateOverdueAndApplyFine = async () => {
 module.exports = {
   serviceClearHistory,
   serviceResetAlternateBus,
+  serviceResetCurrAcademicYear,
   serviceInsertData,
   serviceCalculateOverdueAndApplyFine,
 };

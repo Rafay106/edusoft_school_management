@@ -33,6 +33,14 @@ idCardRouter
   )
   .delete(C.deleteIdCard);
 
+const idCardGeneratedRouter = express.Router();
+
+idCardGeneratedRouter
+  .route("/")
+  .get(C.getGeneratedIdCards)
+  .delete(C.deleteGeneratedIdCard);
+
 adminSectionRouter.use("/id-card", idCardRouter);
+adminSectionRouter.use("/id-card-generated", idCardGeneratedRouter);
 
 module.exports = adminSectionRouter;

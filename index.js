@@ -11,22 +11,15 @@ const cron = require("node-cron");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const {
   authenticate,
-  parentAuthenticate,
   parentAuthorize,
-  adminAuthorize,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   authorize,
 } = require("./middlewares/authMiddleware");
 const UM = require("./middlewares/utilMiddleware");
 const { listenDeviceData } = require("./services/listener");
-const {
-  serviceClearHistory,
-  serviceResetAlternateBus,
-  serviceInsertData,
-  serviceCalculateOverdueAndApplyFine,
-} = require("./services/service");
+const SERVICE = require("./services/service");
+const NOTY = require("./tools/notifications");
 const UC = require("./utils/common");
-const { sendNotifications } = require("./tools/notifications");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -59,6 +52,7 @@ app.use(morgan("dev"));
 
 app.use(express.static(path.join(__dirname, "uploads")));
 app.use(express.static(path.join(__dirname, "static")));
+app.use(express.static(path.join(__dirname, "data")));
 
 // Routes Start
 
@@ -74,56 +68,69 @@ app.use("/api/login", require("./routes/authRoutes"));
 app.use(
   "/api/util",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/utilRoutes")
 );
 app.use(
   "/api/academics",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/academicRoutes")
 );
 app.use(
   "/api/admin-section",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/adminSectionRoutes")
 );
 app.use(
   "/api/student-info",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/studentInfoRoutes")
 );
 app.use(
   "/api/transport",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/transportRoutes")
 );
-app.use(
-  "/api/hr",
-  authenticate,
-  adminAndManagerAuthorize,
-  require("./routes/hrRoutes")
-);
+app.use("/api/hr", authenticate, schoolAuthorize, require("./routes/hrRoutes"));
 app.use(
   "/api/fee",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/feeRoutes")
 );
 app.use(
   "/api/dashboard",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/dashboardRoutes")
 );
 app.use(
   "/api/library",
   authenticate,
-  adminAndManagerAuthorize,
+  schoolAuthorize,
   require("./routes/libraryRoutes")
+);
+app.use(
+  "/api/comms",
+  authenticate,
+  schoolAuthorize,
+  require("./routes/commsRoutes")
+);
+app.use(
+  "/api/library",
+  authenticate,
+  schoolAuthorize,
+  require("./routes/libraryRoutes")
+);
+app.use(
+  "/api/homework",
+  authenticate,
+  schoolAuthorize,
+  require("./routes/homeworkRoutes")
 );
 
 app.use(
@@ -138,8 +145,6 @@ app.use(
   parentAuthorize,
   require("./routes/parentRoutes")
 );
-app.use("/api/library", authenticate,adminAndManagerAuthorize, require("./routes/libraryRoutes"));
-app.use("/api/homework", authenticate,adminAndManagerAuthorize, require("./routes/homeworkRoutes"));
 
 app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
@@ -151,13 +156,17 @@ app.use("/api/razorpay", require("./tools/razorpay_old"));
  * Cron Jobs *
  *************/
 
-cron.schedule("* * * * * *", () => {
+cron.schedule("* * * * *", async () => {
   if (process.env.NODE_ENV != "production") return;
   if (process.env.NODE_APP_INSTANCE != 0) return;
 
-  console.time("sendPush");
-  sendNotifications();
-  console.timeEnd("sendPush");
+  try {
+    await NOTY.sendPushNoty();
+    await NOTY.sendEmailNoty();
+    await NOTY.sendWhatsappNoty();
+  } catch (err) {
+    UC.writeLog("errors", `${err.stack}`);
+  }
 });
 
 cron.schedule("0 0 * * *", async () => {
@@ -165,27 +174,19 @@ cron.schedule("0 0 * * *", async () => {
   if (process.env.NODE_APP_INSTANCE != 0) return;
 
   try {
-    await serviceClearHistory();
-    await serviceResetAlternateBus();
+    await SERVICE.serviceClearHistory();
+    await SERVICE.serviceResetAlternateBus();
+    await SERVICE.serviceResetCurrAcademicYear();
+    await SERVICE.serviceCalculateOverdueAndApplyFine();
   } catch (err) {
     UC.writeLog("errors", `${err.stack}`);
   }
 });
 
-cron.schedule("*/5 * * * * *", async () => {
-  if (process.env.NODE_ENV != "production") return;
-  if (process.env.NODE_APP_INSTANCE != 0) return;
-
-  try {
-    await serviceInsertData();
-  } catch (err) {
-    UC.writeLog("errors", `${err.stack}`);
-  }
-});
-
-cron.schedule("0 0 * * *", async () => {
-  await serviceCalculateOverdueAndApplyFine();
-});
+// CRON TEST
+// cron.schedule("* * * * * *", async () => {
+//   if (process.env.NODE_ENV != "development") return;
+// });
 
 /*************
  * Cron Jobs *

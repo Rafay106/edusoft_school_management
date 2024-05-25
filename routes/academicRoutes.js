@@ -17,13 +17,13 @@ academicYearRouter
 // 2. Section Routes
 const sectionRouter = express.Router();
 
-sectionRouter.route("/").get(AC.getSections).post(AC.addSection);
-
 sectionRouter
-  .route("/:id")
-  .get(AC.getSection)
-  .patch(AC.updateSection)
+  .route("/")
+  .get(AC.getSections)
+  .post(AC.addSection)
   .delete(AC.deleteSection);
+
+sectionRouter.route("/:id").get(AC.getSection).patch(AC.updateSection);
 
 // 3. Stream Routes
 const streamRouter = express.Router();

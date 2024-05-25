@@ -3,18 +3,15 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const schema = new mongoose.Schema(
   {
-    year: { type: String, required: [true, C.FIELD_IS_REQ] },
-    title: { type: String, required: [true, C.FIELD_IS_REQ] },
-    starting_date: { type: Date, required: [true, C.FIELD_IS_REQ] },
-    ending_date: { type: Date, required: [true, C.FIELD_IS_REQ] },
-    school: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "schools",
-    },
+    year: { type: String, required },
+    title: { type: String, required },
+    starting_date: { type: Date, required },
+    ending_date: { type: Date, required },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }
 );
