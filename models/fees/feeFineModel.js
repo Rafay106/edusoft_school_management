@@ -3,56 +3,34 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const findDescSchema = new mongoose.Schema(
   {
-    serial: { type: Number, required: [true, C.FIELD_IS_REQ] },
+    serial: { type: Number, required },
     type: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       enum: {
         values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly
         message: C.VALUE_NOT_SUP,
       },
     },
-    amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    range: {
-      start: { type: Number, required: [true, C.FIELD_IS_REQ] },
-      end: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    },
-    fixed: { type: Boolean, required: [true, C.FIELD_IS_REQ] },
+    amount: { type: Number, required },
+    range: { start: { type: Date, required }, end: { type: Date, required } },
+    fixed: { type: Boolean, required },
   },
   { _id: false }
 );
 
 const schema = new mongoose.Schema(
   {
-    class: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academics_classes",
-    },
-    fee_term: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "fee_terms",
-    },
-    boarding_type: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "boarding_types",
-    },
+    class: { type: ObjectId, required, ref: "academics_classes" },
+    fee_term: { type: ObjectId, required, ref: "fee_terms" },
+    boarding_type: { type: ObjectId, required, ref: "boarding_types" },
     desc: [findDescSchema],
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
-    school: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "schools",
-    },
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }
 );

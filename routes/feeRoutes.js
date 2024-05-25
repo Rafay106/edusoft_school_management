@@ -91,5 +91,6 @@ feeRouter.use("/fee-structure", feeStructureRouter);
 feeRouter.use("/fee-fine", feeFineRouter);
 feeRouter.use("/fee-concession", feeConcessionRouter);
 feeRouter.post("/calculate", FC.calculateFees);
+feeRouter.post("/collect-fee", FC.collectFee);
 
 module.exports = feeRouter;

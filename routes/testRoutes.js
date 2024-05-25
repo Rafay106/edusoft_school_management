@@ -18,6 +18,8 @@ const SubWard = require("../models/studentInfo/subwardTypeModel");
 const User = require("../models/system/userModel");
 const FeeTerm = require("../models/fees/feeTermModel");
 const FeeType = require("../models/fees/feeTypeModel");
+const Stream = require("../models/academics/streamModel");
+const { isEmailValid } = require("../utils/validators");
 
 router.post(
   "/1",
@@ -45,94 +47,91 @@ router.post(
   "/2",
   bulkImportUpload.single("file"),
   asyncHandler(async (req, res) => {
-    const filePath = path.join("data", "imports", req.file.filename);
-    const fileData = UC.excelToJson(filePath);
-    fs.unlinkSync(filePath);
+    const fileData = UC.excelToJson(req.file.path);
+    fs.unlinkSync(req.file.path);
+
+    // return res.json(fileData);
 
     const baseDate = new Date("30-12-1899T00:00:00Z");
 
     const classes = await Class.find().lean();
     const sections = await Section.find().lean();
+    const streams = await Stream.find().lean();
     const boardingTypes = await BoardingType.find().lean();
     const subwards = await SubWard.find().lean();
     const buses = await Bus.find().lean();
     const busStops = await BusStop.find().lean();
 
-    const studentTransportDetails = UC.excelToJson(
-      path.join("data", "Student-Transport-Detail.xlsx")
-    );
-
     const students = [];
     let i = 1;
-
     for (const row of fileData) {
-      if (row.phone) {
-        row.phone = row.phone.toString().replace("+91", "").replaceAll(" ", "");
+      if (row["Mobile No."]) {
+        row["Mobile No."] = row["Mobile No."]
+          .toString()
+          .replace("+91", "")
+          .replaceAll(" ", "");
       }
 
-      let class_ = classes.find((c) => c.name === row.class);
+      let class_ = classes.find((c) => c.name === row["Class"]);
       if (!class_) {
         class_ = classes.find((c) => c.name === "NA");
       }
 
-      let section = sections.find((s) => s.name === row.section);
+      let section = sections.find((s) => s.name === row["Sec"]);
       if (!section) {
         section = sections.find((s) => s.name === "NA");
       }
 
-      let atclass = classes.find((c) => c.name === row.admission_time_class);
+      const stream = streams.find((s) => s.name === "NA");
+
+      let atclass = classes.find((c) => c.name === row["Adm. Class"]);
       if (!atclass) {
         atclass = classes.find((c) => c.name === "NA");
       }
 
-      let boardingType = boardingTypes.find(
-        (bt) => bt.name === row.boarding_type
-      );
+      let boardingType = boardingTypes.find((bt) => bt.name === "NA");
 
-      if (!boardingType) {
-        boardingType = boardingTypes.find((bt) => bt.name === "NA");
+      let subward = subwards.find((sw) => sw.name === "NA");
+
+      const bus_pick = buses.find((b) => b.name === row["Bus No."]);
+
+      const bus_drop = buses.find((b) => b.name === row["Bus No."]);
+
+      const busStop = busStops.find((bs) => bs.name === row["Stoppage"]);
+
+      const email =
+        row["Email ID"] == "N/A" || !row["Email ID"]
+          ? row["Admission No"].replace("/", "") + "@email.com"
+          : row["Email ID"];
+
+      if (!isEmailValid(email)) console.log(email);
+
+      const doa = new Date(row["Adm. Date"] + "T00:00:00Z");
+      if (isNaN(doa)) {
+        console.log(i);
+        console.log(row["Adm. Date"] + "T00:00:00Z");
       }
-
-      let subward = subwards.find((sw) => sw.name === row.sub_ward);
-
-      if (!subward) {
-        subward = subwards.find((sw) => sw.name === "NA");
-      }
-
-      const stuTD = studentTransportDetails.find(
-        (std) => std.admno === row.admission_no
-      );
-
-      const bus_pick = stuTD
-        ? buses.find((b) => b.name === stuTD.busp)
-        : undefined;
-
-      const bus_drop = stuTD
-        ? buses.find((b) => b.name === stuTD.busd)
-        : undefined;
-
-      const busStop = busStops.find((bs) => bs.name === row.bus_stop);
 
       const student = {
-        admission_no: row.admission_no,
+        admission_no: row["Admission No"],
         admission_serial: row.admission_serial,
         student_id: row.student_id,
-        roll_no: row.roll_no,
-        name: row.name,
+        roll_no: row["Roll No."],
+        name: row["Student Name"],
         class: class_._id,
         section: section._id,
-        stream: row.stream,
+        stream: stream._id,
         admission_time_class: atclass._id,
-        gender: !row.gender ? "na" : row.gender === "MALE" ? "m" : "f",
-        house: row.house,
-        blood_group: row.blood_group,
+        gender: !row["Gender"] ? "na" : row["Gender"] === "MALE" ? "m" : "f",
+        house: row["House"],
+        blood_group: row["Blood Group"] == "NONE" ? "na" : row["Blood Group"],
         staff_child: row.staff_child,
-        doa: new Date((row.doa - 25569) * 86400 * 1000),
+        doa,
         student_status: row.student_status === "New" ? "n" : "o",
         student_left: row.student_left === "Yes",
-        phone: row.phone ? row.phone : "9123123123",
+        phone: row["Mobile No."] ? row["Mobile No."] : "9123123123",
         father_details: {
-          name: row.father_name,
+          name: row["Father Name"],
           phone: row.father_phone,
           designation: row.father_designation,
           office_address: row.father_office,
@@ -140,18 +139,18 @@ router.post(
           adhaar: row.father_adhaar,
         },
         mother_details: {
-          name: row.mother_name,
+          name: row["Mother Name"],
           phone: row.mother_phone,
           job_title: row.mother_job,
           adhaar: row.mother_adhaar,
         },
-        dob: new Date((row.dob - 25569) * 86400 * 1000),
+        dob: new Date(row["Date of Birth"] + "T00:00:00Z"),
         age: row.age,
         address: {
-          permanent: row.permanent_address,
-          correspondence: row.correspondence_address,
+          permanent: row["Address"],
+          correspondence: row["Address"],
         },
-        religion: row.religion,
+        religion: row["Religion"],
         cast: row.cast === "GENERAL" ? "GEN" : row.cast,
         boarding_type: boardingType._id,
         sub_ward: subward._id,
@@ -184,19 +183,15 @@ router.post(
         bus_pick: bus_pick ? bus_pick._id : undefined,
         bus_drop: bus_drop ? bus_drop._id : undefined,
         bus_stop: busStop ? busStop._id : undefined,
-        student_adhaar: row.student_adhaar,
+        student_adhaar: row["Aadhaar Card No."],
         sibling: row.sibling === "Yes",
         single_girl_child: row.single_girl_child === "Yes",
         handicapped: row.handicapped === "Yes",
-        email:
-          row.admission_no.replace("/", "") +
-          // UC.getPersonName(name).replaceAll(" ", "") +
-          "@email.com",
-        photo: row.admission_no.replace("/", "") + ".jpg",
+        email,
+        photo: row["Admission No"].replace("/", "") + ".jpg",
         rfid: i++,
-        academic_year: "662cbaae728ab3280e780e84",
-        school: "662c385ecfa060f7e1b9a1ec",
-        manager: "662c364427e8f09bdec1f3c0",
+        academic_year: "664dc3cb044fbd5fd1e67332",
+        school: "664dc175e6ef06e8a50ff69b",
       };
 
       students.push(student);

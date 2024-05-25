@@ -133,7 +133,6 @@ const schema = new mongoose.Schema(
 );
 
 schema.index({ admission_no: 1 }, { unique: true });
-schema.index({ email: 1 }, { unique: true });
 schema.index({ rfid: 1 }, { unique: true });
 
 schema.pre("save", async function (next) {

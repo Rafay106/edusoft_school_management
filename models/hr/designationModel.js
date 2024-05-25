@@ -7,14 +7,13 @@ const required = [true, C.FIELD_IS_REQ];
 
 const schema = new mongoose.Schema(
   {
-    title: { type: String, required },
+    title: { type: String, required, uppercase: true },
     school: { type: ObjectId, required, ref: "schools" },
-    academic_year: { type: ObjectId, required, ref: "academic_years" }
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.plugin(any);
 
-const Designation = mongoose.model("designations", schema);
+const Designation = mongoose.model("hr_designations", schema);
 module.exports = Designation;

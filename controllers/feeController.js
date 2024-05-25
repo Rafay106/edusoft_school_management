@@ -16,6 +16,7 @@ const Student = require("../models/studentInfo/studentModel");
 const Stream = require("../models/academics/streamModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
+const FeePayment = require("../models/fees/feePaidModel");
 
 /** 1. Fee Group */
 
@@ -71,12 +72,12 @@ const getFeeGroup = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-group
 // @access  Private
 const addFeeGroup = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
 
   const feeGroup = await FeeGroup.create({
     name: req.body.name,
     description: req.body.desc,
-    academic_year: ayear,
+    academic_year: req.ayear,
     school: req.school,
   });
 
@@ -178,7 +179,7 @@ const getFeeType = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-type
 // @access  Private
 const addFeeType = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
   const feeGroup = req.body.group;
 
   // Validate FeeGroup
@@ -196,7 +197,7 @@ const addFeeType = asyncHandler(async (req, res) => {
     name: req.body.name,
     description: req.body.desc,
     fee_group: feeGroup,
-    academic_year: ayear,
+    academic_year: req.ayear,
     school: req.school,
   });
 
@@ -316,7 +317,7 @@ const getFeeTerm = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-term
 // @access  Private
 const addFeeTerm = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
   const year = req.body.year;
 
   // Validate Year
@@ -399,7 +400,7 @@ const addFeeTerm = asyncHandler(async (req, res) => {
     year,
     start_month: req.body.start_month,
     late_fee_days: req.body.late_fee_days,
-    academic_year: ayear,
+    academic_year: req.ayear,
     school: req.school,
   });
 
@@ -535,7 +536,7 @@ const addFeeHead = asyncHandler(async (req, res) => {
     alias: req.body.alias,
     fee_type: feeType,
     ledger: req.body.ledger,
-    academic_year: ayear,
+    academic_year: req.ayear,
     manager,
     school: req.school,
   });
@@ -660,7 +661,7 @@ const getFeeStructure = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-structure
 // @access  Private
 const addFeeStructure = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
 
   const feeTypes = req.body.fee_types;
 
@@ -744,7 +745,7 @@ const addFeeStructure = asyncHandler(async (req, res) => {
             class: c,
             stream,
             fee_types: feeTypes,
-            academic_year: ayear,
+            academic_year: req.ayear,
             school: req.school,
           });
 
@@ -904,7 +905,7 @@ const getFeeFine = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-fine
 // @access  Private
 const addFeeFine = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
 
   const classes = await UC.validateClasses(req.body.classes);
   const feeTerms = await UC.validateFeeTerms(req.body.fee_terms);
@@ -927,7 +928,7 @@ const addFeeFine = asyncHandler(async (req, res) => {
             fee_term: ft,
             boarding_type: bt,
             desc: req.body.desc,
-            academic_year: ayear,
+            academic_year: req.ayear,
             school: req.school,
           });
 
@@ -1077,7 +1078,7 @@ const getFeeConcession = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-concession
 // @access  Private
 const addFeeConcession = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
 
   // Validate subward
   if (!req.body.subward) {
@@ -1159,7 +1160,7 @@ const addFeeConcession = asyncHandler(async (req, res) => {
         class: class_._id,
         fee_term: ft._id,
         fee_types: req.body.fee_types,
-        academic_year: ayear,
+        academic_year: req.ayear,
         school: req.school,
       });
 
@@ -1263,7 +1264,7 @@ const deleteFeeConcession = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/calculate
 // @access  Private
 const calculateFees = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
+  
   const admNo = req.body.adm_no;
 
   if (!admNo) {
@@ -1271,23 +1272,84 @@ const calculateFees = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("adm_no"));
   }
 
-  if (!req.body.fee_term) {
+  let stuSelect = "admission_no roll_no name class section stream gender ";
+  stuSelect += "house doa phone father_details mother_details dob address ";
+  stuSelect += "boarding_type sub_ward bus_pick bus_drop bus_stop";
+
+  const student = await Student.findOne({
+    admission_no: admNo,
+    academic_year: req.ayear,
+  })
+    .select(stuSelect)
+    .populate(
+      "class section stream boarding_type sub_ward bus_pick bus_drop bus_stop",
+      "name title"
+    )
+    .lean();
+
+  if (!student) {
     res.status(400);
-    throw new Error(C.getFieldIsReq("fee_term"));
+    throw new Error(C.getResourse404Id("Student", admNo));
   }
 
-  const feeTerm = await FeeTerm.findOne({
-    name: req.body.fee_term.toUpperCase(),
-  }).lean();
+  const paidFeeTerms = await FeePayment.find({
+    student: student._id,
+    academic_year: req.ayear,
+  })
+    .select("fee_term")
+    .lean();
 
-  if (!feeTerm) {
+  const feeTerms = await FeeTerm.find({
+    _id: { $nin: paidFeeTerms.map((e) => e.fee_term) },
+    academic_year: req.ayear,
+  })
+    .sort("year start_month")
+    .lean();
+
+  const result = {
+    student,
+    terms: [],
+    total_amount: 0,
+    total_concession: 0,
+    total_fine: 0,
+    total_final_amount: 0,
+    total_paid_amount: 0,
+  };
+
+  for (const ft of feeTerms) {
+    const termFee = await calcTermFee(student, ft, ayear);
+    result.total_amount += termFee.amount;
+    result.total_concession += termFee.concession;
+    result.total_fine += termFee.fine;
+    result.total_final_amount += termFee.final_amount;
+
+    result.terms.push(termFee);
+  }
+
+  return res.status(200).json(result);
+});
+
+// @desc    Pay Term Fees
+// @route   POST /api/fee/collect-fee
+// @access  Private
+const collectFee = asyncHandler(async (req, res) => {
+  
+  const admNo = req.body.adm_no;
+  const fee_terms = req.body.fee_terms;
+
+  if (!admNo) {
     res.status(400);
-    throw new Error(C.getResourse404Id("fee_term", req.body.fee_term));
+    throw new Error(C.getFieldIsReq("adm_no"));
+  }
+
+  if (!fee_terms || fee_terms.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("fee_terms"));
   }
 
   const student = await Student.findOne({
     admission_no: admNo,
-    academic_year: ayear,
+    academic_year: req.ayear,
   })
     .select()
     .populate(
@@ -1300,11 +1362,63 @@ const calculateFees = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("Student", admNo));
   }
 
+  const paidFeeTerms = await FeePayment.find({
+    student: student._id,
+    academic_year: req.ayear,
+  })
+    .select("fee_term")
+    .lean();
+
+  const feeTermList = await FeeTerm.find({
+    _id: { $nin: paidFeeTerms.map((e) => e.fee_term) },
+    academic_year: req.ayear,
+  })
+    .sort("year start_month")
+    .lean();
+
+  const feeTerms = [];
+  for (let i = 0; i < fee_terms.length; i++) {
+    const ft = await FeeTerm.findOne({
+      name: fee_terms[i].toUpperCase(),
+    }).lean();
+
+    if (!ft) {
+      res.status(400);
+      throw new Error(C.getResourse404Id("fee_terms", fee_terms[i]));
+    }
+
+    if (feeTermList[i]._id.equals(ft._id)) {
+      feeTerms.push(ft);
+    } else {
+      res.status(400);
+      throw new Error("Invalid fee_terms order");
+    }
+  }
+
+  const result = { terms: [] };
+
+  for (const ft of feeTerms) {
+    result.terms.push(await calcTermFee(student, ft, ayear));
+  }
+
+  res.status(400).json(result);
+});
+
+const calcTermFee = async (student, ft, ayear) => {
+  const result = {
+    term: ft.name,
+    fee_types: [],
+    amount: 0,
+    concession: 0,
+    fine: 0,
+    final_amount: 0,
+  };
+
   const feeStructure = await FeeStructure.findOne({
-    fee_term: feeTerm._id,
-    class: student.class,
-    stream: student.stream,
-    academic_year: ayear,
+    fee_term: ft._id,
+    class: student.class._id,
+    stream: student.stream._id,
+    academic_year: req.ayear,
   })
     .select("-school")
     .populate(
@@ -1314,42 +1428,8 @@ const calculateFees = asyncHandler(async (req, res) => {
     .lean();
 
   if (!feeStructure) {
-    res.status(400);
     throw new Error(
       `FeeStructure not available for FeeTerm, Class and Stream of given Student`
-    );
-  }
-
-  const feeFine = await FeeFine.findOne({
-    class: student.class,
-    fee_term: feeTerm._id,
-    boarding_type: student.boarding_type,
-    academic_year: ayear,
-  })
-    .select("-school")
-    .lean();
-
-  if (!feeFine) {
-    res.status(400);
-    throw new Error(
-      `FeeFine not available for Class, FeeTerm and BoardingType of given Student`
-    );
-  }
-
-  const feeConcession = await FeeConcession.findOne({
-    subward: student.sub_ward,
-    class: student.class,
-    fee_term: feeTerm._id,
-    academic_year: ayear,
-  })
-    .select("-school")
-    .populate("fee_types.fee_type", "name")
-    .lean();
-
-  if (!feeConcession) {
-    res.status(400);
-    throw new Error(
-      `FeeConcession not available for SubWard, Class and FeeTerm of given Student`
     );
   }
 
@@ -1362,52 +1442,67 @@ const calculateFees = asyncHandler(async (req, res) => {
     throw new Error(`Student FeeStructure not found for their BoardingType`);
   }
 
-  const result = {
-    fee_term: feeTerm.name,
-    concession: [],
-    fees: stuFeeStruct.amounts,
-    fine: 0,
-    total: 0,
-  };
+  for (const fee of stuFeeStruct.amounts) {
+    result.fee_types.push({ fee_type: fee.fee_type.name, amount: fee.amount });
 
-  if (feeConcession) {
-    for (const fee of result.fees) {
-      const feeConType = feeConcession.fee_types.find((ele) =>
-        ele.fee_type._id.equals(fee.fee_type._id)
-      );
+    result.amount += fee.amount;
+  }
 
-      if (!feeConType) continue;
+  const feeConcession = await FeeConcession.findOne({
+    subward: student.sub_ward._id,
+    class: student.class._id,
+    fee_term: ft._id,
+    academic_year: req.ayear,
+  })
+    .populate("fee_types.fee_type", "name")
+    .lean();
 
-      let conAmt = 0;
-      if (feeConType.is_percentage) {
-        conAmt = fee.amount * (feeConType.amount / 100);
-      } else conAmt = feeConType.amount;
+  for (const fee of stuFeeStruct.amounts) {
+    const feeType = result.fee_types.find(
+      (ele) => ele.fee_type === fee.fee_type.name
+    );
 
-      result.concession.push({
-        fee_type: feeConType.fee_type.name,
-        amount: conAmt,
-      });
+    const feeConType = feeConcession
+      ? feeConcession.fee_types.find((ele) =>
+          ele.fee_type._id.equals(fee.fee_type._id)
+        )
+      : false;
 
-      // fee.amount -= conAmt;
+    if (!feeConType) {
+      feeType.concession = 0;
+      continue;
     }
+
+    let conAmt = 0;
+    if (feeConType.is_percentage) {
+      conAmt = fee.amount * (feeConType.amount / 100);
+    } else conAmt = feeConType.amount;
+
+    if (feeType) feeType.concession = conAmt;
+
+    result.concession += conAmt;
   }
 
-  if (feeFine) {
-    if (feeTerm.term_type == "m") {
-    }
+  const feeFine = await FeeFine.findOne({
+    class: student.class,
+    fee_term: ft._id,
+    boarding_type: student.boarding_type,
+    academic_year: req.ayear,
+  })
+    // .populate("class fee_term")
+    .lean();
+
+  if (!feeFine) {
+    res.status(400);
+    throw new Error(
+      `FeeFine not available for Class, FeeTerm and BoardingType of given Student`
+    );
   }
 
-  for (const fee of result.fees) {
-    fee.fee_type = fee.fee_type.name;
-    result.total += fee.amount;
-  }
+  result.final_amount = result.amount - result.concession + result.fine;
 
-  for (const con of result.concession) {
-    result.total -= con.amount;
-  }
-
-  return res.status(200).json(result);
-});
+  return result;
+};
 
 module.exports = {
   getFeeGroups,
@@ -1453,4 +1548,5 @@ module.exports = {
   deleteFeeConcession,
 
   calculateFees,
+  collectFee,
 };

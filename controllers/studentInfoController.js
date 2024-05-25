@@ -203,9 +203,7 @@ const getStudents = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const ayear = UC.getCurrentAcademicYear(req.school);
-
-  const query = { academic_year: ayear };
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["admission_no", "name", "phone", "email"];
@@ -264,7 +262,7 @@ const getStudent = asyncHandler(async (req, res) => {
 
   const student = await Student.findOne(query)
     .populate(
-      "academic_year class section bus bus_stop parent manager school",
+      "academic_year class section bus_pick bus_drop bus_stop parent school",
       "name title"
     )
     .lean();
@@ -477,7 +475,7 @@ const addStudent = asyncHandler(async (req, res) => {
     height: req.body.height,
     weight: req.body.weight,
     rfid: req.body.rfid,
-    academic_year: ayear,
+    academic_year: req.ayear,
     school: req.school,
   });
 

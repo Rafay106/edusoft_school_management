@@ -1,26 +1,15 @@
 const mongoose = require("mongoose");
 const C = require("../../constants");
 
+const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
+
 const razorpaySchema = new mongoose.Schema(
   {
-    order: { type: {}, required: [true, "order is required!"] },
+    order: { type: {}, required },
     payment: { type: {}, default: {} },
     signature: { type: String, default: "" },
-    student: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "students",
-    },
-    manager: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
-    school: {
-      type: mongoose.SchemaTypes.ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "users",
-    },
+    student: { type: ObjectId, required, ref: "students" },
   },
   { timestamps: true, versionKey: false, minimize: false }
 );

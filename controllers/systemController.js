@@ -9,6 +9,8 @@ const TemplatePrivilege = require("../models/system/templatePrivilegeModel");
 const Student = require("../models/studentInfo/studentModel");
 const AcademicYear = require("../models/academics/academicYearModel");
 
+const bcrypt = require("bcrypt");
+
 const init = asyncHandler(async (req, res) => {
   const key = req.body.key;
 
@@ -304,11 +306,11 @@ const deleteTemplatePrivilege = asyncHandler(async (req, res) => {
 const getUsers = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "email";
+  const sort = req.query.sort || "name";
   const search = req.query.search;
 
   const query = {};
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (C.isSchool(req.user.type)) query.school = req.school._id;
 
   if (search) {
     const fields = ["name", "email", "phone", "type"];
@@ -338,6 +340,8 @@ const getUsers = asyncHandler(async (req, res) => {
 // @access  Private
 const getUser = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
+
+  if (C.isSchool(req.user.type)) query.school = req.school._id;
 
   const user = await User.findOne(query).select("-password").lean();
 
@@ -468,6 +472,13 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Get a User Privileges
+// @route   GET /api/system/user/privileges
+// @access  Private
+const getUserPrivileges = asyncHandler(async (req, res) => {
+  res.status(200).json(req.user.privileges);
+});
+
 // @desc    Reset student password
 // @route   PATCH /api/system/user/reset-password
 // @access  Private
@@ -485,6 +496,30 @@ const resetPassword = asyncHandler(async (req, res) => {
   const result = await User.updateOne(
     { _id: req.user._id },
     { $set: { password: await bcrypt.hash(newPass, 10) } }
+  );
+
+  res.status(200).json(result);
+});
+
+// @desc    Set current academic-year
+// @route   POST /api/system/user/set-current-ayear
+// @access  Private
+const setCurrentAcademicYear = asyncHandler(async (req, res) => {
+  const ayear = req.body.ayear;
+
+  if (!ayear) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ayear"));
+  }
+
+  if (!(await AcademicYear.any({ _id: ayear, school: req.school._id }))) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("ayear", ayear));
+  }
+
+  const result = await User.updateOne(
+    { _id: req.user._id },
+    { $set: { current_academic_year: ayear } }
   );
 
   res.status(200).json(result);
@@ -628,7 +663,9 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  getUserPrivileges,
   resetPassword,
+  setCurrentAcademicYear,
 
   getSchool,
   addSchool,

@@ -2,6 +2,7 @@ const express = require("express");
 const {
   memoryUpload,
   busStaffPhotoUpload,
+  bulkImportUpload,
 } = require("../middlewares/multerMiddleware");
 const TC = require("../controllers/transportController");
 
@@ -25,7 +26,7 @@ busStaffRouter
 const busStopRouter = express.Router();
 
 busStopRouter.route("/").get(TC.getBusStops).post(TC.addBusStop);
-
+busStopRouter.post("/bulk", bulkImportUpload.single("file"), TC.bulkOpsBusStop);
 busStopRouter
   .route("/:id")
   .get(TC.getBusStop)
@@ -42,7 +43,7 @@ busRouter.post("/set-alternate", TC.setAlternateBus);
 busRouter.post("/unset-alternate", TC.unsetAlternateBus);
 busRouter.post("/switch", TC.switchBus);
 busRouter.route("/:id").get(TC.getBus).patch(TC.updateBus).delete(TC.deleteBus);
-busRouter.post("/bulk", memoryUpload.single("bus-file"), TC.bulkOpsBus);
+busRouter.post("/bulk", bulkImportUpload.single("file"), TC.bulkOpsBus);
 
 transportRouter.use("/bus-staff", busStaffRouter);
 transportRouter.use("/bus-stop", busStopRouter);

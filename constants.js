@@ -10,9 +10,9 @@ const STR = {
     "Current academic year not set, please set the current academic year!",
   DRIVER: "driver",
   FIELD_IS_INVALID: "%F% is invalid!",
-  FIELD_IS_INVALID_AT_IDX: "%F% is invalid at index: %I%",
+  FIELD_IS_INVALID_AT_IDX: "%F% is invalid at row: %I%",
   FIELD_IS_REQ: "%F% is required!",
-  FIELD_IS_REQ_AT_IDX: "%F% is required at index: %I%",
+  FIELD_IS_REQ_AT_IDX: "%F% is required at row: %I%",
   INVALID_CREDENTIALS: "Invalid Credentials!",
   INVALID_ADMNO: "Invalid Admission Number!",
   LIBRARIAN: "librarian",
@@ -33,7 +33,7 @@ const STR = {
   UNABLE_TO_DEL: "Unable to delete: %A% assigned to %B%!",
   UNKNOWN: "unknown",
   VALUE_NOT_SUP: "{VALUE} is not supported!",
-  VALUE_NOT_SUP_AT_IDX: "%V% is not supported at index: %I%",
+  VALUE_NOT_SUP_AT_IDX: "%V% is not supported at row: %I%",
 };
 
 const FUNCTIONS = {

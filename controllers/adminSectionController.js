@@ -7,10 +7,8 @@ const IdCard = require("../models/admin_section/idCardModel");
 const Student = require("../models/studentInfo/studentModel");
 const puppeteer = require("puppeteer");
 const { PDFDocument } = require("pdf-lib");
-
-// const { DOMAIN } = process.env;
-
-const DOMAIN = "http://localhost:8000";
+const IdCardGenerated = require("../models/admin_section/idCardGeneratedModel");
+const { DOMAIN } = process.env;
 
 // @desc    Get all id-cards
 // @route   GET /api/admin-section/id-card
@@ -19,23 +17,15 @@ const getIdCards = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   const query = {};
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (search) {
+    const fields = ["year", "title"];
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["year", "title"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(IdCard, query, {}, page, limit, sort);
@@ -50,8 +40,6 @@ const getIdCards = asyncHandler(async (req, res) => {
 // @access  Private
 const getIdCard = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
 
   const idCard = await IdCard.findOne(query).populate("school", "name").lean();
 
@@ -148,8 +136,6 @@ const createIdCard = asyncHandler(async (req, res) => {
 const updateIdCard = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-
   if (!(await IdCard.any(query))) {
     res.status(404);
     throw new Error(C.getResourse404Id("IdCard", req.params.id));
@@ -239,8 +225,6 @@ const deleteIdCard = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user._id;
-
   const result = await IdCard.deleteOne(delQuery);
 
   res.status(200).json(result);
@@ -296,14 +280,14 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
   const idCards = [];
 
   for (const student of students) {
-    console.log("student :>> ", student);
+    const isBusStudent = student.bus_pick || student.bus_pick ? true : false;
 
     const template = path.join(
       UC.getAppRootDir(__dirname),
       "templates",
       "id_card",
       // "id_card_old.html"
-      "id_card_bus.html"
+      isBusStudent ? "id_card_bus.html" : "id_card.html"
     );
 
     const idCard = await generateStudentIdCard(student, template);
@@ -313,9 +297,12 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 
   await combinePDFs(idCards, pdfFile);
 
-  res.download(pdfFile, pdfName, (err) => {
-    if (err) throw err;
-  });
+  await IdCardGenerated.create({ file: pdfName, school: req.school._id });
+
+  res.status(200).json({ msg: `${DOMAIN}/id_cards/${pdfName}` });
+  // res.download(pdfFile, pdfName, (err) => {
+  //   if (err) throw err;
+  // });
 });
 
 const generateStudentIdCard = async (student, template) => {
@@ -339,10 +326,12 @@ const generateStudentIdCard = async (student, template) => {
     "base64"
   );
 
-  const barcode = fs.readFileSync(
-    path.join("templates", "id_card", "images", "barcode.png"),
-    "base64"
-  );
+  // const barcode = fs.readFileSync(
+  //   path.join("templates", "id_card", "images", "barcode.png"),
+  //   "base64"
+  // );
+
+  const barcode = await genBarcode(student.admission_no);
 
   const signature = fs.readFileSync(
     path.join("templates", "id_card", "images", "signature.png"),
@@ -386,11 +375,25 @@ const generateStudentIdCard = async (student, template) => {
     .replace("{{phone}}", student.phone || "NA")
     .replace("{{blood-logo}}", `data:image/jpeg;base64,${bloodLogo}`)
     .replace("{{blood}}", student.blood_group || "NA")
-    .replace("{{barcode}}", `data:image/jpeg;base64,${barcode}`)
+    .replace("{{barcode}}", barcode)
     .replace("{{signature}}", `data:image/jpeg;base64,${signature}`);
   // .replace("{{pincode}}", student.address.current.pincode || "NA")
 
-  const browser = await puppeteer.launch();
+  const args = {
+    executablePath: "/usr/bin/chromium-browser",
+    args: [
+      "--disable-gpu",
+      "--disable-setuid-sandbox",
+      "--no-sandbox",
+      "--no-zygote",
+    ],
+  };
+
+  const browser =
+    process.platform === "linux"
+      ? await puppeteer.launch(args)
+      : await puppeteer.launch();
+
   const page = await browser.newPage();
 
   await page.setViewport({ height: 1024, width: 640 });
@@ -422,7 +425,7 @@ const generateStudentIdCard = async (student, template) => {
   return tempName;
 };
 
-async function combinePDFs(pdfFiles, outputFile) {
+const combinePDFs = async (pdfFiles, outputFile) => {
   const mergedPdf = await PDFDocument.create();
 
   for (const pdfFile of pdfFiles) {
@@ -444,7 +447,97 @@ async function combinePDFs(pdfFiles, outputFile) {
   for (const pdfFile of pdfFiles) {
     fs.unlinkSync(pdfFile);
   }
-}
+};
+
+const genBarcode = async (
+  data,
+  lineColor = "black",
+  width = 3,
+  height = "40px",
+  displayValue = false
+) => {
+  const { Canvas } = require("canvas");
+  const jsBarcode = require("jsbarcode");
+
+  const canvas = new Canvas();
+
+  jsBarcode(canvas, data, {
+    lineColor,
+    width,
+    height,
+    displayValue,
+  });
+
+  const imgBase64 = await new Promise((resolve, reject) => {
+    canvas.toDataURL("image/png", (err, imgBase64) => {
+      if (err) {
+        reject(reject);
+        return;
+      }
+      resolve(imgBase64);
+    });
+  });
+
+  return imgBase64;
+};
+
+// @desc    Get all generated id-cards
+// @route   GET /api/admin-section/id-card-generated
+// @access  Private
+const getGeneratedIdCards = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const search = req.query.search;
+
+  const query = {};
+
+  if (search) {
+    const fields = ["year", "title"];
+
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
+  }
+
+  const results = await UC.paginatedQuery(
+    IdCardGenerated,
+    query,
+    {},
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  for (const card of results.result) {
+    card.file = `${DOMAIN}/id_cards/${card.file}`;
+  }
+
+  res.status(200).json(results);
+});
+
+// @desc    Delete a generated id-card
+// @route   DELETE /api/admin-section/id-card-generated
+// @access  Private
+const deleteGeneratedIdCard = asyncHandler(async (req, res) => {
+  const ids = req.body.ids;
+
+  if (!ids || ids.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("ids"));
+  }
+
+  for (const id of ids) {
+    const card = await IdCardGenerated.findById(id).select("file").lean();
+
+    if (card) fs.unlinkSync(path.join("data", "id_cards", card.file));
+  }
+
+  const result = await IdCardGenerated.deleteMany({ _id: ids });
+
+  res.status(200).json(result);
+});
 
 module.exports = {
   getIdCards,
@@ -453,4 +546,7 @@ module.exports = {
   updateIdCard,
   deleteIdCard,
   genStudentIdCard,
+
+  getGeneratedIdCards,
+  deleteGeneratedIdCard,
 };

@@ -1,6 +1,9 @@
-const StuBusAtt = require("../models/attendance/stuBusAttModel");
-const Bus = require("../models/transport/busModel");
+const School = require("../models/system/schoolModel");
 const Student = require("../models/studentInfo/studentModel");
+const Bus = require("../models/transport/busModel");
+const StuBusAtt = require("../models/attendance/stuBusAttModel");
+const StuAttEvent = require("../models/attendance/stuAttEventModel");
+const PushQ = require("../models/queues/pushQueueModel");
 const C = require("../constants");
 const UC = require("../utils/common");
 const {
@@ -9,9 +12,6 @@ const {
   formatDateToAMPM,
   writeLog,
 } = require("../utils/common");
-
-const { stuAttEvent } = require("../tools/notifications");
-const School = require("../models/system/schoolModel");
 
 const checkStuBusAttendance = async (loc) => {
   console.log("*****checkStuBusAttendance() START*****");
@@ -26,7 +26,6 @@ const checkStuBusAttendance = async (loc) => {
         bus_pick: 1,
         bus_drop: 1,
         bus_stop: 1,
-        manager: 1,
         school: 1,
       })
       .populate("bus_stop")
@@ -358,7 +357,14 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
     );
   }
 
-  await stuAttEvent(msg, student._id, loc.today, cBus._id);
+  await StuAttEvent.create({
+    msg,
+    date: loc.today,
+    student: student._id,
+    bus: cBus._id,
+  });
+
+  await PushQ.create({ msg, receivers: [student._id, student.school] });
 };
 
 const switchBus = async (oldBusId, newBusId) => {

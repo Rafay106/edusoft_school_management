@@ -1,3 +1,5 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
@@ -276,6 +278,71 @@ const deleteBusStop = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Bulk operations for bus-stops
+// @route   POST /api/transport/bus-stop/bulk
+// @access  Private
+const bulkOpsBusStop = asyncHandler(async (req, res) => {
+  const cmd = req.body.cmd;
+  const busStops = req.body.bus_stops;
+
+  if (!cmd) {
+    res.status(400);
+    throw new Error("cmd is required!");
+  }
+
+  if (cmd === "import-xlsx") {
+    if (!req.file) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("import-xlsx"));
+    }
+
+    const fileData = UC.excelToJson(req.file.path);
+    fs.unlinkSync(req.file.path);
+
+    const result = await UC.addMultipleBusStops(fileData, req.school);
+
+    return res.status(200).json({ total: result.length, msg: result });
+  }
+
+  if (cmd === "delete") {
+    if (!busStops || busStops.length === 0) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("bus_stops"));
+    }
+
+    const result = await Bus.deleteMany({ _id: busStops });
+
+    return res.status(200).json({ ...result });
+  } else if (cmd === "export-json") {
+    if (!busStops || busStops.length === 0) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("bus_stops"));
+    }
+
+    const busesToExport = await Bus.find({ _id: busStops })
+      .select("-createdAt -updatedAt")
+      .sort("name")
+      .lean();
+
+    const dt = new Date();
+    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
+    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const D = String(dt.getUTCDate()).padStart(2, "0");
+
+    const fileName = `Bus_stops_${Y}-${M}-${D}.json`;
+    const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
+
+    fs.writeFileSync(fileDir, JSON.stringify(busesToExport));
+
+    return res.download(fileDir, fileName, () => {
+      fs.unlinkSync(fileDir);
+    });
+  } else {
+    res.status(400);
+    throw new Error("cmd not found!");
+  }
+});
+
 /** 3. Bus */
 
 // @desc    Get all buses
@@ -475,6 +542,77 @@ const deleteBus = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Bulk operations for bus
+// @route   POST /api/transport/bus/bulk
+// @access  Private
+const bulkOpsBus = asyncHandler(async (req, res) => {
+  const cmd = req.body.cmd;
+  const buses = req.body.buses;
+
+  if (!cmd) {
+    res.status(400);
+    throw new Error("cmd is required!");
+  }
+
+  if (cmd === "import-xlsx") {
+    if (!req.file) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("import-xlsx"));
+    }
+
+    const fileData = UC.excelToJson(req.file.path);
+    fs.unlinkSync(req.file.path);
+
+    const result = await UC.addMultipleBuses(fileData, req.school);
+
+    return res.status(200).json({ total: result.length, msg: result });
+  }
+
+  if (cmd === "delete") {
+    if (!buses || buses.length === 0) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("buses"));
+    }
+
+    const result = await Bus.deleteMany({
+      _id: buses,
+      createdBy: req.user._id,
+    });
+
+    return res.status(200).json({ ...result });
+  } else if (cmd === "export-json") {
+    if (!buses || buses.length === 0) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("buses"));
+    }
+
+    const busesToExport = await Bus.find({
+      _id: buses,
+      createdBy: req.user._id,
+    })
+      .select("-createdAt -updatedAt")
+      .sort("name")
+      .lean();
+
+    const dt = new Date();
+    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
+    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const D = String(dt.getUTCDate()).padStart(2, "0");
+
+    const fileName = `Bus_${Y}-${M}-${D}.json`;
+    const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
+
+    fs.writeFileSync(fileDir, JSON.stringify(busesToExport));
+
+    return res.download(fileDir, fileName, () => {
+      fs.unlinkSync(fileDir);
+    });
+  } else {
+    res.status(400);
+    throw new Error("cmd not found!");
+  }
+});
+
 // @desc    Set alternate bus
 // @route   POST /api/transport/bus/set-alternate
 // @access  Private
@@ -548,76 +686,6 @@ const unsetAlternateBus = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json(result);
-});
-
-// @desc    Bulk operations for bus
-// @route   POST /api/transport/bus/bulk
-// @access  Private
-const bulkOpsBus = asyncHandler(async (req, res) => {
-  const cmd = req.body.cmd;
-  const buses = req.body.buses;
-
-  if (!cmd) {
-    res.status(400);
-    throw new Error("cmd is required!");
-  }
-
-  if (cmd === "import") {
-    const fileData = JSON.parse(req.file.buffer.toString("utf8"));
-
-    const result = await UC.addMultipleBuses(req.user._id, fileData);
-
-    if (result.status === 400) {
-      res.status(result.status);
-      throw new Error(result.body);
-    }
-
-    return res.status(200).json({ msg: result.msg });
-  }
-
-  if (!buses) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("buses"));
-  }
-
-  if (buses.length === 0) {
-    res.status(400);
-    throw new Error("buses array is empty!");
-  }
-
-  if (cmd === "delete") {
-    const result = await Bus.deleteMany({
-      _id: buses,
-      createdBy: req.user._id,
-    });
-
-    return res.status(200).json({ ...result });
-  } else if (cmd === "export-json") {
-    const busesToExport = await Bus.find({
-      _id: buses,
-      createdBy: req.user._id,
-    })
-      .select("-createdAt -updatedAt")
-      .sort("name")
-      .lean();
-
-    const dt = new Date();
-    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
-    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const D = String(dt.getUTCDate()).padStart(2, "0");
-
-    const fileName = `Bus_${Y}-${M}-${D}.json`;
-    const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
-
-    fs.writeFileSync(fileDir, JSON.stringify(busesToExport));
-
-    return res.download(fileDir, fileName, () => {
-      fs.unlinkSync(fileDir);
-    });
-  } else {
-    res.status(400);
-    throw new Error("cmd not found!");
-  }
 });
 
 // @desc    Track buses
@@ -748,15 +816,16 @@ module.exports = {
   addBusStop,
   updateBusStop,
   deleteBusStop,
+  bulkOpsBusStop,
 
   getBuses,
   getBus,
   addBus,
   updateBus,
   deleteBus,
+  bulkOpsBus,
   setAlternateBus,
   unsetAlternateBus,
-  bulkOpsBus,
   trackBus,
   getBusStatus,
   switchBus,
