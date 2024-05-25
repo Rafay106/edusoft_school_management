@@ -1,5 +1,7 @@
 /node_modules
+.env
 /logs
 test.js
 /static/uploads
 /data
+Edusoft School Management.zip
