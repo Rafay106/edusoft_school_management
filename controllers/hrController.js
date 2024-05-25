@@ -17,25 +17,16 @@ const StaffAttendance = require("../models/hr/staffAttendanceModel");
 const getDesignations = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const sort = req.query.sort || "title";
+  const search = req.query.search;
 
   const query = {};
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (search) {
+    const fields = ["title"];
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -58,11 +49,8 @@ const getDesignations = asyncHandler(async (req, res) => {
 const getDesignation = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const designation = await Designation.findOne(query)
-    .populate("manager school", "name")
+    .populate("school", "name")
     .lean();
 
   if (!designation) {
@@ -77,28 +65,9 @@ const getDesignation = asyncHandler(async (req, res) => {
 // @route   POST /api/hr/designation
 // @access  Private
 const addDesignation = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("manager", manager));
-  }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("school", school));
-  }
-
   const designation = await Designation.create({
     title: req.body.title,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: designation._id });
@@ -109,9 +78,6 @@ const addDesignation = asyncHandler(async (req, res) => {
 // @access  Private
 const updateDesignation = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const designation = await Designation.findOne(query).select("_id").lean();
 
@@ -133,13 +99,16 @@ const updateDesignation = asyncHandler(async (req, res) => {
 const deleteDesignation = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
+  const desig = await Designation.findOne(query).select("_id").lean();
+
+  if (!desig) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("Designation", req.params.id));
   }
 
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
+  if (await Staff.any({ designation: desig._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("Designation", "Staff"));
   }
 
   const result = await Designation.deleteOne(query);
@@ -156,24 +125,15 @@ const getDepartments = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   const query = {};
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (search) {
+    const fields = ["name"];
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(
@@ -196,11 +156,8 @@ const getDepartments = asyncHandler(async (req, res) => {
 const getDepartment = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const department = await Department.findOne(query)
-    .populate("manager school", "name")
+    .populate("school", "name")
     .lean();
 
   if (!department) {
@@ -215,28 +172,9 @@ const getDepartment = asyncHandler(async (req, res) => {
 // @route   POST /api/hr/department
 // @access  Private
 const addDepartment = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("manager", manager));
-  }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("school", school));
-  }
-
   const department = await Department.create({
     name: req.body.name,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: department._id });
@@ -247,9 +185,6 @@ const addDepartment = asyncHandler(async (req, res) => {
 // @access  Private
 const updateDepartment = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const department = await Department.findOne(query).select("_id").lean();
 
@@ -271,13 +206,16 @@ const updateDepartment = asyncHandler(async (req, res) => {
 const deleteDepartment = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
+  const dept = await Department.findOne(query).select("_id").lean();
+
+  if (!dept) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("Department", req.params.id));
   }
 
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
+  if (await Staff.any({ designation: dept._id })) {
+    res.status(400);
+    throw new Error(C.getUnableToDel("Department", "Staff"));
   }
 
   const result = await Department.deleteOne(query);
@@ -294,24 +232,15 @@ const getStaffs = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "name";
-  const searchField = req.query.sf || "all";
-  const searchValue = req.query.sv;
+  const search = req.query.search;
 
   const query = {};
 
-  if (C.isManager(req.user.type)) query.manager = req.user._id;
-  else if (C.isSchool(req.user.type)) query.school = req.user._id;
+  if (search) {
+    const fields = ["name"];
 
-  if (searchField && searchValue) {
-    if (searchField === "all") {
-      const fields = ["name"];
-
-      const searchQuery = UC.createSearchQuery(fields, searchValue);
-      query["$or"] = searchQuery["$or"];
-    } else {
-      const searchQuery = UC.createSearchQuery([searchField], searchValue);
-      query["$or"] = searchQuery["$or"];
-    }
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
   }
 
   const results = await UC.paginatedQuery(Staff, query, {}, page, limit, sort);
@@ -327,12 +256,7 @@ const getStaffs = asyncHandler(async (req, res) => {
 const getStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const staff = await Staff.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const staff = await Staff.findOne(query).populate("school", "name").lean();
 
   if (!staff) {
     res.status(404);
@@ -458,8 +382,7 @@ const addStaff = asyncHandler(async (req, res) => {
     driving_license_ex_date: req.body.driving_license_ex_date,
     department,
     designation,
-    manager,
-    school,
+    school: req.school,
   });
 
   res.status(201).json({ msg: staff._id });
@@ -473,9 +396,6 @@ const updateStaff = asyncHandler(async (req, res) => {
   const department = req.body.department;
 
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   const staff = await Staff.findOne(query).select("_id").lean();
 
@@ -546,9 +466,6 @@ const updateStaff = asyncHandler(async (req, res) => {
 const deleteStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user._id;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   const staff = await Staff.findOne(query)
     .select("photo joining_letter resume other_document")
     .lean();
@@ -596,38 +513,36 @@ const deleteStaff = asyncHandler(async (req, res) => {
 
 /** 2. Department */
 
-// @desc    post attendance 
+// @desc    post attendance
 // @route   POST  /api/hr/attendance
 // @access  Private
 
-const addHrAttendance = asyncHandler(async(req,res)=>{
-      if(!req.body.role){
-           res.status(400);
-           throw new Error(C.FIELD_IS_REQ("role"))
-      } 
-      const r = Staff.find({role : req.body.role.toUpperCase()})
-        .select("_id").lean();
-     
-    if(!r){
-         res.status(400);
-         throw new Error("role",req.body.role);
-    }    
-    if(!await req.body.attendance_date){
-         res.status(400);
-         throw new Error(C.FIELD_IS_REQ("attendance_date"));
-    }
-    
-    // const attendance = await StaffAttendance.create({
-    //       role: r._id,
-    //       date: req.body.attendance_date,
-    //       mark_holiday:req.body.mark_holiday,
-          
+const addHrAttendance = asyncHandler(async (req, res) => {
+  if (!req.body.role) {
+    res.status(400);
+    throw new Error(C.FIELD_IS_REQ("role"));
+  }
+  const r = Staff.find({ role: req.body.role.toUpperCase() })
+    .select("_id")
+    .lean();
 
-    // }
-// )
-})
+  if (!r) {
+    res.status(400);
+    throw new Error("role", req.body.role);
+  }
+  if (!(await req.body.attendance_date)) {
+    res.status(400);
+    throw new Error(C.FIELD_IS_REQ("attendance_date"));
+  }
 
+  // const attendance = await StaffAttendance.create({
+  //       role: r._id,
+  //       date: req.body.attendance_date,
+  //       mark_holiday:req.body.mark_holiday,
 
+  // }
+  // )
+});
 
 module.exports = {
   getDesignations,
@@ -648,5 +563,5 @@ module.exports = {
   updateStaff,
   deleteStaff,
 
-  addHrAttendance
+  addHrAttendance,
 };

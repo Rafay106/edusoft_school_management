@@ -64,13 +64,8 @@ const addCategory = asyncHandler(async (req, res) => {
 
   const category = await LibraryCategory.create({
     title: req.body.title,
-<<<<<<< Updated upstream
     academic_year: ayear,
     school: req.school,
-=======
-    academic_year: req.ayear,
-    school,
->>>>>>> Stashed changes
   });
 
   res.status(201).json({ msg: category._id });
@@ -196,17 +191,10 @@ const addSubject = asyncHandler(async (req, res) => {
 
   const subject = await LibrarySubject.create({
     name: req.body.name,
-<<<<<<< Updated upstream
     category: category._id,
     subject_code: req.body.subject_code,
     academic_year: ayear,
     school: req.school,
-=======
-    category: req.body.category,
-    subjectCode: req.body.subjectCode,
-    academic_year: req.ayear,
-    school,
->>>>>>> Stashed changes
   });
 
   res.status(201).json({ msg: subject._id });
@@ -322,13 +310,8 @@ const addBook = asyncHandler(async (req, res) => {
     book_Price: req.body.book_Price,
     description: req.body.description,
 
-<<<<<<< Updated upstream
     academic_year: ayear,
     school: req.school,
-=======
-    academic_year: req.ayear,
-    school,
->>>>>>> Stashed changes
   });
 
   res.status(201).json({ msg: book._id });
@@ -440,13 +423,8 @@ const addIssueBook = asyncHandler(async (req, res) => {
     book,
     issued_date: issueDate,
     status: "issued",
-<<<<<<< Updated upstream
     academic_year: ayear,
     school: req.school,
-=======
-    academic_year: req.ayear,
-    school,
->>>>>>> Stashed changes
   };
 
   if (type === "student") {

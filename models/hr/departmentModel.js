@@ -7,13 +7,13 @@ const required = [true, C.FIELD_IS_REQ];
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required },
+    name: { type: String, required, uppercase: true },
     school: { type: ObjectId, required, ref: "schools" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.plugin(any);
 
-const Department = mongoose.model("departments", schema);
+const Department = mongoose.model("hr_departments", schema);
 module.exports = Department;

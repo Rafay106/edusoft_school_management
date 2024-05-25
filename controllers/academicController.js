@@ -3,7 +3,6 @@ const C = require("../constants");
 const UC = require("../utils/common");
 const AcademicYear = require("../models/academics/academicYearModel");
 const Class = require("../models/academics/classModel");
-const User = require("../models/system/userModel");
 const Section = require("../models/academics/sectionModel");
 const Student = require("../models/studentInfo/studentModel");
 const Subject = require("../models/academics/subjectModel");
@@ -319,7 +318,6 @@ const deleteSection = asyncHandler(async (req, res) => {
 
   for (const _id of ids) {
     const query = { _id };
-    if (C.isSchool(req.user.type)) query.school = req.user.school;
 
     const section = await Section.findOne(query).select("_id").lean();
 
@@ -418,8 +416,6 @@ const updateStream = asyncHandler(async (req, res) => {
 // @access  Private
 const deleteStream = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const stream = await Stream.findOne(query).select("_id").lean();
 
@@ -630,8 +626,6 @@ const updateClass = asyncHandler(async (req, res) => {
 const deleteClass = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-
   const class_ = await Class.findOne(query).select("_id").lean();
 
   if (!class_) {
@@ -689,7 +683,9 @@ const getSubjects = asyncHandler(async (req, res) => {
 const getSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const subject = await Subject.findOne(query).lean();
+  const subject = await Subject.findOne(query)
+    .populate("academic_year school", "name title")
+    .lean();
 
   if (!subject) {
     res.status(404);
@@ -744,20 +740,13 @@ const updateSubject = asyncHandler(async (req, res) => {
 const deleteSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user.school;
-    query.manager = req.user.manager;
-  }
-
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
-  }
-
   const result = await Subject.deleteOne(query);
 
   res.status(200).json(result);
 });
+
 /**  5 class_routine */
+
 // @desc    Add a classRoutine
 // @route   POST / api/academics/class-routine
 // @access  Private
@@ -837,8 +826,9 @@ const addClassRoutine = asyncHandler(async (req, res) => {
   });
   res.status(201).json({ msg: classRoutine._id });
 });
-// @desc   get classRoutine
-// @route  GET /api/academics/class-routine
+
+// @desc    get classRoutine
+// @route   GET /api/academics/class-routine
 // @access  Private
 const getClassRoutine = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
@@ -881,9 +871,10 @@ const getClassRoutine = asyncHandler(async (req, res) => {
 
   res.status(200).json(results);
 });
-//desc delete classRoutine
-//@route   DELETE /api/academics/class-routine
-// @access private
+
+// @desc    delete classRoutine
+// @route   DELETE /api/academics/class-routine
+// @access  private
 
 const deleteClassRoutine = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
