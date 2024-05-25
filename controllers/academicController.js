@@ -9,6 +9,7 @@ const Student = require("../models/studentInfo/studentModel");
 const Subject = require("../models/academics/subjectModel");
 const School = require("../models/system/schoolModel");
 const Stream = require("../models/academics/streamModel");
+const ClassRoutine = require("../models/academics/classRoutineModel");
 
 /** 1. Academic Year */
 
@@ -49,8 +50,6 @@ const getAcademicYears = asyncHandler(async (req, res) => {
 // @access  Private
 const getAcademicYear = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   const academicYear = await AcademicYear.findOne(query)
     .populate("school", "name")
@@ -109,8 +108,6 @@ const addAcademicYear = asyncHandler(async (req, res) => {
 // @access  Private
 const updateAcademicYear = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
 
   if (!(await AcademicYear.any(query))) {
     res.status(404);
@@ -251,12 +248,7 @@ const getSections = asyncHandler(async (req, res) => {
 const getSection = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const section = await Section.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const section = await Section.findOne(query).lean();
 
   if (!section) {
     res.status(404);
@@ -286,9 +278,6 @@ const addSection = asyncHandler(async (req, res) => {
 // @access  Private
 const updateSection = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await Section.any(query))) {
     res.status(404);
@@ -368,12 +357,7 @@ const getStreams = asyncHandler(async (req, res) => {
 const getStream = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const stream = await Stream.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const stream = await Stream.findOne(query).lean();
 
   if (!stream) {
     res.status(404);
@@ -403,9 +387,6 @@ const addStream = asyncHandler(async (req, res) => {
 // @access  Private
 const updateStream = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
   if (!(await Stream.any(query))) {
     res.status(404);
@@ -515,12 +496,7 @@ const getClasses = asyncHandler(async (req, res) => {
 const getClass = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
-  const stuClass = await Class.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const stuClass = await Class.findOne(query).lean();
 
   if (!stuClass) {
     res.status(404);
@@ -625,9 +601,6 @@ const addClass = asyncHandler(async (req, res) => {
 const updateClass = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) query.school = req.user.school;
-  else if (C.isManager(req.user.type)) query.manager = req.user._id;
-
   if (!(await Class.any(query))) {
     res.status(404);
     throw new Error(C.getResourse404Id("Class", req.params.id));
@@ -723,6 +696,7 @@ const getSubjects = asyncHandler(async (req, res) => {
 const getSubject = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
+  const subject = await Subject.findOne(query).lean();
   if (C.isSchool(req.user.type)) query.school = req.user.school;
   else if (C.isManager(req.user.type)) query.manager = req.user._id;
 
@@ -741,11 +715,14 @@ const getSubject = asyncHandler(async (req, res) => {
 // @access  Private
 const addSubject = asyncHandler(async (req, res) => {
   const ayear = UC.getCurrentAcademicYear(req.school);
+  const ayear = UC.getCurrentAcademicYear(req.school);
 
   const subject = await Subject.create({
     name: req.body.name,
     code: req.body.code,
     type: req.body.type,
+    academic_year: ayear,
+    school: req.school,
     academic_year: req.body.ayear,
     school: req.school,
   });
@@ -819,4 +796,8 @@ module.exports = {
   addSubject,
   updateSubject,
   deleteSubject,
+
+  addClassRoutine,
+  getClassRoutine,
+  deleteClassRoutine,
 };

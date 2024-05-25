@@ -17,6 +17,9 @@ const Department = require("../models/hr/departmentModel");
 const Student = require("../models/studentInfo/studentModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
 const Stream = require("../models/academics/streamModel");
+const LibrarySubject = require("../models/library/subjectModels");
+const LibraryCategory = require("../models/library/categoryModel");
+const Subject = require("../models/academics/subjectModel");
 
 // @desc    Get boarding-type list
 // @route   GET /api/util/boarding-type-list
@@ -201,6 +204,20 @@ const getClassList = asyncHandler(async (req, res) => {
   res.status(200).json(uniqueClasses);
 });
 
+// @desc    Get subjects
+// @route   GET /api/util/subject-list
+// @access  Private
+const getSubjectList = asyncHandler(async (req, res) => {
+  const academic_year = UC.getCurrentAcademicYear(req.school);
+
+  const subject = await Subject.find({ academic_year })
+    .select("name code type")
+    .sort("name")
+    .lean();
+
+  res.status(200).json(subject);
+});
+
 // @desc    Get fee-groups
 // @route   GET /api/util/fee-group-list
 // @access  Private
@@ -278,7 +295,31 @@ const getDepartmentList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(departments);
+  res.status(200).json(departments.map((e) => e.name));
+});
+
+// @desc    Get library category
+// @route   GET /api/util/library-category-list
+// @access  Private
+const getLibraryCategoryList = asyncHandler(async (req, res) => {
+  const categorys = await LibraryCategory.find({})
+    .select("title")
+    .sort("title")
+    .lean();
+
+  res.status(200).json(categorys.map((e) => e.title));
+});
+
+// @desc    Get library subjects
+// @route   GET /api/util/library-subject-list
+// @access  Private
+const getLibrarySubjectList = asyncHandler(async (req, res) => {
+  const subjects = await LibrarySubject.find({})
+    .select("name")
+    .sort("name")
+    .lean();
+
+  res.status(200).json(subjects.map((e) => e.name));
 });
 
 module.exports = {
@@ -289,13 +330,16 @@ module.exports = {
   getBusList,
   getBusStopList,
   getAcademicYearList,
-  getClassList,
   getSectionList,
   getStreamList,
+  getClassList,
+  getSubjectList,
   getFeeGroupList,
   getFeeTypeList,
   getFeeTermList,
   getFeeHeadList,
   getDesignationList,
   getDepartmentList,
+  getLibraryCategoryList,
+  getLibrarySubjectList,
 };
