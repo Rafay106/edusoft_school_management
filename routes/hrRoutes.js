@@ -35,9 +35,7 @@ staffRouter
   .post(
     staffUpload.fields([
       { name: "photo", maxCount: 1 },
-      { name: "resume", maxCount: 1 },
-      { name: "letter", maxCount: 1 },
-      { name: "other", maxCount: 1 },
+      { name: "sign", maxCount: 1 },
     ]),
     C.addStaff
   );
@@ -48,16 +46,13 @@ staffRouter
   .patch(C.updateStaff)
   .delete(C.deleteStaff);
 
-
-  // 4. Attendance routes
-   const AttendanceRouter = express.Router();
-   AttendanceRouter.route("/")
-      .post();
-
+// 4. Attendance routes
+const AttendanceRouter = express.Router();
+AttendanceRouter.route("/").post();
 
 hrRouter.use("/designation", designationRouter);
 hrRouter.use("/department", departmentRouter);
 hrRouter.use("/staff", staffRouter);
-hrRouter.use("/attendance",AttendanceRouter);
+hrRouter.use("/attendance", AttendanceRouter);
 
 module.exports = hrRouter;

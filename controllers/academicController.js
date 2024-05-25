@@ -759,7 +759,8 @@ const addClassRoutine = asyncHandler(async (req, res) => {
   const c = await Class.findOne({ name: req.body.class.toUpperCase() })
     .select("_id")
     .lean();
-  if (!c) {
+
+if (!c) {
     res.status(400);
     throw new Error(C.getResourse404Id("class", req.body.class));
   }

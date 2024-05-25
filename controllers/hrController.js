@@ -270,122 +270,118 @@ const getStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/hr/staff
 // @access  Private
 const addStaff = asyncHandler(async (req, res) => {
-  let manager = req.body.manager;
-  let school = req.body.school;
-  const designation = req.body.designation;
-  const department = req.body.department;
-
-  if (C.isSchool(req.user.type)) {
-    school = req.user._id;
-    manager = req.user.manager;
-  } else if (C.isManager(req.user.type)) manager = req.user._id;
-
-  if (!(await User.any({ _id: manager, type: C.MANAGER }))) {
+  if (!req.body.name) {
     res.status(400);
-    throw new Error(C.getResourse404Id("manager", manager));
+    throw new Error(C.getFieldIsReq("name"));
   }
-
-  if (!(await User.any({ _id: school, type: C.SCHOOL, manager }))) {
+  if (!req.body.email) {
     res.status(400);
-    throw new Error(C.getResourse404Id("school", school));
+    throw new Error(C.getFieldIsReq("email"));
   }
-
-  // Validate Designation
-  if (!designation) {
+  if (!req.body.gender) {
     res.status(400);
-    throw new Error(C.getFieldIsReq("designation"));
+    throw new Error(C.getFieldIsReq("gender"));
   }
-
-  if (!(await Designation.any({ _id: designation, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("designation", designation));
-  }
-
-  // Validate Department
-  if (!department) {
+  if (!req.body.department) {
     res.status(400);
     throw new Error(C.getFieldIsReq("department"));
   }
-
-  if (!(await Department.any({ _id: department, manager, school }))) {
+  const dpt = await Department.find({ name: req.body.department.toUpperCase() })
+    .select("_id")
+    .lean();
+  if (!dpt) {
     res.status(400);
-    throw new Error(C.getResourse404Id("department", department));
+    throw new Error(C.getResourse404Id("department", req.body.department));
   }
-
-  const name = {
-    f: req.body.fname,
-    m: req.body.mname,
-    l: req.body.lname,
-  };
+  if (!req.body.designation) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("designation"));
+  }
+  const dsg = await Department.find({
+    name: req.body.designation.toUpperCase(),
+  })
+    .select("_id")
+    .lean();
+  if (!dsg) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("designation", req.body.designation));
+  }
+  if (!req.body.staff_id) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("staff_id"));
+  }
+  if (!req.body.staff_type) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("staff_type"));
+  }
+  if (!req.body.rfid) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("rfid"));
+  }
+  if (!req.body.nationality) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("nationality"));
+  }
+  const signFile = req.files.sign;
+  const sign = signFile ? signFile[0].filename : "";
 
   const photoFile = req.files.photo;
   const photo = photoFile ? photoFile[0].filename : "";
-
-  const letterFile = req.files.letter;
-  const letter = letterFile ? letterFile[0].filename : "";
-
-  const resumeFile = req.files.resume;
-  const resume = resumeFile ? resumeFile[0].filename : "";
-
-  const otherFile = req.files.other;
-  const other = otherFile ? otherFile[0].filename : "";
-
-  const address = {
-    current: req.body.address_current,
-    permanent: req.body.address_permanent,
+  const Address = {
+    street: req.body.street,
+    state: req.body.state,
+    pin: req.body.pin,
+    city: req.body.city,
+    country: req.body.country,
   };
-
-  const bank = {
-    account_name: req.body.bank_account_name,
-    account_no: req.body.bank_account_no,
-    name: req.body.bank_name,
-    brach: req.body.bank_brach,
-  };
-
-  const url = {
-    facebook: req.body.facebook_url,
-    twiteer: req.body.twiteer_url,
-    linkedin: req.body.linkedin_url,
-    instragram: req.body.instragram_url,
+  const Family = {
+    father_name: req.body.father_name,
+    mother_name: req.body.mother_name,
+    spouse_name: req.body.spouse_name,
+    father_profession: req.body.father_profession,
+    spouse_profession: req.body.spouse_profession,
+    mother_profession: req.body.mother_profession,
+    father_contact: req.body.father_contact,
+    mother_contact: req.body.mother_contact,
+    spouse_contact: req.body.spouse_contact,
   };
 
   const staff = await Staff.create({
     role: req.body.role,
-    name,
-    father_name: req.body.father_name,
-    mother_name: req.body.mother_name,
-    dob: req.body.dob,
-    doj: req.body.doj,
+    saluation: req.body.saluation,
+    sign,
+    name: req.body.name,
     email: req.body.email,
-    gender: req.body.gender,
     mobile: req.body.mobile,
-    emergency_mobile: req.body.emergency_mobile,
+    designation: dsg._id,
+    name: req.body.name,
+    biometric: req.body.biometric,
+    date_of_regular: req.body.date_of_regular,
     marital_status: req.body.marital_status,
+    sequence_no: req.body.sequence_no,
+    reporting_authority: req.body.reporting_authority,
+    birth_date: req.body.birth_date,
+    joining_date: req.body.joining_date,
+    gender: req.body.gender,
+    department: dpt._id,
+    incharge: req.body.incharge,
     photo,
-    address,
-    qualification: req.body.qualification,
-    experience: req.body.experience,
-    epf_no: req.body.epf_no,
-    basic_salary: req.body.basic_salary,
-    contract_type: req.body.contract_type,
-    location: req.body.location,
-    casual_leave: req.body.casual_leave,
-    medical_leave: req.body.medical_leave,
-    metarnity_leave: req.body.metarnity_leave,
-    bank,
-    url,
-    joining_letter: letter,
-    resume,
-    other_document: other,
-    notes: req.body.notes,
-    driving_license: req.body.driving_license,
-    driving_license_ex_date: req.body.driving_license_ex_date,
-    department,
-    designation,
-    school: req.school,
+    staff_id: req.body.staff_id,
+    staff_type: req.body.staff_type,
+    rfid: req.body.rfid,
+    wing: req.body.wing,
+    confirmation_date: req.body.confirmation_date,
+    intercommunication: req.body.intercommunication,
+    religion: req.body.religion,
+    blood_group: req.body.blood_group,
+    service_end_date: req.body.service_end_date,
+    class_interchange: req.body.class_interchange,
+    Address,
+    Family,
+    nationality: req.body.nationality,
   });
 
-  res.status(201).json({ msg: staff._id });
+  res.status(200).json({ msg: staff._id });
 });
 
 // @desc    Update a staff
