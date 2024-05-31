@@ -8,7 +8,7 @@ const School = require("../models/system/schoolModel");
 
 const authenticate = asyncHandler(async (req, res, next) => {
   let token;
-         
+
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith("Bearer")
@@ -54,6 +54,21 @@ const authenticate = asyncHandler(async (req, res, next) => {
       }
 
       req.ayear = req.user.current_academic_year;
+
+      if (!req.user.api_key) {
+        await User.updateOne(
+          { _id: req.user._id },
+          { $set: { api_key: UC.generateApiKey() } }
+        );
+
+        req.user = await User.findOne({
+          _id: decode._id,
+          password: decode.password,
+        })
+          .select("-password")
+          .populate("school")
+          .lean();
+      }
     } catch (err) {
       console.log(err);
       res.status(401);
@@ -67,6 +82,71 @@ const authenticate = asyncHandler(async (req, res, next) => {
     res.status(401);
     throw new Error("Not authorized, no token");
   }
+});
+
+const authenticateApikey = asyncHandler(async (req, res, next) => {
+  if (!req.query.key) {
+    res.status(401);
+    throw new Error("Not authorized, no api key");
+  }
+
+  const api_key = req.query.key;
+
+  try {
+    req.user = await User.findOne({ api_key })
+      .select("-password")
+      .populate("school")
+      .lean();
+
+    if (!req.user) {
+      res.status(404);
+      throw new Error("404");
+    }
+
+    req.school = await School.findOne().lean();
+
+    if (
+      req.school &&
+      req.school.current_academic_year &&
+      !req.user.current_academic_year
+    ) {
+      await User.updateOne(
+        { _id: req.user._id },
+        {
+          $set: { current_academic_year: req.school.current_academic_year },
+        }
+      );
+
+      req.user = await User.findOne({
+        _id: decode._id,
+      })
+        .select("-password")
+        .populate("school")
+        .lean();
+    }
+
+    req.ayear = req.user.current_academic_year;
+
+    if (!req.user.api_key) {
+      await User.updateOne(
+        { _id: req.user._id },
+        { $set: { api_key: UC.generateApiKey() } }
+      );
+
+      req.user = await User.findOne({
+        _id: decode._id,
+        password: decode.password,
+      })
+        .select("-password")
+        .populate("school")
+        .lean();
+    }
+  } catch (err) {
+    res.status(401);
+    throw new Error("Not Authorized!");
+  }
+
+  next();
 });
 
 const parentAuthenticate = asyncHandler(async (req, res, next) => {
@@ -120,11 +200,11 @@ const authorize = asyncHandler(async (req, res, next) => {
     if (C.isManager(userType) || C.isSchool(userType)) next();
     else {
       res.status(403);
-      throw new Error("Access Denied!");
+      throw new Error(C.ACCESS_DENIED);
     }
   } else {
     res.status(403);
-    throw new Error("Access Denied!");
+    throw new Error(C.ACCESS_DENIED);
   }
 });
 
@@ -132,7 +212,7 @@ const adminAuthorize = asyncHandler(async (req, res, next) => {
   if (C.isAdmins(req.user.type)) next();
   else {
     res.status(403);
-    throw new Error("Access Denied!");
+    throw new Error(C.ACCESS_DENIED);
   }
 });
 
@@ -143,7 +223,7 @@ const schoolAuthorize = asyncHandler(async (req, res, next) => {
     next();
   } else {
     res.status(403);
-    throw new Error("Access Denied!");
+    throw new Error(C.ACCESS_DENIED);
   }
 });
 
@@ -157,6 +237,7 @@ const parentAuthorize = asyncHandler(async (req, res, next) => {
 
 module.exports = {
   authenticate,
+  authenticateApikey,
   parentAuthenticate,
   authorize,
   adminAuthorize,

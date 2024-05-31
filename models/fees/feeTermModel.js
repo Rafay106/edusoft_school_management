@@ -22,6 +22,11 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+schema.index(
+  { term_type: 1, year: 1, start_month: 1, academic_year: 1, school: 1 },
+  { unique: true }
+);
+
 schema.plugin(any);
 
 const FeeTerm = mongoose.model("fee_terms", schema);

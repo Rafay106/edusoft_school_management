@@ -14,12 +14,13 @@ const {
   parentAuthorize,
   schoolAuthorize,
   authorize,
+  authenticateApikey,
 } = require("./middlewares/authMiddleware");
 const UM = require("./middlewares/utilMiddleware");
 const { listenDeviceData } = require("./services/listener");
 const SERVICE = require("./services/service");
-const NOTY = require("./tools/notifications");
 const UC = require("./utils/common");
+const WORKER = require("./tools/bullmq/workers");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -152,6 +153,9 @@ app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
 // Razorpay
 app.use("/api/razorpay", require("./tools/razorpay_old"));
 
+// API KEY Routes
+app.use("/api-key", authenticateApikey, require("./routes/apikeyRoutes"));
+
 /*************
  * Cron Jobs *
  *************/
@@ -161,9 +165,9 @@ cron.schedule("* * * * *", async () => {
   if (process.env.NODE_APP_INSTANCE != 0) return;
 
   try {
-    await NOTY.sendPushNoty();
-    await NOTY.sendEmailNoty();
-    await NOTY.sendWhatsappNoty();
+    // await SERVICE.serviceEmailQueue();
+    // await SERVICE.servicePushQueue();
+    // await SERVICE.serviceWhatsappQueue();
   } catch (err) {
     UC.writeLog("errors", `${err.stack}`);
   }
@@ -174,6 +178,7 @@ cron.schedule("0 0 * * *", async () => {
   if (process.env.NODE_APP_INSTANCE != 0) return;
 
   try {
+    await SERVICE.serviceDbBackup();
     await SERVICE.serviceClearHistory();
     await SERVICE.serviceResetAlternateBus();
     await SERVICE.serviceResetCurrAcademicYear();
@@ -184,22 +189,45 @@ cron.schedule("0 0 * * *", async () => {
 });
 
 // CRON TEST
-// cron.schedule("* * * * * *", async () => {
-//   if (process.env.NODE_ENV != "development") return;
-// });
+cron.schedule("* * * * * *", async () => {
+  if (process.env.NODE_ENV != "development") return;
+
+  try {
+    // await SERVICE.serviceEmailQueue();
+    // await SERVICE.servicePushQueue();
+    // await SERVICE.serviceWhatsappQueue();
+  } catch (err) {
+    console.log(err);
+  }
+});
 
 /*************
  * Cron Jobs *
  *************/
 
+/*************
+ * Workers Start *
+ *************/
+const IORedis = require("ioredis");
+
+const connection = new IORedis({ maxRetriesPerRequest: null });
+
+WORKER.workerEmailQueue(connection);
+// WORKER.workerWhatsappQueue();
+// WORKER.workerPushQueue();
+
+/*************
+ * Workers End *
+ *************/
+
 // test routes
 app.use("/api/test", require("./routes/testRoutes"));
 
-// app.use(express.static(path.join(__dirname, "dist")));
+app.use(express.static(path.join(__dirname, "build")));
 
-// app.get("*", (req, res) =>
-//   res.sendFile(path.resolve(__dirname, "dist", "index.html"))
-// );
+app.get("*", (req, res) =>
+  res.sendFile(path.resolve(__dirname, "build", "index.html"))
+);
 
 app.all("*", (req, res) => res.status(404).json({ msg: "Url not found!" }));
 

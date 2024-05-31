@@ -1,4 +1,5 @@
 const STR = {
+  ACCESS_DENIED: "Access Denied!",
   ACCOUNTANT: "accountant",
   ADMIN: "admin",
   A_ENTRY: "aEntry",
@@ -9,6 +10,7 @@ const STR = {
   CUR_AYEAR_NOT_SET:
     "Current academic year not set, please set the current academic year!",
   DRIVER: "driver",
+  EMAIL_QUEUE: "email_queue",
   FIELD_IS_INVALID: "%F% is invalid!",
   FIELD_IS_INVALID_AT_IDX: "%F% is invalid at row: %I%",
   FIELD_IS_REQ: "%F% is required!",
@@ -21,6 +23,7 @@ const STR = {
   M_EXIT: "mExit",
   PAGE_LIMIT_REACHED: "Page limit reached!",
   PARENT: "parent",
+  PUSH_QUEUE: "push_queue",
   RECEPTIONIST: "receptionist",
   RESOURSE_404: "%R% not found",
   RESOURSE_404_ID: "%R% not found: %ID%",
@@ -34,6 +37,7 @@ const STR = {
   UNKNOWN: "unknown",
   VALUE_NOT_SUP: "{VALUE} is not supported!",
   VALUE_NOT_SUP_AT_IDX: "%V% is not supported at row: %I%",
+  WHATSAPP_QUEUE: "whatsapp_queue",
 };
 
 const FUNCTIONS = {

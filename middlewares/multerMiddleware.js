@@ -108,32 +108,6 @@ const staffUpload = multer({
   }),
 });
 
-const idCardUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const filePath = path.join(
-        "static",
-        "uploads",
-        "admin_system",
-        "id_card"
-      );
-      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
-      cb(null, filePath);
-    },
-    filename: (req, file, cb) => {
-      const ext = mimeTypes[file.mimetype];
-      cb(null, `${req.user._id}_${file.fieldname}_${Date.now()}.${ext}`);
-    },
-  }),
-  limits: { fileSize: maxSize },
-  fileFilter: (req, file, cb) => {
-    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-      return cb(new Error("Only jpg, jpeg, or png files are allowed"));
-    }
-    cb(null, true);
-  },
-});
-
 const homeworkUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
@@ -162,6 +136,22 @@ const homeworkEvaluationUpload = multer({
   }),
 });
 
+const upload = (filePath) => {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        if (!fs.existsSync(filePath))
+          fs.mkdirSync(filePath, { recursive: true });
+        cb(null, filePath);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `${req.user._id}_${Date.now()}${ext}`);
+      },
+    }),
+  });
+};
+
 module.exports = {
   memoryUpload,
   busStaffPhotoUpload,
@@ -169,7 +159,7 @@ module.exports = {
   studentBulkImportUpload,
   bulkImportUpload,
   staffUpload,
-  idCardUpload,
   homeworkUpload,
   homeworkEvaluationUpload,
+  upload,
 };

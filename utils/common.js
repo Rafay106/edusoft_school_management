@@ -1,5 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const xlsx = require("xlsx");
 
 const C = require("../constants");
@@ -15,6 +16,8 @@ const Stream = require("../models/academics/streamModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const BusStop = require("../models/transport/busStopModel");
 const BusStaff = require("../models/transport/busStaffModel");
+const Section = require("../models/academics/sectionModel");
+const Subject = require("../models/academics/subjectModel");
 
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
@@ -42,7 +45,7 @@ const paginatedQuery = async (
   const total = await Model.countDocuments(query);
   const pages = Math.ceil(total / limit) || 1;
   if (page > pages) return false;
-  
+
   const startIdx = (page - 1) * limit;
   const results = { total: total, pages, page, result: [] };
 
@@ -85,6 +88,30 @@ const getUsernameFromEmail = (email) => {
 const managerExists = async (_id) => await User.any({ _id, type: C.MANAGER });
 
 const schoolAccExists = async (_id) => await User.any({ _id, type: C.SCHOOL });
+
+const getUserContactInfo = async (usertypes, ids = []) => {
+  usertypes = usertypes.map((ele) => ele.toLowerCase());
+
+  const result = [];
+  const query = {};
+
+  if (ids.length > 0) query._id = ids;
+
+  for (const ut of usertypes) {
+    if (ut == C.STUDENT) {
+      const students = await Student.find(query).select("email phone").lean();
+
+      result.push(...students);
+    }
+
+    query.type = ut;
+    const users = await User.find(query).select("email phone").lean();
+
+    result.push(...users);
+  }
+
+  return result;
+};
 
 // ************************
 // USER FUNCTIONS END
@@ -633,25 +660,22 @@ const validateSchool = async (user, school) => {
   return school;
 };
 
-const validateFeeTerms = async (feeTerms) => {
+const validateFeeTerms = async (feeTerms, academic_year) => {
   if (!feeTerms || feeTerms.length === 0) {
-    const e = new Error(C.getFieldIsReq("fee_terms"));
-    e.name = C.CUSTOMVALIDATION;
-    throw e;
+    throwCustomValidationErr(C.getFieldIsReq("fee_terms"));
   }
 
   const result = [];
 
   for (const name of feeTerms) {
-    const ft = await FeeTerm.findOne({ name: name.toUpperCase() })
+    const ft = await FeeTerm.findOne({
+      name: name.toUpperCase(),
+      academic_year,
+    })
       .select("_id")
       .lean();
 
-    if (!ft) {
-      const e = new Error(C.getResourse404Id("fee_terms", name));
-      e.name = C.CUSTOMVALIDATION;
-      throw e;
-    }
+    if (!ft) throwCustomValidationErr(C.getResourse404Id("fee_terms", name));
 
     result.push(ft._id);
   }
@@ -659,24 +683,20 @@ const validateFeeTerms = async (feeTerms) => {
   return result;
 };
 
-const validateClasses = async (classes) => {
+const validateClasses = async (classes, academic_year) => {
   if (!classes || classes.length === 0) {
-    const e = new Error(C.getFieldIsReq("classes"));
-    e.name = C.CUSTOMVALIDATION;
-    throw e;
+    throwCustomValidationErr(C.getFieldIsReq("classes"));
   }
 
   const result = [];
 
   for (const name of classes) {
-    const c = await Class.findOne({ name: name.toUpperCase() })
+    const c = await Class.findOne({ name: name.toUpperCase(), academic_year })
       .select("_id")
       .lean();
 
     if (!c) {
-      const e = new Error(C.getResourse404Id("classes", name));
-      e.name = C.CUSTOMVALIDATION;
-      throw e;
+      throwCustomValidationErr(C.getResourse404Id("classes", name));
     }
 
     result.push(c._id);
@@ -685,26 +705,38 @@ const validateClasses = async (classes) => {
   return result;
 };
 
-const validateStreams = async (streams) => {
-  if (!streams || streams.length === 0) {
-    streams = ["NA"];
-  }
-
-  if (!streams.map((e) => e.toUpperCase()).includes("NA")) {
-    streams.push("NA");
+const validateSections = async (sections, academic_year) => {
+  if (!sections || sections.length === 0) {
+    throwCustomValidationErr(C.getFieldIsReq("sections"));
   }
 
   const result = [];
-  for (const name of streams) {
-    const s = await Stream.findOne({ name: name.toUpperCase() })
+
+  for (const name of sections) {
+    const c = await Section.findOne({ name: name.toUpperCase(), academic_year })
       .select("_id")
       .lean();
 
-    if (!s) {
-      const e = new Error(C.getResourse404Id("streams", name));
-      e.name = C.CUSTOMVALIDATION;
-      throw e;
-    }
+    if (!c) throwCustomValidationErr(C.getResourse404Id("sections", name));
+
+    result.push(c._id);
+  }
+
+  return result;
+};
+
+const validateStreams = async (streams, academic_year) => {
+  if (!streams || streams.length === 0) streams = ["NA"];
+
+  if (!streams.map((e) => e.toUpperCase()).includes("NA")) streams.push("NA");
+
+  const result = [];
+  for (const name of streams) {
+    const s = await Stream.findOne({ name: name.toUpperCase(), academic_year })
+      .select("_id")
+      .lean();
+
+    if (!s) throwCustomValidationErr(C.getResourse404Id("streams", name));
 
     result.push(s._id);
   }
@@ -714,9 +746,7 @@ const validateStreams = async (streams) => {
 
 const validateBoardingTypes = async (boardingTypes) => {
   if (!boardingTypes || boardingTypes.length === 0) {
-    const e = new Error(C.getFieldIsReq("boarding_types"));
-    e.name = C.CUSTOMVALIDATION;
-    throw e;
+    throwCustomValidationErr(C.getFieldIsReq("boarding_types"));
   }
 
   const result = [];
@@ -727,9 +757,7 @@ const validateBoardingTypes = async (boardingTypes) => {
       .lean();
 
     if (!bt) {
-      const e = new Error(C.getResourse404Id("boarding_types", name));
-      e.name = C.CUSTOMVALIDATION;
-      throw e;
+      throwCustomValidationErr(C.getResourse404Id("boarding_types", name));
     }
 
     result.push(bt._id);
@@ -740,9 +768,7 @@ const validateBoardingTypes = async (boardingTypes) => {
 
 const validateBusStops = async (stops) => {
   if (!stops || stops.length === 0) {
-    const e = new Error(C.getFieldIsReq("stops"));
-    e.name = C.CUSTOMVALIDATION;
-    throw e;
+    throwCustomValidationErr(C.getFieldIsReq("stops"));
   }
 
   const result = [];
@@ -753,15 +779,72 @@ const validateBusStops = async (stops) => {
       .lean();
 
     if (!stop) {
-      const e = new Error(C.getResourse404Id("stops", name));
-      e.name = C.CUSTOMVALIDATION;
-      throw e;
+      throwCustomValidationErr(C.getResourse404Id("stops", name));
     }
 
     result.push(stop._id);
   }
 
   return result;
+};
+
+const validateClassByName = async (className, academic_year) => {
+  if (!className) {
+    throwCustomValidationErr(C.getFieldIsReq("class"));
+  }
+
+  const c = await Class.findOne({
+    name: className.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!c) throwCustomValidationErr(C.getResourse404Id("class", className));
+
+  return c._id;
+};
+
+const validateSectionByName = async (sectionName, academic_year) => {
+  if (!sectionName) {
+    throwCustomValidationErr(C.getFieldIsReq("section"));
+  }
+
+  const section = await Section.findOne({
+    name: sectionName.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!section)
+    throwCustomValidationErr(C.getResourse404Id("section", sectionName));
+
+  return section._id;
+};
+
+const validateSubjectByName = async (subjectName, academic_year) => {
+  if (!subjectName) {
+    throwCustomValidationErr(C.getFieldIsReq("subject"));
+  }
+
+  const subject = await Subject.findOne({
+    name: subjectName.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!subject)
+    throwCustomValidationErr(C.getResourse404Id("subject", subjectName));
+
+  return subject._id;
+};
+
+const throwCustomValidationErr = (msg) => {
+  const e = new Error(msg);
+  e.name = C.CUSTOMVALIDATION;
+  throw e;
 };
 
 // ************************
@@ -774,19 +857,43 @@ const validateBusStops = async (stops) => {
 
 const getYMD = (dt = new Date()) => {
   const now = new Date(dt);
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth() + 1;
-  const date = now.getUTCDate();
-  return "" + year + month + date;
+
+  if (now.getTime() === 0) return "NA";
+
+  const Y = String(now.getUTCFullYear()).padStart(2, "0");
+  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const D = String(now.getUTCDate()).padStart(2, "0");
+
+  return Y + M + D;
 };
 
 const getDDMMYYYY = (dt = new Date()) => {
-  const now = new Date(dt);
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth() + 1;
-  const date = now.getUTCDate();
+  const now = new Date(dt.toISOString().replace("Z", "-05:30"));
 
-  return `${date}-${month}-${year}`;
+  if (now.getTime() === 0) return "NA";
+
+  const Y = String(now.getUTCFullYear()).padStart(2, "0");
+  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const D = String(now.getUTCDate()).padStart(2, "0");
+
+  return `${D}-${M}-${Y}`;
+};
+
+const getDDMMYYYYwithTime = (dt = new Date()) => {
+  const now = new Date(dt.toISOString().replace("Z", "-05:30"));
+
+  if (now.getTime() === 0) return "NA";
+
+  const Y = String(now.getUTCFullYear()).padStart(2, "0");
+  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const D = String(now.getUTCDate()).padStart(2, "0");
+  const h_ = now.getUTCHours();
+  const h = String(h_ > 12 ? h_ - 12 : h_).padStart(2, "0");
+  const m = String(now.getUTCMinutes()).padStart(2, "0");
+  const s = String(now.getUTCSeconds()).padStart(2, "0");
+  const postFix = h_ > 11 ? "PM" : "AM";
+
+  return `${D}-${M}-${Y} ${h}:${m}:${s} ${postFix}`;
 };
 
 const daysBetween = (startDate, endDate) => {
@@ -954,6 +1061,8 @@ const formatDateToAMPM = (dateTime) => {
   return `${D}-${M}-${Y.slice(2, 4)} ${h}:${m}:${s} ${postFix}`;
 };
 
+const generateApiKey = () => crypto.randomBytes(32).toString("hex");
+
 module.exports = {
   createSearchQuery,
   paginatedQuery,
@@ -962,6 +1071,7 @@ module.exports = {
   getUsernameFromEmail,
   managerExists,
   schoolAccExists,
+  getUserContactInfo,
 
   getCurrentAcademicYear,
   getLibraryVariables,
@@ -982,12 +1092,17 @@ module.exports = {
   validateSchool,
   validateFeeTerms,
   validateClasses,
+  validateSections,
   validateStreams,
   validateBoardingTypes,
   validateBusStops,
+  validateClassByName,
+  validateSectionByName,
+  validateSubjectByName,
 
   getYMD,
   getDDMMYYYY,
+  getDDMMYYYYwithTime,
   daysBetween,
 
   getAngle,
@@ -1000,4 +1115,6 @@ module.exports = {
 
   convUTCTo0530,
   formatDateToAMPM,
+
+  generateApiKey,
 };

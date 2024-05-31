@@ -1,11 +1,149 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("child_process");
+const ftp = require("basic-ftp");
 const { default: axios } = require("axios");
+const UC = require("../utils/common");
+const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
+const { insert_db_loc } = require("./insert");
+const { sendEmail, sendEmailQueue } = require("../tools/email");
+const { sendPushNotification } = require("../tools/push");
+const { sendWhatsapp } = require("../tools/whatsapp_aisensy");
+const mongoose = require("mongoose");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/studentInfo/studentModel");
 const School = require("../models/system/schoolModel");
 const IssueBooks = require("../models/library/issueBookModel");
-const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
-const { insert_db_loc } = require("./insert");
 const User = require("../models/system/userModel");
+const EmailQ = require("../models/queues/emailQueueModel");
+const PushQ = require("../models/queues/pushQueueModel");
+const WhatsAppQ = require("../models/queues/whatsappQueueModel");
+
+const {
+  MONGO_URI,
+  DOMAIN,
+  NAME,
+  DB_BACKUP_EMAILS,
+  DB_BACKUP_FTP_UPLOAD,
+  FTP_HOST,
+  FTP_USER,
+  FTP_PASS,
+  FTP_BACKUP_DIR,
+} = process.env;
+
+const serviceDbBackup = async () => {
+  if (DB_BACKUP_EMAILS === "") return false;
+
+  const backupEmails = DB_BACKUP_EMAILS.split(",");
+
+  if (backupEmails.length === 0) return false;
+
+  const backupFolder = path.join("backup");
+  if (!fs.existsSync(backupFolder)) fs.mkdirSync(backupFolder);
+
+  const FILE_NAME = `db_${UC.getYMD()}.gz`;
+
+  const collections = (await mongoose.connection.listCollections()).map(
+    (ele) => ele.name
+  );
+
+  const collectionsToBackup = collections
+    .filter((ele) => !/device_\d+/.test(ele))
+    .sort();
+
+  const collectionCmds = collectionsToBackup.map((c) => `--collection=${c}`);
+
+  // Run the mongodump command
+  const result = spawnSync("mongodump", [
+    `--uri=${MONGO_URI}`,
+    `--archive=./backup/${FILE_NAME}`,
+    ...collectionCmds,
+    "--gzip",
+  ]);
+
+  if (result.error) {
+    UC.writeLog("DB_BACKUP", `spawnSync.error: ${result.error}`);
+
+    return false;
+  }
+
+  if (result.stdout.byteLength) {
+    UC.writeLog("DB_BACKUP", `stdout:\n${result.stdout.toString("ascii")}`);
+  }
+
+  if (result.stderr.byteLength) {
+    UC.writeLog("DB_BACKUP", `stderr:\n${result.stderr.toString("ascii")}`);
+  }
+
+  if (result.status !== 0) {
+    UC.writeLog(
+      "DB_BACKUP",
+      `Database backup is unsuccessful | spawnSync.status ${result.status}`
+    );
+
+    // Send file via email
+    const templatePath = path.join("templates", "db-backup-email-failure.html");
+    const html = fs
+      .readFileSync(templatePath, "utf8")
+      .replace("{{company}}", NAME)
+      .replace("{{year}}", new Date().getFullYear());
+
+    await sendEmailQueue(
+      backupEmails,
+      `${NAME}: Database Backup Failed`,
+      "",
+      html
+    );
+
+    return false;
+  }
+
+  UC.writeLog("DB_BACKUP", "Database backup is successful ✅.\n");
+
+  // Send file to ftp
+  let isUploadedToFTP = false;
+  if (DB_BACKUP_FTP_UPLOAD === "true") {
+    const client = new ftp.Client();
+
+    try {
+      await client.access({
+        host: FTP_HOST,
+        user: FTP_USER,
+        password: FTP_PASS,
+        secure: false,
+      });
+
+      const localFilePath = path.join("backup", FILE_NAME);
+
+      await client.uploadFrom(localFilePath, FTP_BACKUP_DIR + FILE_NAME);
+
+      isUploadedToFTP = true;
+
+      UC.writeLog("DB_BACKUP", "Database backup uploaded to FTP\n");
+    } catch (err) {
+      UC.writeLog("DB_BACKUP", `Error uploading backup to FTP: ${err.message}`);
+      console.error("Error uploading file:", err);
+    } finally {
+      client.close();
+    }
+  }
+
+  // Send file via email
+  const templatePath = path.join("templates", "db-backup-email-success.html");
+  const html = fs
+    .readFileSync(templatePath, "utf8")
+    .replace("{{company}}", NAME)
+    .replace("{{year}}", new Date().getFullYear());
+
+  await sendEmailQueue(
+    backupEmails,
+    `${NAME}: Database Backup Successful`,
+    "",
+    html
+  );
+
+  return true;
+};
 
 const serviceClearHistory = async () => {
   const days = parseInt(process.env.HISTORY_PERIOD);
@@ -111,10 +249,104 @@ const serviceCalculateOverdueAndApplyFine = async () => {
   }
 };
 
+const serviceEmailQueue = async () => {
+  console.log("*****serviceEmailQueue() START*****");
+  const emailQ = await EmailQ.find({ sending: false })
+    .sort("-dt")
+    .limit(100)
+    .lean();
+
+  const ids = emailQ.map((ele) => ele._id);
+
+  await EmailQ.updateMany({ _id: ids }, { $set: { sending: true } });
+
+  const sent = [];
+  for (const eq of emailQ) {
+    const result = await sendEmail(
+      eq.to,
+      eq.subject,
+      eq.text,
+      eq.html,
+      eq.attachments
+    );
+
+    if (result) sent.push(eq._id);
+    else await EmailQ.updateOne({ _id: eq._id }, { $set: { sending: false } });
+  }
+
+  await EmailQ.deleteMany({ _id: sent });
+};
+
+const servicePushQueue = async () => {
+  console.log("*****servicePushQueue() START*****");
+  const pushQ = await PushQ.find({ sending: false })
+    .sort("-dt")
+    .limit(100)
+    .lean();
+
+  const ids = pushQ.map((ele) => ele._id);
+
+  await PushQ.updateMany({ _id: ids }, { $set: { sending: true } });
+
+  const sent = [];
+  for (const p of pushQ) {
+    const result = await sendPushNotification(
+      p.receivers,
+      p.title,
+      p.msg,
+      p.media,
+      p.sound
+    );
+
+    if (result) sent.push(p._id);
+    else await PushQ.updateOne({ _id: p._id }, { $set: { sending: true } });
+  }
+
+  await PushQ.deleteMany({ _id: sent });
+};
+
+const serviceWhatsappQueue = async () => {
+  console.log("*****serviceWhatsappQueue() START*****");
+  const whatsappQ = await WhatsAppQ.find({ sending: false })
+    .sort("-dt")
+    .limit(100)
+    .lean();
+
+  const ids = whatsappQ.map((ele) => ele._id);
+
+  await WhatsAppQ.updateMany({ _id: ids }, { $set: { sending: true } });
+
+  const sent = [];
+  for (const wq of whatsappQ) {
+    for (const destination of wq.destinations) {
+      const result = await sendWhatsapp(
+        wq.campaignName,
+        destination,
+        wq.templateParams,
+        wq.media
+      );
+
+      if (result) sent.push(wq._id);
+      else {
+        await WhatsAppQ.updateOne(
+          { _id: wq._id },
+          { $set: { sending: false } }
+        );
+      }
+    }
+  }
+
+  await WhatsAppQ.deleteMany({ _id: sent });
+};
+
 module.exports = {
+  serviceDbBackup,
   serviceClearHistory,
   serviceResetAlternateBus,
   serviceResetCurrAcademicYear,
   serviceInsertData,
   serviceCalculateOverdueAndApplyFine,
+  serviceEmailQueue,
+  servicePushQueue,
+  serviceWhatsappQueue,
 };

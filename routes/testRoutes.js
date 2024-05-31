@@ -3,6 +3,7 @@ const asyncHandler = require("express-async-handler");
 const UC = require("../utils/common");
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const RazorpayPayment = require("../models/fees/razorPayModel");
 const { bulkImportUpload } = require("../middlewares/multerMiddleware");
 const BusStaff = require("../models/transport/busStaffModel");
@@ -50,8 +51,6 @@ router.post(
     const fileData = UC.excelToJson(req.file.path);
     fs.unlinkSync(req.file.path);
 
-    // return res.json(fileData);
-
     const baseDate = new Date("30-12-1899T00:00:00Z");
 
     const classes = await Class.find().lean();
@@ -65,6 +64,11 @@ router.post(
     const students = [];
     let i = 1;
     for (const row of fileData) {
+      if (!row["Admission No"]) {
+        res.status(400);
+        throw new Error("Admission No not found at row: " + i);
+      }
+
       if (row["Mobile No."]) {
         row["Mobile No."] = row["Mobile No."]
           .toString()
@@ -93,9 +97,9 @@ router.post(
 
       let subward = subwards.find((sw) => sw.name === "NA");
 
-      const bus_pick = buses.find((b) => b.name === row["Bus No."]);
+      const bus_pick = buses.find((b) => b.name === String(row["Bus No."]));
 
-      const bus_drop = buses.find((b) => b.name === row["Bus No."]);
+      const bus_drop = buses.find((b) => b.name === String(row["Bus No."]));
 
       const busStop = busStops.find((bs) => bs.name === row["Stoppage"]);
 
@@ -104,12 +108,21 @@ router.post(
           ? row["Admission No"].replace("/", "") + "@email.com"
           : row["Email ID"];
 
-      if (!isEmailValid(email)) console.log(email);
+      if (!isEmailValid(email)) {
+        res.status(400);
+        throw new Error(`Invalid email: ${email}`);
+      }
 
       const doa = new Date(row["Adm. Date"] + "T00:00:00Z");
       if (isNaN(doa)) {
         console.log(i);
         console.log(row["Adm. Date"] + "T00:00:00Z");
+      }
+
+      let address = row["Address"];
+
+      if (!address.toLowerCase().includes("ranchi")) {
+        address = address + ", RANCHI";
       }
 
       const student = {
@@ -147,8 +160,8 @@ router.post(
         dob: new Date(row["Date of Birth"] + "T00:00:00Z"),
         age: row.age,
         address: {
-          permanent: row["Address"],
-          correspondence: row["Address"],
+          permanent: address,
+          correspondence: address,
         },
         religion: row["Religion"],
         cast: row.cast === "GENERAL" ? "GEN" : row.cast,
@@ -189,33 +202,67 @@ router.post(
         handicapped: row.handicapped === "Yes",
         email,
         photo: row["Admission No"].replace("/", "") + ".jpg",
-        rfid: i++,
+        rfid: crypto.randomBytes(10).toString("hex"),
         academic_year: "664dc3cb044fbd5fd1e67332",
         school: "664dc175e6ef06e8a50ff69b",
       };
 
       students.push(student);
+
+      i++;
     }
 
-    const student = await Student.create(students);
+    for (const stuData of students) {
+      if (await Student.any({ admission_no: stuData.admission_no })) {
+        await Student.updateOne(
+          { admission_no: stuData.admission_no },
+          { $set: stuData }
+        );
+      } else await Student.create(stuData);
+    }
 
-    res.json(student);
+    res.json(students);
   })
 );
 
 router.post(
   "/3",
   asyncHandler(async (req, res) => {
-    const parents = await User.find({ type: "parent" }).select("phone").lean();
+    const ftp = require("basic-ftp");
+    const {
+      MONGO_URI,
+      NAME,
+      DB_BACKUP_EMAIL,
+      DB_BACKUP_FTP_UPLOAD,
+      FTP_HOST,
+      FTP_USER,
+      FTP_PASS,
+      FTP_BACKUP_DIR,
+    } = process.env;
+    const client = new ftp.Client();
 
-    for (const parent of parents) {
-      await Student.updateMany(
-        { phone: parent.phone },
-        { $set: { parent: parent._id } }
+    try {
+      const x = await client.access({
+        host: FTP_HOST,
+        user: FTP_USER,
+        password: FTP_PASS,
+        secure: false,
+      });
+
+      const localFilePath = path.join("backup", FILE_NAME);
+
+      const result = await client.uploadFrom(
+        localFilePath,
+        FTP_BACKUP_DIR + FILE_NAME
       );
-    }
 
-    res.json({ msg: "success" });
+      isUploadedToFTP = true;
+    } catch (err) {
+      console.error("Error uploading file:", err);
+    } finally {
+      client.close();
+    }
+    res.send("OK");
   })
 );
 

@@ -10,6 +10,8 @@ const Student = require("../models/studentInfo/studentModel");
 const AcademicYear = require("../models/academics/academicYearModel");
 
 const bcrypt = require("bcrypt");
+const WhatsappCoinTransaction = require("../models/system/whatsappCoinTransactionModel");
+const { credit } = require("../tools/whatsapp_coin");
 
 const init = asyncHandler(async (req, res) => {
   const key = req.body.key;
@@ -648,6 +650,77 @@ const deleteSchool = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Add whatsapp coins
+// @route   POST /api/system/whatsapp-coin/add
+// @access  Private
+const addWhatsappCoins = asyncHandler(async (req, res) => {
+  if (!C.isAdmins(req.user.type)) {
+    res.status(403);
+    throw new Error(C.ACCESS_DENIED);
+  }
+
+  if (!req.body.coins) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("coins"));
+  }
+
+  const result = await credit(req.body.coins);
+
+  res.status(200).json({ success: result });
+});
+
+// @desc    Get whatsapp coin transactions
+// @route   POST /api/system/whatsapp-coin/transaction
+// @access  Private
+const getWhatsappCoinTransactions = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "-createdAt";
+  const dtFrom = req.body.from;
+  const dtTo = req.body.to;
+
+  if (!dtFrom) {
+    res.status(400);
+    throw new Error("from is required!");
+  }
+
+  if (!dtTo) {
+    res.status(400);
+    throw new Error("to is required!");
+  }
+
+  const query = {
+    createdAt: {
+      $gte: new Date(dtFrom),
+      $lte: new Date(dtTo).setUTCHours(23, 59, 59, 999),
+    },
+  };
+
+  const results = await UC.paginatedQuery(
+    WhatsappCoinTransaction,
+    query,
+    {},
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: "Page limit exceeded!" });
+
+  const passbook = [];
+  for (const txn of results.result) {
+    passbook.push({
+      date: UC.getDDMMYYYYwithTime(txn.createdAt),
+      [txn.mode]: txn.coins.amount,
+      balance: txn.coins.final,
+    });
+  }
+
+  results.result = passbook;
+
+  return res.status(200).json(results);
+});
+
 module.exports = {
   init,
 
@@ -671,4 +744,7 @@ module.exports = {
   addSchool,
   updateSchool,
   deleteSchool,
+
+  addWhatsappCoins,
+  getWhatsappCoinTransactions,
 };

@@ -1,8 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
-const AcademicYear = require("../models/academics/academicYearModel");
-const User = require("../models/system/userModel");
 const FeeGroup = require("../models/fees/feeGroupModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const FeeTerm = require("../models/fees/feeTermModel");
@@ -13,7 +11,6 @@ const FeeStructure = require("../models/fees/feeStructureModel");
 const FeeFine = require("../models/fees/feeFineModel");
 const FeeConcession = require("../models/fees/feeConcessionModel");
 const Student = require("../models/studentInfo/studentModel");
-const Stream = require("../models/academics/streamModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const FeePayment = require("../models/fees/feePaidModel");
@@ -29,7 +26,7 @@ const getFeeGroups = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const query = {};
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["name"];
@@ -72,8 +69,6 @@ const getFeeGroup = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-group
 // @access  Private
 const addFeeGroup = asyncHandler(async (req, res) => {
-  
-
   const feeGroup = await FeeGroup.create({
     name: req.body.name,
     description: req.body.desc,
@@ -136,7 +131,7 @@ const getFeeTypes = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const query = {};
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["name"];
@@ -179,7 +174,6 @@ const getFeeType = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-type
 // @access  Private
 const addFeeType = asyncHandler(async (req, res) => {
-  
   const feeGroup = req.body.group;
 
   // Validate FeeGroup
@@ -272,7 +266,7 @@ const getFeeTerms = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "year start_month";
   const search = req.query.search;
 
-  const query = {};
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["name"];
@@ -317,7 +311,6 @@ const getFeeTerm = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-term
 // @access  Private
 const addFeeTerm = asyncHandler(async (req, res) => {
-  
   const year = req.body.year;
 
   // Validate Year
@@ -463,146 +456,6 @@ const deleteFeeTerm = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
-/** 4. Fee Head */
-
-// @desc    Get all fee-heads
-// @route   GET /api/fee/fee-head
-// @access  Private
-const getFeeHeads = asyncHandler(async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "name";
-  const search = req.query.search;
-
-  const query = {};
-
-  if (search) {
-    const fields = ["name"];
-
-    const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
-  }
-
-  const results = await UC.paginatedQuery(
-    FeeHead,
-    query,
-    {},
-    page,
-    limit,
-    sort
-  );
-
-  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
-
-  res.status(200).json(results);
-});
-
-// @desc    Get a fee-head
-// @route   GET /api/fee/fee-head/:id
-// @access  Private
-const getFeeHead = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
-
-  const feeHead = await FeeHead.findOne(query).lean();
-
-  if (!feeHead) {
-    res.status(404);
-    throw new Error(C.getResourse404Id("FeeHead", req.params.id));
-  }
-
-  res.status(200).json(feeHead);
-});
-
-// @desc    Add a fee-head
-// @route   POST /api/fee/fee-head
-// @access  Private
-const addFeeHead = asyncHandler(async (req, res) => {
-  const feeType = req.body.fee_type;
-  const ayear = req.body.ayear;
-
-  // Validate FeeType
-  if (!feeType) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("feeType"));
-  }
-
-  if (!(await FeeType.any({ _id: feeType, manager, school }))) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("type", feeType));
-  }
-
-  const feeHead = await FeeHead.create({
-    name: req.body.name,
-    alias: req.body.alias,
-    fee_type: feeType,
-    ledger: req.body.ledger,
-    academic_year: req.ayear,
-    manager,
-    school: req.school,
-  });
-
-  res.status(201).json({ msg: feeHead._id });
-});
-
-// @desc    Update a fee-head
-// @route   PUT /api/fee/fee-head/:id
-// @access  Private
-const updateFeeHead = asyncHandler(async (req, res) => {
-  const feeType = req.body.type;
-
-  const query = { _id: req.params.id };
-
-  if (feeType) {
-    if (!(await FeeType.any({ _id: feeType, manager, school }))) {
-      res.status(400);
-      throw new Error(C.getResourse404Id("type", feeType));
-    }
-  }
-
-  const result = await FeeHead.updateOne(query, {
-    $set: {
-      name: req.body.name,
-      alias: req.body.alias,
-      fee_type: feeType,
-      ledger: req.body.ledger,
-    },
-  });
-
-  res.status(200).json(result);
-});
-
-// @desc    Delete a fee-head
-// @route   DELETE /api/fee/fee-head/:id
-// @access  Private
-const deleteFeeHead = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
-
-  if (C.isSchool(req.user.type)) {
-    query.school = req.user._id;
-    query.manager = req.user.manager;
-  }
-
-  if (C.isManager(req.user.type)) {
-    query.manager = req.user._id;
-  }
-
-  const feeHead = await FeeHead.findOne(query).select("_id").lean();
-
-  if (!feeHead) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("FeeHead", req.params.id));
-  }
-
-  if (await Class.any({ feeHead: feeHead._id })) {
-    res.status(400);
-    throw new Error(C.getUnableToDel("FeeHead", "Class"));
-  }
-
-  const result = await FeeHead.deleteOne(query);
-
-  res.status(200).json(result);
-});
-
 /** 5. Fee Structure */
 
 // @desc    Get all fee-structures
@@ -614,7 +467,7 @@ const getFeeStructures = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const query = {};
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["name"];
@@ -661,13 +514,11 @@ const getFeeStructure = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-structure
 // @access  Private
 const addFeeStructure = asyncHandler(async (req, res) => {
-  
-
   const feeTypes = req.body.fee_types;
 
-  const feeTerms = await UC.validateFeeTerms(req.body.fee_terms);
-  const classes = await UC.validateClasses(req.body.classes);
-  const streams = await UC.validateStreams(req.body.streams);
+  const feeTerms = await UC.validateFeeTerms(req.body.fee_terms, req.ayear);
+  const classes = await UC.validateClasses(req.body.classes, req.ayear);
+  const streams = await UC.validateStreams(req.body.streams, req.ayear);
 
   // Validate feeTypes
   if (!feeTypes || feeTypes.length == 0) {
@@ -859,7 +710,7 @@ const getFeeFines = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const query = {};
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["name"];
@@ -905,10 +756,8 @@ const getFeeFine = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-fine
 // @access  Private
 const addFeeFine = asyncHandler(async (req, res) => {
-  
-
-  const classes = await UC.validateClasses(req.body.classes);
-  const feeTerms = await UC.validateFeeTerms(req.body.fee_terms);
+  const classes = await UC.validateClasses(req.body.classes, req.ayear);
+  const feeTerms = await UC.validateFeeTerms(req.body.fee_terms, req.ayear);
   const boardingTypes = await UC.validateBoardingTypes(req.body.boarding_types);
 
   const feeFines = [];
@@ -1034,7 +883,7 @@ const getFeeConcessions = asyncHandler(async (req, res) => {
   const sort = req.query.sort || "name";
   const search = req.query.search;
 
-  const query = {};
+  const query = { academic_year: req.ayear };
 
   if (search) {
     const fields = ["name"];
@@ -1078,8 +927,6 @@ const getFeeConcession = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/fee-concession
 // @access  Private
 const addFeeConcession = asyncHandler(async (req, res) => {
-  
-
   // Validate subward
   if (!req.body.subward) {
     res.status(400);
@@ -1112,7 +959,7 @@ const addFeeConcession = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("class", req.body.class));
   }
 
-  const feeTerms = await UC.validateFeeTerms(req.body.fee_terms);
+  const feeTerms = await UC.validateFeeTerms(req.body.fee_terms, req.ayear);
 
   // Validate fee_types
   if (!req.body.fee_types || req.body.fee_types.length === 0) {
@@ -1264,7 +1111,6 @@ const deleteFeeConcession = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/calculate
 // @access  Private
 const calculateFees = asyncHandler(async (req, res) => {
-  
   const admNo = req.body.adm_no;
 
   if (!admNo) {
@@ -1333,7 +1179,6 @@ const calculateFees = asyncHandler(async (req, res) => {
 // @route   POST /api/fee/collect-fee
 // @access  Private
 const collectFee = asyncHandler(async (req, res) => {
-  
   const admNo = req.body.adm_no;
   const fee_terms = req.body.fee_terms;
 
@@ -1522,12 +1367,6 @@ module.exports = {
   addFeeTerm,
   updateFeeTerm,
   deleteFeeTerm,
-
-  getFeeHeads,
-  getFeeHead,
-  addFeeHead,
-  updateFeeHead,
-  deleteFeeHead,
 
   getFeeStructures,
   getFeeStructure,

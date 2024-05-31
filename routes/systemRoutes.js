@@ -41,8 +41,15 @@ schoolRouter
   .patch(SC.updateSchool)
   .delete(SC.deleteSchool);
 
+// 4. School Routes
+const whatsappCoinRouter = express.Router();
+
+whatsappCoinRouter.post("/add", SC.addWhatsappCoins);
+whatsappCoinRouter.post("/transaction", SC.getWhatsappCoinTransactions);
+
 systemRouter.use("/template-privilege", templatePrivilegeRouter);
 systemRouter.use("/user", userRouter);
 systemRouter.use("/school", schoolRouter);
+systemRouter.use("/whatsapp-coin", whatsappCoinRouter);
 
 module.exports = systemRouter;

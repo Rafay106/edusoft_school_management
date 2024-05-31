@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const C = require("../../constants");
+const UC = require("../../utils/common");
 const { isEmailValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
@@ -292,6 +293,7 @@ const schema = new mongoose.Schema(
       },
     },
     privileges: { type: privilegesSchema, required },
+    api_key: { type: String, default: UC.generateApiKey },
     school: { type: ObjectId, ref: "schools" },
     current_academic_year: { type: ObjectId, ref: "academic_years" },
   },
