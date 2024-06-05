@@ -3,8 +3,9 @@ const asyncHandler = require("express-async-handler");
 const UC = require("../utils/common");
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const RazorpayPayment = require("../models/fees/razorPayModel");
-const { bulkImportUpload } = require("../middlewares/multerMiddleware");
+const { upload } = require("../middlewares/multerMiddleware");
 const BusStaff = require("../models/transport/busStaffModel");
 const BusStop = require("../models/transport/busStopModel");
 const Bus = require("../models/transport/busModel");
@@ -20,6 +21,8 @@ const FeeTerm = require("../models/fees/feeTermModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const Stream = require("../models/academics/streamModel");
 const { isEmailValid } = require("../utils/validators");
+const School = require("../models/system/schoolModel");
+const uploadPaths = require("../config/uploadPaths");
 
 router.post(
   "/1",
@@ -45,12 +48,10 @@ router.post(
 
 router.post(
   "/2",
-  bulkImportUpload.single("file"),
+  upload(uploadPaths.bulk_import).single("file"),
   asyncHandler(async (req, res) => {
     const fileData = UC.excelToJson(req.file.path);
     fs.unlinkSync(req.file.path);
-
-    // return res.json(fileData);
 
     const baseDate = new Date("30-12-1899T00:00:00Z");
 
@@ -65,6 +66,11 @@ router.post(
     const students = [];
     let i = 1;
     for (const row of fileData) {
+      if (!row["Admission No"]) {
+        res.status(400);
+        throw new Error("Admission No not found at row: " + i);
+      }
+
       if (row["Mobile No."]) {
         row["Mobile No."] = row["Mobile No."]
           .toString()
@@ -93,9 +99,9 @@ router.post(
 
       let subward = subwards.find((sw) => sw.name === "NA");
 
-      const bus_pick = buses.find((b) => b.name === row["Bus No."]);
+      const bus_pick = buses.find((b) => b.name === String(row["Bus No."]));
 
-      const bus_drop = buses.find((b) => b.name === row["Bus No."]);
+      const bus_drop = buses.find((b) => b.name === String(row["Bus No."]));
 
       const busStop = busStops.find((bs) => bs.name === row["Stoppage"]);
 
@@ -104,12 +110,21 @@ router.post(
           ? row["Admission No"].replace("/", "") + "@email.com"
           : row["Email ID"];
 
-      if (!isEmailValid(email)) console.log(email);
+      if (!isEmailValid(email)) {
+        res.status(400);
+        throw new Error(`Invalid email: ${email}`);
+      }
 
       const doa = new Date(row["Adm. Date"] + "T00:00:00Z");
       if (isNaN(doa)) {
         console.log(i);
         console.log(row["Adm. Date"] + "T00:00:00Z");
+      }
+
+      let address = row["Address"];
+
+      if (!address.toLowerCase().includes("ranchi")) {
+        address = address + ", RANCHI";
       }
 
       const student = {
@@ -147,8 +162,8 @@ router.post(
         dob: new Date(row["Date of Birth"] + "T00:00:00Z"),
         age: row.age,
         address: {
-          permanent: row["Address"],
-          correspondence: row["Address"],
+          permanent: address,
+          correspondence: address,
         },
         religion: row["Religion"],
         cast: row.cast === "GENERAL" ? "GEN" : row.cast,
@@ -189,41 +204,37 @@ router.post(
         handicapped: row.handicapped === "Yes",
         email,
         photo: row["Admission No"].replace("/", "") + ".jpg",
-        rfid: i++,
+        rfid: crypto.randomBytes(10).toString("hex"),
         academic_year: "664dc3cb044fbd5fd1e67332",
         school: "664dc175e6ef06e8a50ff69b",
       };
 
       students.push(student);
+
+      i++;
     }
 
-    const student = await Student.create(students);
+    for (const stuData of students) {
+      if (await Student.any({ admission_no: stuData.admission_no })) {
+        await Student.updateOne(
+          { admission_no: stuData.admission_no },
+          { $set: stuData }
+        );
+      } else await Student.create(stuData);
+    }
 
-    res.json(student);
+    res.json(students);
   })
 );
 
 router.post(
   "/3",
   asyncHandler(async (req, res) => {
-    const parents = await User.find({ type: "parent" }).select("phone").lean();
+    const file1 = path.join("data", "imports", "bus_with_stops.xlsx");
 
-    for (const parent of parents) {
-      await Student.updateMany(
-        { phone: parent.phone },
-        { $set: { parent: parent._id } }
-      );
-    }
+    const fileData = UC.excelToJson(file1);
 
-    res.json({ msg: "success" });
-  })
-);
-
-router.post(
-  "/4",
-  bulkImportUpload.single("file"),
-  asyncHandler(async (req, res) => {
-    res.json({ msg: "OK" });
+    res.json({ fileData });
   })
 );
 

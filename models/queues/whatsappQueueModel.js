@@ -7,8 +7,14 @@ const required = [true, C.FIELD_IS_REQ];
 const schema = new mongoose.Schema(
   {
     dt: { type: Date, default: new Date() },
-    body: { type: String, required },
-    receivers: [String],
+    sending: { type: Boolean, default: false },
+    campaignName: { type: String, required },
+    destinations: [String],
+    templateParams: [String],
+    media: {
+      url: { type: String, default: "" },
+      filename: { type: String, default: "" },
+    },
   },
   { versionKey: false }
 );

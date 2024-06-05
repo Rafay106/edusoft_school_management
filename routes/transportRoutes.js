@@ -1,10 +1,12 @@
+const path = require("node:path");
 const express = require("express");
 const {
-  memoryUpload,
-  busStaffPhotoUpload,
   bulkImportUpload,
+  photoUpload,
+  uploadExcel,
 } = require("../middlewares/multerMiddleware");
 const TC = require("../controllers/transportController");
+const uploadPaths = require("../config/uploadPaths");
 
 const transportRouter = express.Router();
 
@@ -14,19 +16,27 @@ const busStaffRouter = express.Router();
 busStaffRouter
   .route("/")
   .get(TC.getBusStaffs)
-  .post(busStaffPhotoUpload.single("photo"), TC.addBusStaff);
-
+  .post(photoUpload(uploadPaths.bus_staff).single("photo"), TC.addBusStaff);
+busStaffRouter.post(
+  "/bulk",
+  uploadExcel(uploadPaths.bulk_import).single("file"),
+  TC.bulkOpsBusStaff
+);
 busStaffRouter
   .route("/:id")
   .get(TC.getBusStaff)
-  .patch(busStaffPhotoUpload.single("photo"), TC.updateBusStaff)
+  .patch(photoUpload(uploadPaths.bus_staff).single("photo"), TC.updateBusStaff)
   .delete(TC.deleteBusStaff);
 
 // 2. BusStop Routes
 const busStopRouter = express.Router();
 
 busStopRouter.route("/").get(TC.getBusStops).post(TC.addBusStop);
-busStopRouter.post("/bulk", bulkImportUpload.single("file"), TC.bulkOpsBusStop);
+busStopRouter.post(
+  "/bulk",
+  uploadExcel(uploadPaths.bulk_import).single("file"),
+  TC.bulkOpsBusStop
+);
 busStopRouter
   .route("/:id")
   .get(TC.getBusStop)
@@ -37,13 +47,17 @@ busStopRouter
 const busRouter = express.Router();
 
 busRouter.route("/").get(TC.getBuses).post(TC.addBus);
+busRouter.post(
+  "/bulk",
+  uploadExcel(uploadPaths.bulk_import).single("file"),
+  TC.bulkOpsBus
+);
 busRouter.post("/track", TC.trackBus);
 busRouter.post("/status", TC.getBusStatus);
 busRouter.post("/set-alternate", TC.setAlternateBus);
 busRouter.post("/unset-alternate", TC.unsetAlternateBus);
 busRouter.post("/switch", TC.switchBus);
 busRouter.route("/:id").get(TC.getBus).patch(TC.updateBus).delete(TC.deleteBus);
-busRouter.post("/bulk", bulkImportUpload.single("file"), TC.bulkOpsBus);
 
 transportRouter.use("/bus-staff", busStaffRouter);
 transportRouter.use("/bus-stop", busStopRouter);

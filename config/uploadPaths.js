@@ -1,0 +1,12 @@
+const path = require("node:path");
+
+const uploadPaths = {
+  bus_staff: path.join("static", "uploads", "bus_staff"),
+  bulk_import: path.join("data", "bulk_imports"),
+  homework: path.join("static", "uploads", "homework"),
+  notice: path.join("static", "uploads", "notice"),
+  student: path.join("static", "uploads", "student"),
+  staff: path.join("static", "uploads", "staff"),
+};
+
+module.exports = uploadPaths;

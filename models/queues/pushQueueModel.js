@@ -7,7 +7,17 @@ const required = [true, C.FIELD_IS_REQ];
 const schema = new mongoose.Schema(
   {
     dt: { type: Date, default: new Date() },
+    sending: { type: Boolean, default: false },
+    title: { type: String, required },
     msg: { type: String, required },
+    media: {
+      app: { type: String, default: "" },
+      web: { type: String, default: "" },
+    },
+    sound: {
+      android: { type: String, default: "" },
+      ios: { type: String, default: "" },
+    },
     receivers: [String],
   },
   { versionKey: false }

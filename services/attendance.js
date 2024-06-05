@@ -40,7 +40,7 @@ const checkStuBusAttendance = async (loc) => {
     }
 
     const school = await School.findOne({ school: student.school })
-      .select("name lat lon radius address timings")
+      .select("name lat lon radius address morning_attendance_end")
       .lean();
 
     if (!school) {
@@ -59,11 +59,10 @@ const checkStuBusAttendance = async (loc) => {
       return false;
     }
 
-    const morningTime = school.timings.morning;
     let busToFetch;
     let assignedBus = student.bus_drop._id;
 
-    if (isMorningTime(loc.dt_tracker, morningTime)) {
+    if (isMorningTime(loc.dt_tracker, school.morning_attendance_end)) {
       if (student.bus_pick?.temp_device?.enabled) {
         busToFetch = student.bus_pick?.temp_device?.bus;
       } else busToFetch = student.bus_pick._id;
@@ -125,9 +124,9 @@ const checkStuBusAttendance = async (loc) => {
 };
 
 const checkMorningAttendance = async (loc, student, school, bus) => {
-  const morningTime = school.timings.morning;
-
-  if (!isMorningTime(loc.dt_tracker, morningTime)) return false;
+  if (!isMorningTime(loc.dt_tracker, school.morning_attendance_end)) {
+    return false;
+  }
 
   // Check if attendance already taken
   let isMEntryTaken = false;
@@ -147,7 +146,7 @@ const checkMorningAttendance = async (loc, student, school, bus) => {
   const skul = school;
   if (isPointInCircle(loc.lat, loc.lon, skul.lat, skul.lon, skul.radius)) {
     if (!isMExitTaken) {
-      await takeAttendance(loc, student, C.M_EXIT, school.timings, school);
+      await takeAttendance(loc, student, C.M_EXIT, school);
       return true;
     } else return false;
   }
@@ -159,27 +158,27 @@ const checkMorningAttendance = async (loc, student, school, bus) => {
 
   // if rfid came from student bus_stop then student boarded bus for school
   if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, radius)) {
-    await takeAttendance(loc, student, C.M_ENTRY, school.timings, bs);
+    await takeAttendance(loc, student, C.M_ENTRY, school, bs);
     return true;
   }
 
   // if not then check for remaining stops
   for (const stop of bus.stops) {
     if (isPointInCircle(loc.lat, loc.lon, stop.lat, stop.lon, radius)) {
-      await takeAttendance(loc, student, C.M_ENTRY, school.timings, stop);
+      await takeAttendance(loc, student, C.M_ENTRY, school, stop);
       return true;
     }
   }
 
   // if not then morning attendance came from location except stops and school
-  await takeAttendance(loc, student, C.M_ENTRY, school.timings);
+  await takeAttendance(loc, student, C.M_ENTRY, school);
   return true;
 };
 
 const checkAfternoonAttendance = async (loc, student, school, bus) => {
-  const afternoonTime = school.timings.afternoon;
-
-  if (!isAfternoonTime(loc.dt_tracker, afternoonTime)) return false;
+  if (isMorningTime(loc.dt_tracker, school.morning_attendance_end)) {
+    return false;
+  }
 
   // Check if attendance already taken
   let isAEntryTaken = false;
@@ -199,7 +198,7 @@ const checkAfternoonAttendance = async (loc, student, school, bus) => {
   const skul = school;
   if (isPointInCircle(loc.lat, loc.lon, skul.lat, skul.lon, skul.radius)) {
     if (!isAEntryTaken) {
-      await takeAttendance(loc, student, C.A_ENTRY, school.timings, school);
+      await takeAttendance(loc, student, C.A_ENTRY, school);
       return true;
     } else return false;
   }
@@ -211,20 +210,20 @@ const checkAfternoonAttendance = async (loc, student, school, bus) => {
 
   // if rfid came from student bus_stop then student dropped at bus stop
   if (isPointInCircle(loc.lat, loc.lon, bs.lat, bs.lon, radius)) {
-    await takeAttendance(loc, student, C.A_EXIT, school.timings, bs);
+    await takeAttendance(loc, student, C.A_EXIT, school, bs);
     return true;
   }
 
   // if not then check for remaining stops
   for (const stop of bus.stops) {
     if (isPointInCircle(loc.lat, loc.lon, stop.lat, stop.lon, radius)) {
-      await takeAttendance(loc, student, C.A_EXIT, school.timings, stop);
+      await takeAttendance(loc, student, C.A_EXIT, school, stop);
       return true;
     }
   }
 
   // if not then morning attendance came from location except stops and school
-  await takeAttendance(loc, student, C.A_EXIT, school.timings);
+  await takeAttendance(loc, student, C.A_EXIT, school);
   return true;
 };
 
@@ -240,19 +239,7 @@ const isMorningTime = (currDT, morningTime) => {
   return false;
 };
 
-const isAfternoonTime = (currDT, afternoonTime) => {
-  currDT = new Date(currDT);
-  afternoonTime = afternoonTime.split(":").map((e) => parseInt(e));
-
-  if (currDT.getUTCHours() > afternoonTime[0]) return true;
-  else if (currDT.getUTCHours() === afternoonTime[0]) {
-    if (currDT.getUTCMinutes() >= afternoonTime[1]) return true;
-  }
-
-  return false;
-};
-
-const takeAttendance = async (loc, student, tag, timings, location = false) => {
+const takeAttendance = async (loc, student, tag, school, location = false) => {
   // Current bus
   const cBus = await Bus.findOne({ "device.imei": loc.imei })
     .select("_id name")
@@ -271,7 +258,7 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
   // Make bus message
   let defaultBus;
 
-  if (isMorningTime(loc.dt_tracker, timings.morning)) {
+  if (isMorningTime(loc.dt_tracker, school.morning_attendance_end)) {
     if (student.bus_pick?.temp_device?.enabled) {
       const tempBus = await Bus.findById(student.bus_pick?.temp_device?.bus)
         .select("name alternate")
@@ -322,9 +309,11 @@ const takeAttendance = async (loc, student, tag, timings, location = false) => {
   if (tag === C.M_ENTRY) {
     msg += ` has entered ${busMsg} from ${stopMsg}`;
   } else if (tag === C.M_EXIT) {
-    msg += ` has arrived ${location.name} from ${busMsg}`;
+    msg += ` has arrived ${school.name} from ${busMsg}`;
+    location = school;
   } else if (tag === C.A_ENTRY) {
-    msg += ` has departed ${location.name} from ${busMsg}`;
+    msg += ` has departed ${school.name} from ${busMsg}`;
+    location = school;
   } else if (tag === C.A_EXIT) {
     msg += ` has exited ${busMsg} on ${stopMsg}`;
   }
@@ -377,5 +366,4 @@ const switchBus = async (oldBusId, newBusId) => {
 module.exports = {
   checkStuBusAttendance,
   isMorningTime,
-  isAfternoonTime,
 };

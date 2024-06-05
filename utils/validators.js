@@ -36,9 +36,15 @@ const isIMEIValid = (imei) => {
   return false;
 };
 
-const isUsernameValid = (imei) => {
-  const regExp = /^[A-Za-z][A-Za-z0-9_]{2,20}$/;
-  if (imei.match(regExp)) return true;
+const isEmailValid = (email) => {
+  if (email === "") return true;
+  else return validator.isEmail(email);
+};
+
+const isUsernameValid = (username) => {
+  const regExp = /^[A-Za-z0-9_]{3,20}$/;
+  if (username.match(regExp)) return true;
+  else if (username === "") return true;
   return false;
 };
 
@@ -53,6 +59,6 @@ module.exports = {
   isAlphaNumeric,
   isIMEIValid,
   isUsernameValid,
-  isEmailValid: validator.isEmail,
+  isEmailValid,
   timeValidator,
 };

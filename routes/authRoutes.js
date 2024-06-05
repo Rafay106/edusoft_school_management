@@ -7,9 +7,12 @@ const { generateToken } = require("../utils/fn_jwt");
 const User = require("../models/system/userModel");
 const Student = require("../models/studentInfo/studentModel");
 const School = require("../models/system/schoolModel");
-const TemplatePrivilege = require("../models/system/templatePrivilegeModel");
+const {
+  TemplatePrivilege,
+} = require("../models/system/templatePrivilegeModel");
+const { isEmailValid } = require("../utils/validators");
 
-// @desc    Register User
+// @desc    Login User
 // @route   POST /api/login
 // @access  Private
 router.post(
@@ -27,12 +30,14 @@ router.post(
       throw new Error(C.getFieldIsReq("password"));
     }
 
-    const user = await User.findOne({ email })
-      .select("name email password phone type school")
-      .populate("school")
-      .lean();
+    if (isEmailValid(email)) {
+      const user = await User.findOne({ email }).select("password type").lean();
 
-    if (user) {
+      if (!user) {
+        res.status(404);
+        throw new Error(`User with email: ${email} not found!`);
+      }
+
       if (!(await bcrypt.compare(password, user.password))) {
         res.status(401);
         throw new Error(C.INVALID_CREDENTIALS);
@@ -47,74 +52,45 @@ router.post(
 
     const admissionNo = email.toUpperCase();
 
-    const parentUser = await User.findOne({ username: admissionNo })
-      .select("email username name phone type school password")
-      .populate("school", "name")
+    const student = await Student.findByAdmNo(admissionNo);
+
+    if (!student) {
+      res.status(404);
+      throw new Error(`Student with admission_no: ${email} not found!`);
+    }
+
+    // return res.json(student);
+
+    const parent = await User.findOne({ username: admissionNo })
+      .select("type password")
       .lean();
 
-    if (parentUser) {
-      if (!(await bcrypt.compare(password, parentUser.password))) {
+    if (parent) {
+      if (!(await bcrypt.compare(password, parent.password))) {
         res.status(401);
         throw new Error(C.INVALID_CREDENTIALS);
       }
 
-      const student = await Student.findOne({ admission_no: admissionNo })
-        .select(
-          "roll_no name email phone photo age class section bus_pick bus_drop"
-        )
-        .populate("class section", "name")
-        .populate("bus_pick bus_drop", "name no_plate")
-        .lean();
+      const token = generateToken(parent._id, parent.password);
 
-      if (!student) {
-        res.status(404);
-        throw new Error(`Student not found with admission_no: ${admissionNo}`);
-      }
+      delete parent.password;
 
-      if (!student.photo) student.photo = "/user-blank.svg";
-
-      const token = generateToken(parentUser._id, parentUser.password);
-
-      delete parentUser.privileges;
-      delete parentUser.password;
-      delete parentUser.__v;
-
-      parentUser.student = student;
-
-      return res.status(200).json({ ...parentUser, ...token });
+      return res.status(200).json({ ...parent, ...token });
     } else {
-      const student = await Student.findOne({ admission_no: admissionNo })
-        .select(
-          "roll_no photo class section bus_pick bus_drop email phone parent"
-        )
-        .populate("class section", "name")
-        .populate("bus_pick bus_drop", "name no_plate")
-        .lean();
-
-      if (!student) {
-        res.status(401);
-        throw new Error(C.INVALID_ADMNO);
-      }
-
       if (student.parent) {
-        const parent = await User.findById(student.parent)
-          .select("email username name phone type school password")
-          .populate("school", "name")
+        const parent_ = await User.findById(student.parent)
+          .select("type password")
           .lean();
 
-        if (parent) {
-          if (!(await bcrypt.compare(password, parent.password))) {
+        if (parent_) {
+          if (!(await bcrypt.compare(password, parent_.password))) {
             res.status(401);
             throw new Error(C.INVALID_CREDENTIALS);
           }
 
           const token = generateToken(parent._id, parent.password);
 
-          delete parent.privileges;
           delete parent.password;
-          delete parent.__v;
-
-          parent.student = student;
 
           return res.status(200).json({ ...parent, ...token });
         }
@@ -124,10 +100,11 @@ router.post(
         type: C.PARENT,
       }).lean();
 
-      const newParentUser = await User.create({
-        email: student.email,
-        password: "123456",
+      const newParent = await User.create({
         name: `${student.name}'s parent`,
+        email: student.email,
+        username: student.admission_no,
+        password: "123456",
         phone: student.phone,
         type: C.PARENT,
         privileges: template.privileges,
@@ -136,50 +113,19 @@ router.post(
 
       await Student.updateOne(
         { _id: student._id },
-        { $set: { parent: newParentUser._id } }
+        { $set: { parent: newParent._id } }
       );
 
-      const token = generateToken(newParentUser._id, newParentUser.password);
+      const token = generateToken(newParent._id, newParent.password);
 
-      const parentObj = {
-        email: newParentUser.email,
-        name: newParentUser.name,
-        phone: newParentUser.phone,
-        type: newParentUser.type,
-        school: newParentUser.school,
+      const result = {
+        _id: newParent._id,
+        type: newParent.type,
+        token: token.token,
       };
 
-      res.status(200).json({ ...parentObj, ...token });
+      res.status(200).json(result);
     }
-  })
-);
-
-// @desc    Register User
-// @route   POST /api/login/parent
-// @access  Private
-router.post(
-  "/parent",
-  asyncHandler(async (req, res) => {
-    const { adm_no: admNo, password } = req.body;
-
-    const student = await Student.findOne({ admission_no: admNo }).lean();
-
-    if (!student) {
-      res.status(401);
-      throw new Error(C.INVALID_CREDENTIALS);
-    }
-
-    if (!(await bcrypt.compare(password, student.password))) {
-      res.status(401);
-      throw new Error(C.INVALID_CREDENTIALS);
-    }
-
-    const token = generateToken(student._id);
-
-    delete student.password;
-    delete student.__v;
-
-    res.status(200).json({ ...student, ...token });
   })
 );
 

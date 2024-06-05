@@ -15,7 +15,10 @@ const schema = new mongoose.Schema(
     name: { type: String, required, uppercase: true },
     doj: { type: Date, required },
     email: { type: String, default: "" },
-    phone: { type: String, required },
+    phone: {
+      primary: { type: String, required },
+      secondary: { type: String, default: "" },
+    },
     photo: { type: String, default: "" },
     driving_license: {
       number: { type: String, default: "", uppercase: true },
@@ -26,7 +29,17 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-schema.index({ phone: 1 }, { unique: true });
+schema.index({ "phone.primary": 1 }, { unique: true });
+schema.index(
+  { "phone.secondary": 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      "phone.secondary": { $exists: true, $gt: "" },
+    },
+  }
+);
+
 schema.plugin(any);
 
 const BusStaff = mongoose.model("transport_bus_staffs", schema);

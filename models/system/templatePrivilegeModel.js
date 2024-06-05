@@ -1,16 +1,110 @@
 const mongoose = require("mongoose");
 const C = require("../../constants");
 
+const required = [true, C.FIELD_IS_REQ];
+
+const crud = {
+  enabled: { type: Boolean, default: false },
+  create: { type: Boolean, default: false },
+  read: { type: Boolean, default: false },
+  update: { type: Boolean, default: false },
+  delete: { type: Boolean, default: false },
+};
+
+const privileges = {
+  system: {
+    enabled: { type: Boolean, default: false },
+    privilege_template: crud,
+    user: crud,
+    school: crud,
+    whatsapp_coin: { enabled: { type: Boolean, default: false } },
+  },
+  util: { enabled: { type: Boolean, default: false } },
+  admin_section: {
+    enabled: { type: Boolean, default: false },
+    id_card: { enabled: { type: Boolean, default: false } },
+  },
+  academics: {
+    enabled: { type: Boolean, default: false },
+    academic_year: crud,
+    section: crud,
+    stream: crud,
+    class: crud,
+    subject: crud,
+    class_routine: crud,
+  },
+  student_info: {
+    enabled: { type: Boolean, default: false },
+    boarding_type: crud,
+    subward: crud,
+    student: {
+      ...crud,
+      bulk_ops: { type: Boolean, default: false },
+      attendance: { type: Boolean, default: false },
+    },
+  },
+  transport: {
+    enabled: { type: Boolean, default: false },
+    bus_staff: crud,
+    bus_stop: { ...crud, bulk_ops: { type: Boolean, default: false } },
+    bus: {
+      ...crud,
+      bulk_ops: { type: Boolean, default: false },
+      set_unset_alternate: { type: Boolean, default: false },
+      track: { type: Boolean, default: false },
+      bus_status: { type: Boolean, default: false },
+    },
+  },
+  fee: {
+    enabled: { type: Boolean, default: false },
+    fee_group: crud,
+    fee_type: crud,
+    fee_term: crud,
+    fee_concession: crud,
+    fee_fine: crud,
+    fee_structure: crud,
+    calculate_fee: { type: Boolean, default: false },
+    collect_fee: { type: Boolean, default: false },
+  },
+  hr: {
+    enabled: { type: Boolean, default: false },
+    department: crud,
+    designation: crud,
+    staff: crud,
+  },
+  parent_util: { enabled: { type: Boolean, default: false } },
+  parent: { enabled: { type: Boolean, default: false } },
+  dashboard: { enabled: { type: Boolean, default: false } },
+  library: {
+    enabled: { type: Boolean, default: false },
+    category: crud,
+    subject: crud,
+    book: crud,
+    book_issued: crud,
+  },
+  homework: { ...crud, evaluation: crud },
+  lesson_plan: {
+    enabled: { type: Boolean, default: false },
+    lesson: crud,
+    topic: crud,
+  },
+  communication: {
+    enabled: { type: Boolean, default: false },
+    noticeboard: { ...crud, bulk_ops: { type: Boolean, default: false } },
+    send_message: { enabled: { type: Boolean, default: false } },
+  },
+  api_key: { enabled: { type: Boolean, default: false } },
+};
+
 const schema = new mongoose.Schema(
   {
     type: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       enum: {
         values: [
           C.SUPERADMIN,
           C.ADMIN,
-          C.MANAGER,
           C.SCHOOL,
           C.TEACHER,
           C.PARENT,
@@ -23,253 +117,7 @@ const schema = new mongoose.Schema(
         message: C.VALUE_NOT_SUP,
       },
     },
-    privileges: {
-      sidebar_manager: { type: Boolean, default: false },
-      dashboard: {
-        no_of_students: { type: Boolean, default: false },
-        no_of_teacher: { type: Boolean, default: false },
-        no_of_parents: { type: Boolean, default: false },
-        no_of_staff: { type: Boolean, default: false },
-        cmiaec: { type: Boolean, default: false }, // Current Month Income And Expenses Chart
-        cyiaec: { type: Boolean, default: false }, // Current Year Income And Expenses Chart
-        notice_board: { type: Boolean, default: false },
-        calender_section: { type: Boolean, default: false },
-        to_do_list: { type: Boolean, default: false },
-      },
-      admin_section: {
-        admission_query: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        visitor_book: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-        },
-        complaint: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-        },
-        postal_receive: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-        },
-        postal_dispatch: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-        },
-        phone_call_log: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        admin_setup: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        student_id_card: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        generate_certificate: { type: Boolean, default: false },
-        generate_id_card: { type: Boolean, default: false },
-      },
-      sutdent_info: {
-        category: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        add: { type: Boolean, default: false },
-        list: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          assign_class: { type: Boolean, default: false },
-          show_all: { type: Boolean, default: false },
-        },
-        multi_class: { type: Boolean, default: false },
-        delete_record: { type: Boolean, default: false },
-        unassign: { type: Boolean, default: false },
-        attendance: { add: { type: Boolean, default: false } },
-        group: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        promote: { add: { type: Boolean, default: false } },
-        disabled: {
-          search: { type: Boolean, default: false },
-          enable: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        subject_wise_attendance: { save: { type: Boolean, default: false } },
-        export: {
-          to_csv: { type: Boolean, default: false },
-          to_pdf: { type: Boolean, default: false },
-        },
-        time_setup: { type: Boolean, default: false },
-      },
-      academics: {
-        optional_subject: { type: Boolean, default: false },
-        section: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        class: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        subjects: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        assign_class_teacher: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        assign_subject: {
-          add: { type: Boolean, default: false },
-          view: { type: Boolean, default: false },
-        },
-        class_room: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        class_routine: {
-          add: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        teacher_class_routine: { type: Boolean, default: false },
-      },
-      download_center: {
-        content_type: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          update: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        content_list: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          update: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          search: { type: Boolean, default: false },
-        },
-        shared_content_list: {
-          add: { type: Boolean, default: false },
-          generate_link: { type: Boolean, default: false },
-        },
-        video_list: {
-          add: { type: Boolean, default: false },
-          update: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          search: { type: Boolean, default: false },
-        },
-      },
-      study_material: {
-        upload_content: {
-          add: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-        },
-        assignment: {
-          edit: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        syllabus: {
-          edit: { type: Boolean, default: false },
-          download: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        other_downloads: {
-          download: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-        },
-      },
-      lesson_plan: {
-        lesson: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        topic: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-        },
-        topic_overview: { type: Boolean, default: false },
-        lesson_plan: {
-          add: { type: Boolean, default: false },
-          edit: { type: Boolean, default: false },
-          delete: { type: Boolean, default: false },
-          view: { type: Boolean, default: false },
-        },
-        my_lesson_plan: { type: Boolean, default: false },
-        my_lesson_plan_overview: { type: Boolean, default: false },
-        lesson_plan_overview: { type: Boolean, default: false },
-      },
-      fees_settings: {
-        fee_invoic_settings: {
-          update: { type: Boolean, default: false },
-        },
-      },
-      exam_settings: {
-        format_settings: { type: Boolean, default: false },
-        setup_exam_rule: { type: Boolean, default: false },
-        position_setup: { type: Boolean, default: false },
-        all_exam_position: { type: Boolean, default: false },
-        exam_signature_settings: { type: Boolean, default: false },
-        admit_card_setting: { type: Boolean, default: false },
-        seat_plan_setting: { type: Boolean, default: false },
-      },
-      student_report: {},
-      exam_report: {},
-      staff_report: {},
-      fees_report: {},
-      accounts_report: {},
-      fees: {},
-      wallet: {},
-      bulk_print: {},
-      accounts: {},
-      human_resource: {},
-      leave: {},
-      teacher_evaluation: {},
-      custom_field: {},
-      chat: {},
-      examination: {},
-      exam_plan: {},
-      online_exam: {},
-      behaviour_records: {},
-      homework: {},
-      communicate: {},
-      library: {},
-      inventory: {},
-      transport: {},
-      dormitory: {},
-      role_and_permissions: {},
-      general_settings: {},
-      style: {},
-      frontend_cms: {},
-    },
+    privileges,
   },
   { versionKey: false, minimize: false }
 );
@@ -277,4 +125,5 @@ const schema = new mongoose.Schema(
 schema.index({ type: 1 }, { unique: true });
 
 const TemplatePrivilege = mongoose.model("template_privileges", schema);
-module.exports = TemplatePrivilege;
+
+module.exports = { TemplatePrivilege, privileges };

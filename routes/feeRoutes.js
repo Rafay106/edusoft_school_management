@@ -36,17 +36,6 @@ feeTermRouter
   .patch(FC.updateFeeTerm)
   .delete(FC.deleteFeeTerm);
 
-// 4. FeeHead Routes
-const feeHeadRouter = express.Router();
-
-feeHeadRouter.route("/").get(FC.getFeeHeads).post(FC.addFeeHead);
-
-feeHeadRouter
-  .route("/:id")
-  .get(FC.getFeeHead)
-  .patch(FC.updateFeeHead)
-  .delete(FC.deleteFeeHead);
-
 // 5. FeeStructure Routes
 const feeStructureRouter = express.Router();
 
@@ -86,7 +75,6 @@ feeConcessionRouter
 feeRouter.use("/fee-group", feeGroupRouter);
 feeRouter.use("/fee-type", feeTypeRouter);
 feeRouter.use("/fee-term", feeTermRouter);
-feeRouter.use("/fee-head", feeHeadRouter);
 feeRouter.use("/fee-structure", feeStructureRouter);
 feeRouter.use("/fee-fine", feeFineRouter);
 feeRouter.use("/fee-concession", feeConcessionRouter);

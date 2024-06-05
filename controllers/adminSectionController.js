@@ -1,262 +1,62 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const puppeteer = require("puppeteer");
+const { PDFDocument } = require("pdf-lib");
+const sharp = require("sharp");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
-const IdCard = require("../models/admin_section/idCardModel");
 const Student = require("../models/studentInfo/studentModel");
-const puppeteer = require("puppeteer");
-const { PDFDocument } = require("pdf-lib");
 const IdCardGenerated = require("../models/admin_section/idCardGeneratedModel");
+const Class = require("../models/academics/classModel");
+const Section = require("../models/academics/sectionModel");
 const { DOMAIN } = process.env;
-
-// @desc    Get all id-cards
-// @route   GET /api/admin-section/id-card
-// @access  Private
-const getIdCards = asyncHandler(async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "name";
-  const search = req.query.search;
-
-  const query = {};
-
-  if (search) {
-    const fields = ["year", "title"];
-
-    const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
-  }
-
-  const results = await UC.paginatedQuery(IdCard, query, {}, page, limit, sort);
-
-  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
-
-  res.status(200).json(results);
-});
-
-// @desc    Get a id-card
-// @route   GET /api/admin-section/id-card/:id
-// @access  Private
-const getIdCard = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
-
-  const idCard = await IdCard.findOne(query).populate("school", "name").lean();
-
-  if (!idCard) {
-    res.status(404);
-    throw new Error(C.getResourse404Id("IdCard", req.params.id));
-  }
-
-  if (idCard.card.background) {
-    idCard.card.background = `${DOMAIN}/uploads/admin_system/id_card/${idCard.card.background}`;
-  }
-
-  if (idCard.card.logo) {
-    idCard.card.logo = `${DOMAIN}/uploads/admin_system/id_card/${idCard.card.logo}`;
-  }
-
-  if (idCard.card.signature) {
-    idCard.card.signature = `${DOMAIN}/uploads/admin_system/id_card/${idCard.card.signature}`;
-  }
-
-  if (idCard.photo.file) {
-    idCard.photo.file = `${DOMAIN}/uploads/admin_system/id_card/${idCard.photo.file}`;
-  }
-
-  res.status(200).json(idCard);
-});
-
-// @desc    Add a id-card
-// @route   POST /api/admin-section/id-card
-// @access  Private
-const createIdCard = asyncHandler(async (req, res) => {
-  const school = await UC.validateSchool(req.user, req.body.school);
-  const ayear = UC.getCurrentAcademicYear(req.body.school);
-
-  const files = req.files;
-  const orientation = req.body.orientation;
-
-  const card = {
-    height_mm: orientation === "v" ? 85 : 54,
-    width_mm: orientation === "v" ? 54 : 85,
-    background: files.background ? files.background[0].filename : "",
-    logo: files.logo ? files.logo[0].filename : "",
-    signature: files.signature ? files.signature[0].filename : "",
-  };
-
-  if (req.body.card_height_mm) card.height_mm = req.body.card_height_mm;
-  if (req.body.card_width_mm) card.width_mm = req.body.card_width_mm;
-
-  const photo = {
-    file: files.photo ? files.photo[0].filename : "",
-    style: req.body.photo_style,
-    height_mm: orientation === "v" ? 21 : 13,
-    width_mm: orientation === "v" ? 21 : 13,
-  };
-
-  if (req.body.photo_height_mm) photo.height_mm = req.body.photo_height_mm;
-  if (req.body.photo_width_mm) photo.width_mm = req.body.photo_width_mm;
-
-  const layout_padding_mm = {
-    top: req.body.pad_top,
-    bottom: req.body.pad_bottom,
-    left: req.body.pad_left,
-    right: req.body.pad_right,
-  };
-
-  const idCard = await IdCard.create({
-    title: req.body.title,
-    orientation,
-    user_type: req.body.user_type,
-    card,
-    photo,
-    layout_padding_mm,
-    admission_no: req.body.admission_no,
-    name: req.body.name,
-    class: req.body.class,
-    father_name: req.body.father_name,
-    mother_name: req.body.mother_name,
-    address: req.body.address,
-    phone: req.body.phone,
-    dob: req.body.dob,
-    blood: req.body.blood,
-    house: req.body.house,
-    bus_stop: req.body.bus_stop,
-    academic_year: ayear,
-    school,
-  });
-
-  res.status(201).json({ msg: idCard._id });
-});
-
-// @desc    Update a id-card
-// @route   PUT /api/admin-section/id-card/:id
-// @access  Private
-const updateIdCard = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
-
-  if (!(await IdCard.any(query))) {
-    res.status(404);
-    throw new Error(C.getResourse404Id("IdCard", req.params.id));
-  }
-
-  if (year) {
-    if (year.length > 4) {
-      res.status(400);
-      throw new Error("The year must be 4 digits.");
-    }
-
-    if (isNaN(parseInt(year))) {
-      res.status(400);
-      throw new Error("The year must be a number.");
-    }
-  }
-
-  const files = req.files;
-
-  const card = {
-    height_mm: req.body.card_height_mm,
-    width_mm: req.body.card_width_mm,
-    background: files.background ? files.background[0].filename : undefined,
-    logo: files.logo ? files.logo[0].filename : undefined,
-    signature: files.signature ? files.signature[0].filename : undefined,
-  };
-
-  const photo = {
-    file: files.photo ? files.photo[0].filename : undefined,
-    style: req.body.photo_style,
-    height_mm: req.body.photo_height_mm,
-    width_mm: req.body.photo_height_mm,
-  };
-
-  const padding = {
-    top: req.body.pad_top,
-    bottom: req.body.pad_bottom,
-    left: req.body.pad_left,
-    right: req.body.pad_right,
-  };
-
-  const result = await IdCard.updateOne(query, {
-    $set: {
-      title: req.body.title,
-      orientation: req.body.orientation,
-      user_type: req.body.user_type,
-      "card.height_mm": card.height_mm,
-      "card.width_mm": card.width_mm,
-      "card.background": card.background,
-      "card.logo": card.logo,
-      "card.signature": card.signature,
-      "photo.file": photo.file,
-      "photo.style": photo.style,
-      "photo.height_mm": photo.height_mm,
-      "photo.width_mm": photo.width_mm,
-      "layout_padding_mm.top": padding.top,
-      "layout_padding_mm.bottom": padding.bottom,
-      "layout_padding_mm.left": padding.left,
-      "layout_padding_mm.right": padding.right,
-      admission_no: req.body.admission_no,
-      name: req.body.name,
-      class: req.body.class,
-      father_name: req.body.father_name,
-      mother_name: req.body.mother_name,
-      address: req.body.address,
-      phone: req.body.phone,
-      dob: req.body.dob,
-      blood: req.body.blood,
-      house: req.body.house,
-      bus_stop: req.body.bus_stop,
-    },
-  });
-
-  res.status(200).json(result);
-});
-
-// @desc    Delete a id-card
-// @route   DELETE /api/admin-section/id-card/:id
-// @access  Private
-const deleteIdCard = asyncHandler(async (req, res) => {
-  const idCard = await IdCard.findById(req.params.id).select("_id").lean();
-
-  if (!idCard) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("IdCard", req.params.id));
-  }
-
-  const delQuery = { _id: req.params.id };
-
-  const result = await IdCard.deleteOne(delQuery);
-
-  res.status(200).json(result);
-});
 
 // @desc    Generate student id-cards
 // @route   POST /api/admin-section/id-card/student
 // @access  Private
 const genStudentIdCard = asyncHandler(async (req, res) => {
   const admNo = req.body.adm_no;
-  const class_ = req.body.class;
-  const section = req.body.section;
 
   let students = [];
 
   if (admNo) {
     students = await Student.find({ admission_no: admNo })
-      .populate("class section bus_stop", "name")
+      .populate("class section bus_pick bus_stop academic_year", "name title")
       .lean();
   } else {
-    if (!class_) {
+    if (!req.body.class) {
       res.status(400);
       throw new Error(C.getFieldIsReq("class"));
     }
 
-    if (!section) {
+    const class_ = await Class.findOne({ name: req.body.class.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!class_) {
+      res.status(400);
+      throw new Error(C.getResourse404("class"));
+    }
+
+    if (!req.body.section) {
       res.status(400);
       throw new Error(C.getFieldIsReq("section"));
     }
 
-    students = await Student.find({ class: class_, section })
-      .populate("class section bus_stop", "name")
+    const section = await Section.findOne({
+      name: req.body.section.toUpperCase(),
+    })
+      .select("_id")
+      .lean();
+
+    if (!section) {
+      res.status(400);
+      throw new Error(C.getResourse404("section"));
+    }
+
+    students = await Student.find({ class: class_._id, section: section._id })
+      .populate("class section bus_pick bus_stop academic_year", "name title")
       .sort("roll_no")
       .lean();
   }
@@ -299,7 +99,60 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 
   await IdCardGenerated.create({ file: pdfName, school: req.school._id });
 
-  res.status(200).json({ msg: `${DOMAIN}/id_cards/${pdfName}` });
+  res.status(200).json({ msg: `${DOMAIN}/id_cards/${pdfName}`, students });
+  // res.download(pdfFile, pdfName, (err) => {
+  //   if (err) throw err;
+  // });
+});
+
+// @desc    Generate student id-cards all
+// @route   POST /api/admin-section/id-card/student/all
+// @access  Private
+const genStudentIdCardAll = asyncHandler(async (req, res) => {
+  const students = await Student.find()
+    .populate("class section bus_pick bus_stop academic_year", "name title")
+    .sort("class.name section.name")
+    .lean();
+
+  if (students.length === 0) {
+    res.status(404);
+    throw new Error(`Student(s) not found!`);
+  }
+
+  const classAndSection = `${students[0].class.name}-${students[0].section.name}`;
+  const now = new Date();
+  const YMD = UC.getYMD();
+
+  const pdfName = `id_cards_${classAndSection}_${YMD}_${now.getTime()}.pdf`;
+  const pdfPath = path.join(UC.getAppRootDir(__dirname), "data", "id_cards");
+
+  if (!fs.existsSync(pdfPath)) fs.mkdirSync(pdfPath, { recursive: true });
+
+  const pdfFile = path.join(pdfPath, pdfName);
+
+  const idCards = [];
+
+  for (const student of students) {
+    const isBusStudent = student.bus_pick || student.bus_pick ? true : false;
+
+    const template = path.join(
+      UC.getAppRootDir(__dirname),
+      "templates",
+      "id_card",
+      // "id_card_old.html"
+      isBusStudent ? "id_card_bus.html" : "id_card.html"
+    );
+
+    const idCard = await generateStudentIdCard(student, template);
+
+    idCards.push(`./data/id_cards/${idCard}`);
+  }
+
+  await combinePDFs(idCards, pdfFile);
+
+  await IdCardGenerated.create({ file: pdfName, school: req.school._id });
+
+  res.status(200).json({ msg: `${DOMAIN}/id_cards/${pdfName}`, students });
   // res.download(pdfFile, pdfName, (err) => {
   //   if (err) throw err;
   // });
@@ -307,22 +160,22 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 
 const generateStudentIdCard = async (student, template) => {
   const background = fs.readFileSync(
-    path.join("templates", "id_card", "images", "background-orange.jpeg"),
+    path.join("templates", "id_card", "images", "background.jpg"),
     "base64"
   );
 
   const logo = fs.readFileSync(
-    path.join("templates", "id_card", "images", "acharya-logo.png"),
-    "base64"
-  );
-
-  const busLogo = fs.readFileSync(
-    path.join("templates", "id_card", "images", "bus-logo.png"),
+    path.join("templates", "id_card", "images", "acharyakulam.png"),
     "base64"
   );
 
   const bloodLogo = fs.readFileSync(
-    path.join("templates", "id_card", "images", "blood-logo.png"),
+    path.join("templates", "id_card", "images", "blood.png"),
+    "base64"
+  );
+
+  const pedestrian = fs.readFileSync(
+    path.join("templates", "id_card", "images", "pedestrian.png"),
     "base64"
   );
 
@@ -331,18 +184,18 @@ const generateStudentIdCard = async (student, template) => {
   //   "base64"
   // );
 
-  const barcode = await genBarcode(student.admission_no);
+  // const barcode = await genBarcode(student.admission_no);
 
-  const signature = fs.readFileSync(
-    path.join("templates", "id_card", "images", "signature.png"),
-    "base64"
-  );
+  // const signature = fs.readFileSync(
+  //   path.join("templates", "id_card", "images", "signature.png"),
+  //   "base64"
+  // );
 
   let photo;
   if (student.photo) {
     const photoPath = path.join("static", "uploads", "student", student.photo);
     if (fs.existsSync(photoPath)) {
-      photo = fs.readFileSync(photoPath, "base64");
+      photo = await processImage(photoPath);
     } else {
       photo = fs.readFileSync(
         path.join("templates", "id_card", "images", "user-blank.png"),
@@ -356,28 +209,35 @@ const generateStudentIdCard = async (student, template) => {
     );
   }
 
+  const bloodGroup =
+    student.blood_group == "NA" || !student.blood_group
+      ? ""
+      : student.blood_group;
+
+  const house = student.house.split(" ")[0];
+  const session = student.academic_year.title;
+
   const htmlContent = fs
     .readFileSync(template, "utf8")
     .replace("{{background}}", `data:image/jpeg;base64,${background}`)
     .replace("{{logo}}", `data:image/jpeg;base64,${logo}`)
-    .replace("{{photo}}", `data:image/jpeg;base64,${photo}`)
+    .replace("{{session}}", session)
+    .replace("{{photo}}", `data:image/jpg;base64,${photo}`)
     .replace("{{admno}}", student.admission_no)
     .replace("{{class}}", `${student.class.name}-${student.section.name}`)
-    .replace("{{dob}}", UC.getDDMMYYYY(student.dob) || "NA")
-    .replace("{{house}}", student.house || "NA")
+    .replace("{{dob}}", UC.getDDMMYYYY(student.dob) || "")
+    .replace("{{house}}", house || "")
     .replace("{{name}}", student.name)
-    .replace("{{father}}", student.father_details?.name || "NA")
-    .replace("{{mother}}", student.mother_details?.name || "NA")
-    .replace("{{bus-logo}}", `data:image/jpeg;base64,${busLogo}`)
-    .replace("{{bus-name}}", student.bus?.name || "NA")
-    .replace("{{address}}", student.address.permanent.slice(0, 20) || "NA")
-    .replace("{{bus-stop}}", student.bus_stop?.name || "NA")
-    .replace("{{phone}}", student.phone || "NA")
+    .replace("{{father}}", student.father_details?.name || "")
+    .replace("{{mother}}", student.mother_details?.name || "")
+    .replace("{{roll_no}}", student.roll_no || "")
     .replace("{{blood-logo}}", `data:image/jpeg;base64,${bloodLogo}`)
-    .replace("{{blood}}", student.blood_group || "NA")
-    .replace("{{barcode}}", barcode)
-    .replace("{{signature}}", `data:image/jpeg;base64,${signature}`);
-  // .replace("{{pincode}}", student.address.current.pincode || "NA")
+    .replace("{{blood}}", bloodGroup)
+    .replace("{{address}}", student.address.permanent || "")
+    .replace("{{bus-stop}}", student.bus_stop?.name || "")
+    .replace("{{phone}}", student.phone || "")
+    .replace("{{bus-name}}", student.bus_pick?.name || "")
+    .replace("{{pedestrian}}", `data:image/jpeg;base64,${pedestrian}`)
 
   const args = {
     executablePath: "/usr/bin/chromium-browser",
@@ -425,6 +285,33 @@ const generateStudentIdCard = async (student, template) => {
   return tempName;
 };
 
+const compressImage = async (inputBuffer) => {
+  return await sharp(inputBuffer)
+    .rotate()
+    .resize({ width: 800 }) // Resize to a max width of 800px, maintaining aspect ratio
+    .jpeg({ quality: 80 }) // Compress the image to 80% quality
+    .toBuffer();
+};
+
+const processImage = async (inputFilePath) => {
+  try {
+    // Step 1: Read the file and convert it to a buffer
+    const inputBuffer = await fs.promises.readFile(inputFilePath);
+
+    // Step 2: Compress the image
+    const compressedBuffer = await compressImage(inputBuffer);
+
+    // Step 3: Convert the compressed buffer to a Base64 string
+    const base64String = compressedBuffer.toString("base64");
+
+    // Step 4: Return the Base64 string
+    return base64String;
+  } catch (error) {
+    console.error("Error processing image:", error);
+    throw error;
+  }
+};
+
 const combinePDFs = async (pdfFiles, outputFile) => {
   const mergedPdf = await PDFDocument.create();
 
@@ -448,6 +335,16 @@ const combinePDFs = async (pdfFiles, outputFile) => {
     fs.unlinkSync(pdfFile);
   }
 };
+
+function toTitleCase(str) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map(function (word) {
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
 
 const genBarcode = async (
   data,
@@ -539,14 +436,29 @@ const deleteGeneratedIdCard = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+// @desc    Delete all generated id-cards
+// @route   DELETE /api/admin-section/id-card-generated/all
+// @access  Private
+const deleteAllGeneratedIdCard = asyncHandler(async (req, res) => {
+  const cards = await IdCardGenerated.find({}).select("file").lean();
+
+  for (const card of cards) {
+    const filePath = path.join("data", "id_cards", card.file);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+
+  const result = await IdCardGenerated.deleteMany({
+    _id: cards.map((c) => c._id),
+  });
+
+  res.status(200).json(result);
+});
+
 module.exports = {
-  getIdCards,
-  getIdCard,
-  createIdCard,
-  updateIdCard,
-  deleteIdCard,
   genStudentIdCard,
+  genStudentIdCardAll,
 
   getGeneratedIdCards,
   deleteGeneratedIdCard,
+  deleteAllGeneratedIdCard,
 };

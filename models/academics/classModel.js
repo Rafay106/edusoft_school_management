@@ -3,32 +3,15 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ], uppercase: true },
-    sections: [
-      {
-        type: ObjectId,
-        required: [true, C.FIELD_IS_REQ],
-        ref: "academics_sections",
-      },
-    ],
-    stream: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academics_streams",
-    },
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
-    school: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "schools",
-    },
+    name: { type: String, required, uppercase: true },
+    sections: [{ type: ObjectId, required, ref: "academics_sections" }],
+    stream: { type: ObjectId, required, ref: "academics_streams" },
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
+    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }
 );

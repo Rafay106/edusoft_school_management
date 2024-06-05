@@ -6,8 +6,7 @@ const Student = require("../models/studentInfo/studentModel");
 const StuBusAtt = require("../models/attendance/stuBusAttModel");
 const StuAttEvent = require("../models/attendance/stuAttEventModel");
 const Bus = require("../models/transport/busModel");
-const School = require("../models/system/schoolModel");
-const { isAfternoonTime } = require("../services/attendance");
+const { isMorningTime } = require("../services/attendance");
 
 // @desc    Get parent info
 // @route   POST /api/parent/account-info
@@ -15,7 +14,7 @@ const { isAfternoonTime } = require("../services/attendance");
 const getParentAccountInfo = asyncHandler(async (req, res) => {
   const parent = await User.findById(req.user._id)
     .select("-password")
-    .populate("school", "name")
+    .populate("school")
     .lean();
 
   if (!parent) {
@@ -23,11 +22,13 @@ const getParentAccountInfo = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("User", req.user._id));
   }
 
-  const students = await Student.find({ parent: parent._id })
-    .select("admission_no name email")
-    .lean();
+  const students = await Student.find({ parent: parent._id }).lean();
 
-  res.status(200).json({ ...parent, children: students });
+  for (const student of students) {
+    student.photo = `${process.env.DOMAIN}/uploads/student/${student.photo}`;
+  }
+
+  res.status(200).json({ ...parent, students });
 });
 
 // @desc    Assign parent to student
@@ -98,7 +99,7 @@ const trackBus = asyncHandler(async (req, res) => {
     .lean();
 
   for (const stu of students) {
-    const stuBus = isMorningTime(new Date(), school.timings.morning)
+    const stuBus = isMorningTime(new Date(), school.morning_attendance_end)
       ? stu.bus_pick
       : stu.bus_drop;
 
@@ -354,7 +355,7 @@ const getStudentBusContactInfo = asyncHandler(async (req, res) => {
 
   for (const s of students) {
     let stuBus = s.bus_pick;
-    if (isAfternoonTime(new Date(), school.timings.afternoon)) {
+    if (!isMorningTime(new Date(), school.morning_attendance_end)) {
       stuBus = s.bus_drop;
     }
 

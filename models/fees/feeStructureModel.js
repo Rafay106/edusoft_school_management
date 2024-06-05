@@ -22,7 +22,6 @@ const schema = new mongoose.Schema(
   {
     fee_term: { type: ObjectId, required, ref: "fee_terms" },
     class: { type: ObjectId, required, ref: "academics_classes" },
-    stream: { type: ObjectId, required, ref: "academics_streams" },
     fee_types: [feetypeSchema],
     academic_year: { type: ObjectId, required, ref: "academic_years" },
     school: { type: ObjectId, required, ref: "schools" },

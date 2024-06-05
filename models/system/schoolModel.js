@@ -4,6 +4,7 @@ const { isEmailValid, timeValidator } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
 
 const timingErr = (props) => {
   return `${props.value} is not a valid 24-hour time format (HH:MM)!`;
@@ -11,32 +12,31 @@ const timingErr = (props) => {
 
 const schema = new mongoose.Schema(
   {
-    name: { type: String, required: [true, C.FIELD_IS_REQ] },
+    name: { type: String, required },
     email: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       validate: {
         validator: isEmailValid,
         message: (props) => `email: ${props.value} is invalid!`,
       },
-      
       lowercase: true,
       trim: true,
     },
     email_verified: { type: Boolean, default: false },
-    phone: { type: String, required: [true, C.FIELD_IS_REQ] },
+    phone: { type: String, required },
     phone_verified: { type: Boolean, default: false },
-    address: { type: String, required: [true, C.FIELD_IS_REQ] },
-    country: { type: String, required: [true, C.FIELD_IS_REQ] },
-    state: { type: String, required: [true, C.FIELD_IS_REQ] },
-    city: { type: String, required: [true, C.FIELD_IS_REQ] },
-    pincode: { type: String, required: [true, C.FIELD_IS_REQ] },
-    lat: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    lon: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    radius: { type: Number, required: [true, C.FIELD_IS_REQ] },
+    address: { type: String, required },
+    country: { type: String, required },
+    state: { type: String, required },
+    city: { type: String, required },
+    pincode: { type: String, required },
+    lat: { type: Number, required },
+    lon: { type: Number, required },
+    radius: { type: Number, required },
     morning_attendance_end: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       validate: { validator: timeValidator, message: timingErr },
     },
     bus_incharge: {
@@ -67,6 +67,7 @@ const schema = new mongoose.Schema(
       book_issue_days: { type: Number, default: 0 },
     },
     current_academic_year: { type: ObjectId, ref: "academic_years" },
+    whatsapp_coins: { type: Number, default: 0 },
   },
   { timestamps: true, versionKey: false }
 );

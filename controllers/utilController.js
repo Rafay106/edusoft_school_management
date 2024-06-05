@@ -11,7 +11,6 @@ const FeeGroup = require("../models/fees/feeGroupModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const FeeTerm = require("../models/fees/feeTermModel");
-const FeeHead = require("../models/fees/feeHeadModel");
 const Designation = require("../models/hr/designationModel");
 const Department = require("../models/hr/departmentModel");
 const Student = require("../models/studentInfo/studentModel");
@@ -20,6 +19,89 @@ const Stream = require("../models/academics/streamModel");
 const LibrarySubject = require("../models/library/subjectModels");
 const LibraryCategory = require("../models/library/categoryModel");
 const Subject = require("../models/academics/subjectModel");
+const User = require("../models/system/userModel");
+
+// @desc    Get usertype list with count
+// @route   GET /api/util/usertype-list-with-count
+// @access  Private
+const getUsertypeListWithCount = asyncHandler(async (req, res) => {
+  const usertypes = [
+    C.ACCOUNTANT,
+    C.BUS_STAFF,
+    C.LIBRARIAN,
+    C.PARENT,
+    C.RECEPTIONIST,
+    C.STUDENT,
+    C.TEACHER,
+  ];
+
+  if (C.isSuperAdmin(req.user.type)) {
+    usertypes.push(C.SUPERADMIN, C.ADMIN, C.SCHOOL);
+  } else if (C.isAdmin(req.user.type)) {
+    usertypes.push(C.SCHOOL);
+  }
+
+  const result = [];
+
+  for (const ut of usertypes.sort()) {
+    if (ut === C.STUDENT) {
+      result.push({
+        usertype: ut,
+        users: await Student.countDocuments(),
+      });
+    } else {
+      result.push({
+        usertype: ut,
+        users: await User.countDocuments({ type: ut }),
+      });
+    }
+  }
+
+  res.status(200).json(result);
+});
+
+// @desc    Get user list
+// @route   GET /api/util/user-list
+// @access  Private
+const getUserList = asyncHandler(async (req, res) => {
+  let usertype = req.query.usertype;
+  const search = req.query.search;
+
+  if (!usertype) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("usertype"));
+  }
+
+  if (C.isAdmin(req.user.type)) {
+    if ([C.SUPERADMIN, C.ADMIN].includes(usertype)) usertype = "";
+  } else if (C.isSchool(req.user.type)) {
+    if ([C.SUPERADMIN, C.ADMIN, C.SCHOOL].includes(usertype)) usertype = "";
+  }
+
+  const query = {};
+
+  if (search) {
+    query["$or"] = [
+      { name: { $regex: search, $options: "i" } },
+      { address: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const result = [];
+  if (usertype === C.STUDENT) {
+    const students = await Student.find(query).select("name").lean();
+
+    result.push(...students);
+  } else {
+    query.type = usertype;
+
+    const users = await User.find(query).select("name").lean();
+
+    result.push(...users);
+  }
+
+  res.status(200).json({ total: result.length, result });
+});
 
 // @desc    Get boarding-type list
 // @route   GET /api/util/boarding-type-list
@@ -27,7 +109,7 @@ const Subject = require("../models/academics/subjectModel");
 const getBoardingTypeList = asyncHandler(async (req, res) => {
   const types = await BoardingType.find().select("name").sort("name").lean();
 
-  res.status(200).json(types.map((e) => e.name));
+  res.status(200).json(types);
 });
 
 // @desc    Get subward-type list
@@ -36,7 +118,7 @@ const getBoardingTypeList = asyncHandler(async (req, res) => {
 const getSubwardList = asyncHandler(async (req, res) => {
   const wards = await SubWard.find().select("name").sort("name").lean();
 
-  res.status(200).json(wards.map((e) => e.name));
+  res.status(200).json(wards);
 });
 
 // @desc    Get bus-stop
@@ -55,7 +137,7 @@ const getBusStopList = asyncHandler(async (req, res) => {
 
   const busStops = await BusStop.find(query).select("name").lean();
 
-  res.status(200).json(busStops.map((e) => e.name));
+  res.status(200).json(busStops);
 });
 
 // @desc    Get drivers
@@ -143,9 +225,9 @@ const getBusList = asyncHandler(async (req, res) => {
     query["$or"] = [{ name: { $regex: search, $options: "i" } }];
   }
 
-  const buses = await Bus.find(query).select("name").lean();
+  const buses = await Bus.find(query).select("name device.imei").lean();
 
-  res.status(200).json(buses.map((e) => e.name));
+  res.status(200).json(buses);
 });
 
 // @desc    Get academic year
@@ -161,44 +243,53 @@ const getAcademicYearList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/section-list
 // @access  Private
 const getSectionList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const sections = await Section.find({ academic_year })
+  const sections = await Section.find({ academic_year: req.ayear })
     .select("name")
     .sort("name")
     .lean();
 
-  res.status(200).json(sections.map((e) => e.name));
+  res.status(200).json(sections);
+});
+
+// @desc    Get sections of a class
+// @route   GET /api/util/section-list-of-class
+// @access  Private
+const getSectionListOfClass = asyncHandler(async (req, res) => {
+  const id = await UC.validateClassByName(req.query.class, req.ayear);
+
+  const c = await Class.findById(id)
+    .select("sections")
+    .populate("sections", "name");
+
+  res.status(200).json(c.sections.sort());
 });
 
 // @desc    Get streams
 // @route   GET /api/util/stream-list
 // @access  Private
 const getStreamList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const streams = await Stream.find({ academic_year })
+  const streams = await Stream.find({ academic_year: req.ayear })
     .select("name")
     .sort("name")
     .lean();
 
-  res.status(200).json(streams.map((e) => e.name));
+  res.status(200).json(streams);
 });
 
 // @desc    Get classes
 // @route   GET /api/util/class-list
 // @access  Private
 const getClassList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const classes = await Class.find({ academic_year })
-    .select("name")
+  const classes = await Class.find({ academic_year: req.ayear })
+    .select("name stream")
+    .populate("stream", "name")
     .sort("name")
     .lean();
 
   const uniqueClasses = [];
   for (const c of classes) {
-    if (!uniqueClasses.includes(c.name)) uniqueClasses.push(c.name);
+    const name = c.stream.name === "NA" ? c.name : c.name + " " + c.stream.name;
+    uniqueClasses.push({ _id: c._id, name });
   }
 
   res.status(200).json(uniqueClasses);
@@ -208,9 +299,7 @@ const getClassList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/subject-list
 // @access  Private
 const getSubjectList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const subject = await Subject.find({ academic_year })
+  const subject = await Subject.find({ academic_year: req.ayear })
     .select("name code type")
     .sort("name")
     .lean();
@@ -222,56 +311,36 @@ const getSubjectList = asyncHandler(async (req, res) => {
 // @route   GET /api/util/fee-group-list
 // @access  Private
 const getFeeGroupList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const groups = await FeeGroup.find({ academic_year })
+  const groups = await FeeGroup.find({ academic_year: req.ayear })
     .select("name")
     .sort("name")
     .lean();
 
-  res.status(200).json(groups.map((e) => e.name));
+  res.status(200).json(groups);
 });
 
 // @desc    Get fee-types
 // @route   GET /api/util/fee-type-list
 // @access  Private
 const getFeeTypeList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const types = await FeeType.find({ academic_year })
+  const types = await FeeType.find({ academic_year: req.ayear })
     .select("name")
     .sort("name")
     .lean();
 
-  res.status(200).json(types.map((e) => e.name));
+  res.status(200).json(types);
 });
 
 // @desc    Get fee-terms
 // @route   GET /api/util/fee-term-list
 // @access  Private
 const getFeeTermList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const terms = await FeeTerm.find({ academic_year })
+  const terms = await FeeTerm.find({ academic_year: req.ayear })
     .select("name")
     .sort("year start_month")
     .lean();
 
-  res.status(200).json(terms.map((e) => e.name));
-});
-
-// @desc    Get fee-heads
-// @route   GET /api/util/fee-head-list
-// @access  Private
-const getFeeHeadList = asyncHandler(async (req, res) => {
-  const academic_year = UC.getCurrentAcademicYear(req.school);
-
-  const heads = await FeeHead.find({ academic_year })
-    .select("name")
-    .sort("name")
-    .lean();
-
-  res.status(200).json(heads);
+  res.status(200).json(terms);
 });
 
 // @desc    Get designations
@@ -295,7 +364,7 @@ const getDepartmentList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(departments.map((e) => e.name));
+  res.status(200).json(departments);
 });
 
 // @desc    Get library category
@@ -319,10 +388,12 @@ const getLibrarySubjectList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(subjects.map((e) => e.name));
+  res.status(200).json(subjects);
 });
 
 module.exports = {
+  getUsertypeListWithCount,
+  getUserList,
   getBoardingTypeList,
   getSubwardList,
   getDriverList,
@@ -331,13 +402,13 @@ module.exports = {
   getBusStopList,
   getAcademicYearList,
   getSectionList,
+  getSectionListOfClass,
   getStreamList,
   getClassList,
   getSubjectList,
   getFeeGroupList,
   getFeeTypeList,
   getFeeTermList,
-  getFeeHeadList,
   getDesignationList,
   getDepartmentList,
   getLibraryCategoryList,

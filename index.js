@@ -14,12 +14,13 @@ const {
   parentAuthorize,
   schoolAuthorize,
   authorize,
+  authenticateApikey,
 } = require("./middlewares/authMiddleware");
 const UM = require("./middlewares/utilMiddleware");
 const { listenDeviceData } = require("./services/listener");
 const SERVICE = require("./services/service");
-const NOTY = require("./tools/notifications");
 const UC = require("./utils/common");
+const WORKER = require("./tools/bullmq/workers");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -55,6 +56,18 @@ app.use(express.static(path.join(__dirname, "static")));
 app.use(express.static(path.join(__dirname, "data")));
 
 // Routes Start
+app.get("/api/schools-list", (req, res) => {
+  const filePath = path.join("schools.json");
+
+  if (!fs.existsSync(filePath)) {
+    res.status(500);
+    throw new Error("schools.json file not found!");
+  }
+
+  const schools = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+
+  res.status(200).json(schools);
+});
 
 app.post("/api/init", require("./controllers/systemController").init);
 
@@ -65,23 +78,19 @@ app.use(
   require("./routes/systemRoutes")
 );
 app.use("/api/login", require("./routes/authRoutes"));
+app.use("/api/user", authenticate, authorize, require("./routes/userRoutes"));
+app.use("/api/util", authenticate, authorize, require("./routes/utilRoutes"));
 app.use(
-  "/api/util",
+  "/api/admin-section",
   authenticate,
-  schoolAuthorize,
-  require("./routes/utilRoutes")
+  authorize,
+  require("./routes/adminSectionRoutes")
 );
 app.use(
   "/api/academics",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/academicRoutes")
-);
-app.use(
-  "/api/admin-section",
-  authenticate,
-  schoolAuthorize,
-  require("./routes/adminSectionRoutes")
 );
 app.use(
   "/api/student-info",
@@ -152,6 +161,9 @@ app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
 // Razorpay
 app.use("/api/razorpay", require("./tools/razorpay_old"));
 
+// API KEY Routes
+app.use("/api-key", authenticateApikey, require("./routes/apikeyRoutes"));
+
 /*************
  * Cron Jobs *
  *************/
@@ -161,9 +173,9 @@ cron.schedule("* * * * *", async () => {
   if (process.env.NODE_APP_INSTANCE != 0) return;
 
   try {
-    await NOTY.sendPushNoty();
-    await NOTY.sendEmailNoty();
-    await NOTY.sendWhatsappNoty();
+    // await SERVICE.serviceEmailQueue();
+    // await SERVICE.servicePushQueue();
+    // await SERVICE.serviceWhatsappQueue();
   } catch (err) {
     UC.writeLog("errors", `${err.stack}`);
   }
@@ -174,6 +186,7 @@ cron.schedule("0 0 * * *", async () => {
   if (process.env.NODE_APP_INSTANCE != 0) return;
 
   try {
+    await SERVICE.serviceDbBackup();
     await SERVICE.serviceClearHistory();
     await SERVICE.serviceResetAlternateBus();
     await SERVICE.serviceResetCurrAcademicYear();
@@ -184,22 +197,45 @@ cron.schedule("0 0 * * *", async () => {
 });
 
 // CRON TEST
-// cron.schedule("* * * * * *", async () => {
-//   if (process.env.NODE_ENV != "development") return;
-// });
+cron.schedule("* * * * * *", async () => {
+  if (process.env.NODE_ENV != "development") return;
+
+  try {
+    // await SERVICE.serviceEmailQueue();
+    // await SERVICE.servicePushQueue();
+    // await SERVICE.serviceWhatsappQueue();
+  } catch (err) {
+    console.log(err);
+  }
+});
 
 /*************
  * Cron Jobs *
  *************/
 
+/*************
+ * Workers Start *
+ *************/
+const IORedis = require("ioredis");
+
+const connection = new IORedis({ maxRetriesPerRequest: null });
+
+WORKER.workerEmailQueue(connection);
+WORKER.workerWhatsappQueue(connection);
+WORKER.workerPushQueue(connection);
+
+/*************
+ * Workers End *
+ *************/
+
 // test routes
 app.use("/api/test", require("./routes/testRoutes"));
 
-// app.use(express.static(path.join(__dirname, "dist")));
+app.use(express.static(path.join(__dirname, "build")));
 
-// app.get("*", (req, res) =>
-//   res.sendFile(path.resolve(__dirname, "dist", "index.html"))
-// );
+app.get("*", (req, res) =>
+  res.sendFile(path.resolve(__dirname, "build", "index.html"))
+);
 
 app.all("*", (req, res) => res.status(404).json({ msg: "Url not found!" }));
 

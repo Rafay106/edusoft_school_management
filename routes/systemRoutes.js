@@ -21,7 +21,6 @@ templatePrivilegeRouter
 const userRouter = express.Router();
 
 userRouter.route("/").get(SC.getUsers).post(SC.createUser);
-userRouter.get("/privileges", SC.getUserPrivileges);
 userRouter.get("/required-data", SC.requiredDataUser);
 userRouter.patch("/reset-password", SC.resetPassword);
 userRouter.post("/set-current-ayear", SC.setCurrentAcademicYear);
@@ -41,8 +40,15 @@ schoolRouter
   .patch(SC.updateSchool)
   .delete(SC.deleteSchool);
 
+// 4. School Routes
+const whatsappCoinRouter = express.Router();
+
+whatsappCoinRouter.post("/add", SC.addWhatsappCoins);
+whatsappCoinRouter.post("/transaction", SC.getWhatsappCoinTransactions);
+
 systemRouter.use("/template-privilege", templatePrivilegeRouter);
 systemRouter.use("/user", userRouter);
 systemRouter.use("/school", schoolRouter);
+systemRouter.use("/whatsapp-coin", whatsappCoinRouter);
 
 module.exports = systemRouter;

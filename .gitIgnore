@@ -1,6 +1,7 @@
+/backup
+/logs
 /node_modules
 .env
-/logs
 test.js
 test1.js
 /static/uploads

@@ -14,11 +14,7 @@ const schema = new mongoose.Schema(
       required,
       enum: { values: ["t", "p"], message: C.VALUE_NOT_SUP },
     },
-    academic_year: {
-      type: ObjectId,
-      required,
-      ref: "academic_years",
-    },
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
     school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }

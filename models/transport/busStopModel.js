@@ -9,7 +9,7 @@ const schema = new mongoose.Schema(
   {
     name: { type: String, required, uppercase: true },
     address: { type: String, required, uppercase: true },
-    fare: { type: Number, required },
+    monthly_charges: { type: Number, required },
     lat: { type: Number, required },
     lon: { type: Number, required },
     school: { type: ObjectId, required, ref: "schools" },
