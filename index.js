@@ -124,6 +124,12 @@ app.use(
   require("./routes/libraryRoutes")
 );
 app.use(
+  "/api/lesson",
+  authenticate,
+  schoolAuthorize,
+  require('./routes/lessonRoutes')
+);
+app.use(
   "/api/comms",
   authenticate,
   schoolAuthorize,

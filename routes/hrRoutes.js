@@ -37,6 +37,7 @@ staffRouter
     upload(uploadPaths.staff).fields([
       { name: "photo", maxCount: 1 },
       { name: "sign", maxCount: 1 },
+      {name:"biometric",maxCount:1}
     ]),
     C.addStaff
   );

@@ -53,8 +53,5 @@ classRoutineSchema.plugin(any),
     next();
   });
 
-const ClassRoutine = mongoose.model(
-  "academic_classRoutine",
-  classRoutineSchema
-);
+const ClassRoutine = mongoose.model("academic_classRoutine",classRoutineSchema);
 module.exports = ClassRoutine;

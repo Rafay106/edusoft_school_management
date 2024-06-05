@@ -17,7 +17,7 @@ const bookSchema = new mongoose.Schema(
     },
     subject: {
       type: ObjectId,
-      ref: "library_subjects", // Correct the 'refs' to 'ref' and provide the correct reference model name
+      ref: "library_subjects", 
       required: [true, C.FIELD_IS_REQ],
     },
     book_no: { type: String, required: [true, C.FIELD_IS_REQ] },

@@ -270,23 +270,13 @@ const getStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/hr/staff
 // @access  Private
 const addStaff = asyncHandler(async (req, res) => {
-  if (!req.body.name) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("name"));
-  }
-  if (!req.body.email) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("email"));
-  }
-  if (!req.body.gender) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("gender"));
-  }
   if (!req.body.department) {
     res.status(400);
     throw new Error(C.getFieldIsReq("department"));
   }
-  const dpt = await Department.find({ name: req.body.department.toUpperCase() })
+  const dpt = await Department.findOne({
+    name: req.body.department.toUpperCase(),
+  })
     .select("_id")
     .lean();
   if (!dpt) {
@@ -297,34 +287,31 @@ const addStaff = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(C.getFieldIsReq("designation"));
   }
-  const dsg = await Department.find({
-    name: req.body.designation.toUpperCase(),
+  const dsg = await Designation.findOne({
+    title: req.body.designation.toUpperCase(),
   })
     .select("_id")
     .lean();
+
   if (!dsg) {
     res.status(400);
     throw new Error(C.getResourse404Id("designation", req.body.designation));
   }
-  if (!req.body.staff_id) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("staff_id"));
-  }
-  if (!req.body.staff_type) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("staff_type"));
-  }
-  if (!req.body.rfid) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("rfid"));
-  }
-  if (!req.body.nationality) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("nationality"));
-  }
-  const signFile = req.files.sign;
-  const sign = signFile ? signFile[0].filename : "";
 
+  const signFile = req.files.sign;
+  const biometricFile = req.files.biometric;
+  // console.log('image is',biometricFile);
+ console.log(req.files.biometric.filename);
+  if (!biometricFile[0]) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("biometric"));
+  }
+
+  if (!signFile[0]) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("sign"));
+  }
+ console.log('all files are',req.files);
   const photoFile = req.files.photo;
   const photo = photoFile ? photoFile[0].filename : "";
   const Address = {
@@ -349,13 +336,13 @@ const addStaff = asyncHandler(async (req, res) => {
   const staff = await Staff.create({
     role: req.body.role,
     saluation: req.body.saluation,
-    sign,
+    sign: signFile[0].filename,
     name: req.body.name,
     email: req.body.email,
     mobile: req.body.mobile,
     designation: dsg._id,
     name: req.body.name,
-    biometric: req.body.biometric,
+    biometric: req.files.biometric.filename,
     date_of_regular: req.body.date_of_regular,
     marital_status: req.body.marital_status,
     sequence_no: req.body.sequence_no,
@@ -379,6 +366,7 @@ const addStaff = asyncHandler(async (req, res) => {
     Address,
     Family,
     nationality: req.body.nationality,
+    school: req.school,
   });
 
   res.status(200).json({ msg: staff._id });
@@ -402,7 +390,7 @@ const updateStaff = asyncHandler(async (req, res) => {
 
   // Validate Designation
   if (designation) {
-    if (!(await Designation.any({ _id: designation, manager, school }))) {
+    if (!(await Designation.any({ _id: designation }))) {
       res.status(400);
       throw new Error(C.getResourse404Id("designation", designation));
     }
@@ -410,7 +398,7 @@ const updateStaff = asyncHandler(async (req, res) => {
 
   // Validate Department
   if (department) {
-    if (!(await Department.any({ _id: department, manager, school }))) {
+    if (!(await Department.any({ _id: department }))) {
       res.status(400);
       throw new Error(C.getResourse404Id("department", department));
     }
@@ -429,7 +417,7 @@ const updateStaff = asyncHandler(async (req, res) => {
       mobile: req.body.mobile,
       emergency_mobile: req.body.emergency_mobile,
       marital_status: req.body.marital_status,
-      photo: photo,
+      // photo: req.files.photo,
       address: req.body.address,
       qualification: req.body.qualification,
       experience: req.body.experience,
@@ -462,41 +450,16 @@ const updateStaff = asyncHandler(async (req, res) => {
 const deleteStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const staff = await Staff.findOne(query)
-    .select("photo joining_letter resume other_document")
-    .lean();
+  const staff = await Staff.findOne(query).select("photo sign").lean();
 
   if (staff.photo !== "") {
     fs.unlinkSync(
       path.join(UC.getAppRootDir(__dirname), "uploads", "staff", staff.photo)
     );
   }
-
-  if (staff.joining_letter !== "") {
+  if (staff.sign !== "") {
     fs.unlinkSync(
-      path.join(
-        UC.getAppRootDir(__dirname),
-        "uploads",
-        "staff",
-        staff.joining_letter
-      )
-    );
-  }
-
-  if (staff.resume !== "") {
-    fs.unlinkSync(
-      path.join(UC.getAppRootDir(__dirname), "uploads", "staff", staff.resume)
-    );
-  }
-
-  if (staff.other_document !== "") {
-    fs.unlinkSync(
-      path.join(
-        UC.getAppRootDir(__dirname),
-        "uploads",
-        "staff",
-        staff.other_document
-      )
+      path.join(UC.getAppRootDir(__dirname), "uploads", "staff", staff.sign)
     );
   }
 
