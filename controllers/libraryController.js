@@ -8,6 +8,7 @@ const Student = require("../models/studentInfo/studentModel");
 const Staff = require("../models/hr/staffModels");
 const LibraryIssueBook = require("../models/library/issueBookModel");
 
+
 // @desc    Get all categories
 // @route   GET /api/library/category
 // @access  Private
@@ -225,7 +226,6 @@ const deleteSubject = asyncHandler(async (req, res) => {
   const subject = await LibrarySubject.findById(req.params.id)
     .select("_id")
     .lean();
-  console.log(subject);
   if (!subject) {
     res.status(400);
     throw new Error(C.getResourse404Id("subject", req.params.id));

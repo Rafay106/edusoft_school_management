@@ -245,7 +245,7 @@ const deleteEvaluation = asyncHandler(async (req, res) => {
 // @desc    get homeworkReport
 // @route   POST /api/homework/report
 // @access  Private
-const homeworkReportList = asyncHandler(async (req, res) => {
+const getHomeworkReportList = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "homework_date";
@@ -334,20 +334,7 @@ const homeworkReportList = asyncHandler(async (req, res) => {
   });
 res.status(200).json(homeworkData);
 });
-  // const results = await UC.paginatedQuery(
-  //   Homework,
-  //   query,
-  //   {},
-  //   page,
-  //   limit,
-  //   sort
-  // );
-
-//   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
-
-//   res.status(200).json(results);
-// });
-
+  
 module.exports = {
   addHomework,
   getHomeworkList,
@@ -357,5 +344,5 @@ module.exports = {
   updateEvaluation,
   deleteEvaluation,
 
-  homeworkReportList,
+  getHomeworkReportList
 };
