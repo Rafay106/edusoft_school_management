@@ -1,30 +1,34 @@
-const express = require("express");
+const express = require('express');
+const router = express.Router();
 const HWC = require("../controllers/homeworkController");
-const {
-  homeworkUpload,
-  homeworkEvaluationUpload,
-} = require("../middlewares/multerMiddleware");
 
 const homeworkRouter = express.Router();
 
-homeworkRouter
-  .route("/")
-  .post(homeworkUpload.single("file"), HWC.addHomework)
-  .get(HWC.getHomeworkList);
-homeworkRouter
-  .route("/:id")
-  .patch(HWC.updateHomework)
-  .delete(HWC.deleteHomework);
-homeworkRouter
-  .route("/evaluation")
-  .post(homeworkEvaluationUpload.single("file"), HWC.addEvaluataion).get(HWC.homeworkReportList);
-homeworkRouter
-  .route("/evaluation/:id")
-  .patch(HWC.updateEvaluation)
-  .delete(HWC.deleteEvaluation);
 
-homeworkRouter.route("/report").post(HWC.homeworkReportList);
+// 1 addHomework || getHomeworkList
+const addHomeworkRouter = express.Router();
+addHomeworkRouter.route("/").post(HWC.addHomework);
+addHomeworkRouter.route('/List').get(HWC.getHomeworkList);
+addHomeworkRouter.route('/Report').get(HWC.getHomeworkReportList);
 
-// homeworkRouter.get("/report", HWC.getHomeworkReport);
+
+
+
+homeworkRouter.use('/addHomework',addHomeworkRouter);
 
 module.exports = homeworkRouter;
+
+
+
+
+        
+
+
+
+
+
+
+
+
+
+
