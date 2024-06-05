@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const RazorpayPayment = require("../models/fees/razorPayModel");
-const { bulkImportUpload } = require("../middlewares/multerMiddleware");
+const { upload } = require("../middlewares/multerMiddleware");
 const BusStaff = require("../models/transport/busStaffModel");
 const BusStop = require("../models/transport/busStopModel");
 const Bus = require("../models/transport/busModel");
@@ -21,6 +21,8 @@ const FeeTerm = require("../models/fees/feeTermModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const Stream = require("../models/academics/streamModel");
 const { isEmailValid } = require("../utils/validators");
+const School = require("../models/system/schoolModel");
+const uploadPaths = require("../config/uploadPaths");
 
 router.post(
   "/1",
@@ -46,7 +48,7 @@ router.post(
 
 router.post(
   "/2",
-  bulkImportUpload.single("file"),
+  upload(uploadPaths.bulk_import).single("file"),
   asyncHandler(async (req, res) => {
     const fileData = UC.excelToJson(req.file.path);
     fs.unlinkSync(req.file.path);
@@ -228,49 +230,11 @@ router.post(
 router.post(
   "/3",
   asyncHandler(async (req, res) => {
-    const ftp = require("basic-ftp");
-    const {
-      MONGO_URI,
-      NAME,
-      DB_BACKUP_EMAIL,
-      DB_BACKUP_FTP_UPLOAD,
-      FTP_HOST,
-      FTP_USER,
-      FTP_PASS,
-      FTP_BACKUP_DIR,
-    } = process.env;
-    const client = new ftp.Client();
+    const file1 = path.join("data", "imports", "bus_with_stops.xlsx");
 
-    try {
-      const x = await client.access({
-        host: FTP_HOST,
-        user: FTP_USER,
-        password: FTP_PASS,
-        secure: false,
-      });
+    const fileData = UC.excelToJson(file1);
 
-      const localFilePath = path.join("backup", FILE_NAME);
-
-      const result = await client.uploadFrom(
-        localFilePath,
-        FTP_BACKUP_DIR + FILE_NAME
-      );
-
-      isUploadedToFTP = true;
-    } catch (err) {
-      console.error("Error uploading file:", err);
-    } finally {
-      client.close();
-    }
-    res.send("OK");
-  })
-);
-
-router.post(
-  "/4",
-  bulkImportUpload.single("file"),
-  asyncHandler(async (req, res) => {
-    res.json({ msg: "OK" });
+    res.json({ fileData });
   })
 );
 

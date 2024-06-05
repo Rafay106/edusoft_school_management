@@ -34,46 +34,51 @@ const workerEmailQueue = async (connection) => {
   );
 };
 
-const workerWhatsappQueue = async () => {
-  const worker = new Worker(C.WHATSAPP_QUEUE, async (job) => {
-    console.log(job);
+const workerWhatsappQueue = async (connection) => {
+  const worker = new Worker(
+    C.WHATSAPP_QUEUE,
+    async (job) => {
+      console.log(job);
 
-    const result = await sendWhatsapp(
-      job.data.to,
-      job.data.subject,
-      job.data.text,
-      job.data.html,
-      job.data.attachments
-    );
+      const result = await sendWhatsapp(
+        job.data.campaignName,
+        job.data.destinations,
+        job.data.templateParams,
+        job.data.media
+      );
 
-    if (result) await WhatsAppQ.deleteOne({ _id: job.name });
+      if (result) await WhatsAppQ.deleteOne({ _id: job.name });
 
-    UC.writeLog(
-      "bullmq_whatsapp",
-      `Worker job: ${JSON.stringify(job)} | Result: ${result}`
-    );
-  });
+      UC.writeLog(
+        "bullmq_whatsapp",
+        `Worker job: ${JSON.stringify(job)} | Result: ${result}`
+      );
+    },
+    { connection }
+  );
 };
 
-const workerPushQueue = async () => {
-  const worker = new Worker(C.PUSH_QUEUE, async (job) => {
-    console.log(job);
+const workerPushQueue = async (connection) => {
+  const worker = new Worker(
+    C.PUSH_QUEUE,
+    async (job) => {
+      const result = await sendPushNotification(
+        job.data.receivers,
+        job.data.title,
+        job.data.msg,
+        job.data.media,
+        job.data.sound
+      );
 
-    const result = await sendPushNotification(
-      job.data.to,
-      job.data.subject,
-      job.data.text,
-      job.data.html,
-      job.data.attachments
-    );
+      if (result) await PushQ.deleteOne({ _id: job.name });
 
-    if (result) await PushQ.deleteOne({ _id: job.name });
-
-    UC.writeLog(
-      "bullmq_push",
-      `Worker job: ${JSON.stringify(job)} | Result: ${result}`
-    );
-  });
+      UC.writeLog(
+        "bullmq_push",
+        `Worker job: ${JSON.stringify(job)} | Result: ${result}`
+      );
+    },
+    { connection }
+  );
 };
 
 module.exports = { workerEmailQueue, workerWhatsappQueue, workerPushQueue };

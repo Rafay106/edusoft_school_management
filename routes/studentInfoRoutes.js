@@ -1,31 +1,32 @@
 const express = require("express");
 const C = require("../controllers/studentInfoController");
-const {
-  studentPhotoUpload,
-  studentBulkImportUpload,
-} = require("../middlewares/multerMiddleware");
+const { photoUpload, uploadExcel } = require("../middlewares/multerMiddleware");
+const uploadPaths = require("../config/uploadPaths");
 
 const router = express.Router();
 
 // 1. BoardingType Routes
 const boardingTypeRouter = express.Router();
 
-boardingTypeRouter.route("/").get(C.getBoardingTypes).post(C.addBoardingType);
+boardingTypeRouter
+  .route("/")
+  .get(C.getBoardingTypes)
+  .post(C.addBoardingType)
+  .delete(C.deleteBoardingType);
 boardingTypeRouter
   .route("/:id")
   .get(C.getBoardingType)
-  .patch(C.updateBoardingType)
-  .delete(C.deleteBoardingType);
+  .patch(C.updateBoardingType);
 
 // 2. SubWard Routes
 const subwardRouter = express.Router();
 
-subwardRouter.route("/").get(C.getSubWards).post(C.addSubWard);
 subwardRouter
-  .route("/:id")
-  .get(C.getSubWard)
-  .patch(C.updateSubWard)
+  .route("/")
+  .get(C.getSubWards)
+  .post(C.addSubWard)
   .delete(C.deleteSubWard);
+subwardRouter.route("/:id").get(C.getSubWard).patch(C.updateSubWard);
 
 // 3. Student Routes
 const studentRouter = express.Router();
@@ -33,19 +34,17 @@ const studentRouter = express.Router();
 studentRouter
   .route("/")
   .get(C.getStudents)
-  .post(studentPhotoUpload.single("photo"), C.addStudent);
-
+  .post(photoUpload(uploadPaths.student).single("photo"), C.addStudent);
+studentRouter.post(
+  "/bulk",
+  uploadExcel(uploadPaths.bulk_import).single("file"),
+  C.bulkOpsStudent
+);
 studentRouter
   .route("/:id")
   .get(C.getStudent)
-  .patch(studentPhotoUpload.single("photo"), C.updateStudent)
+  .patch(photoUpload(uploadPaths.student).single("photo"), C.updateStudent)
   .delete(C.deleteStudent);
-
-studentRouter.post(
-  "/bulk",
-  studentBulkImportUpload.single("import"),
-  C.bulkOpsStudent
-);
 
 // 3. Student Bus Attendance Routes
 const stuBusAttRouter = express.Router();

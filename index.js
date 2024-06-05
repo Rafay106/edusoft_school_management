@@ -56,6 +56,18 @@ app.use(express.static(path.join(__dirname, "static")));
 app.use(express.static(path.join(__dirname, "data")));
 
 // Routes Start
+app.get("/api/schools-list", (req, res) => {
+  const filePath = path.join("schools.json");
+
+  if (!fs.existsSync(filePath)) {
+    res.status(500);
+    throw new Error("schools.json file not found!");
+  }
+
+  const schools = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+
+  res.status(200).json(schools);
+});
 
 app.post("/api/init", require("./controllers/systemController").init);
 
@@ -66,23 +78,19 @@ app.use(
   require("./routes/systemRoutes")
 );
 app.use("/api/login", require("./routes/authRoutes"));
+app.use("/api/user", authenticate, authorize, require("./routes/userRoutes"));
+app.use("/api/util", authenticate, authorize, require("./routes/utilRoutes"));
 app.use(
-  "/api/util",
+  "/api/admin-section",
   authenticate,
-  schoolAuthorize,
-  require("./routes/utilRoutes")
+  authorize,
+  require("./routes/adminSectionRoutes")
 );
 app.use(
   "/api/academics",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/academicRoutes")
-);
-app.use(
-  "/api/admin-section",
-  authenticate,
-  schoolAuthorize,
-  require("./routes/adminSectionRoutes")
 );
 app.use(
   "/api/student-info",
@@ -213,8 +221,8 @@ const IORedis = require("ioredis");
 const connection = new IORedis({ maxRetriesPerRequest: null });
 
 WORKER.workerEmailQueue(connection);
-// WORKER.workerWhatsappQueue();
-// WORKER.workerPushQueue();
+WORKER.workerWhatsappQueue(connection);
+WORKER.workerPushQueue(connection);
 
 /*************
  * Workers End *

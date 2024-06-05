@@ -4,7 +4,6 @@ const UC = require("../utils/common");
 const FeeGroup = require("../models/fees/feeGroupModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const FeeTerm = require("../models/fees/feeTermModel");
-const FeeHead = require("../models/fees/feeHeadModel");
 const Class = require("../models/academics/classModel");
 const StudentType = require("../models/studentInfo/boardingTypeModel");
 const FeeStructure = require("../models/fees/feeStructureModel");
@@ -388,7 +387,7 @@ const addFeeTerm = asyncHandler(async (req, res) => {
   }
 
   const feeTerm = await FeeTerm.create({
-    name,
+    name: req.body.name || name,
     term_type: req.body.term_type,
     year,
     start_month: req.body.start_month,
@@ -484,7 +483,7 @@ const getFeeStructures = asyncHandler(async (req, res) => {
     limit,
     sort,
     [
-      "fee_term class stream fee_types.boarding_type fee_types.amounts.fee_type academic_year",
+      "fee_term class fee_types.boarding_type fee_types.amounts.fee_type academic_year",
       "name",
     ]
   );
@@ -518,7 +517,6 @@ const addFeeStructure = asyncHandler(async (req, res) => {
 
   const feeTerms = await UC.validateFeeTerms(req.body.fee_terms, req.ayear);
   const classes = await UC.validateClasses(req.body.classes, req.ayear);
-  const streams = await UC.validateStreams(req.body.streams, req.ayear);
 
   // Validate feeTypes
   if (!feeTypes || feeTypes.length == 0) {
@@ -582,26 +580,23 @@ const addFeeStructure = asyncHandler(async (req, res) => {
   const feeStructures = [];
   for (const fee_term of feeTerms) {
     for (const c of classes) {
-      for (const stream of streams) {
-        if (await FeeStructure.any({ fee_term, class: c, stream })) {
-          const update = await FeeStructure.updateOne(
-            { fee_term, class: c, stream },
-            { $set: { fee_types: feeTypes } }
-          );
+      if (await FeeStructure.any({ fee_term, class: c })) {
+        const update = await FeeStructure.updateOne(
+          { fee_term, class: c },
+          { $set: { fee_types: feeTypes } }
+        );
 
-          feeStructures.push(update);
-        } else {
-          const feeStructure = await FeeStructure.create({
-            fee_term,
-            class: c,
-            stream,
-            fee_types: feeTypes,
-            academic_year: req.ayear,
-            school: req.school,
-          });
+        feeStructures.push(update);
+      } else {
+        const feeStructure = await FeeStructure.create({
+          fee_term,
+          class: c,
+          fee_types: feeTypes,
+          academic_year: req.ayear,
+          school: req.school,
+        });
 
-          feeStructures.push(feeStructure._id);
-        }
+        feeStructures.push(feeStructure._id);
       }
     }
   }

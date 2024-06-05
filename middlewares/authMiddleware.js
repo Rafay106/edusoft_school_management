@@ -1,4 +1,5 @@
 const asyncHandler = require("express-async-handler");
+const crypto = require("node:crypto");
 const jwt = require("jsonwebtoken");
 const C = require("../constants");
 const UC = require("../utils/common");
@@ -58,7 +59,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
       if (!req.user.api_key) {
         await User.updateOne(
           { _id: req.user._id },
-          { $set: { api_key: UC.generateApiKey() } }
+          { $set: { api_key: crypto.randomBytes(32).toString("hex") } }
         );
 
         req.user = await User.findOne({
@@ -149,63 +150,54 @@ const authenticateApikey = asyncHandler(async (req, res, next) => {
   next();
 });
 
-const parentAuthenticate = asyncHandler(async (req, res, next) => {
-  let token;
-
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
-  ) {
-    token = req.headers.authorization.split(" ")[1];
-
-    try {
-      const decode = jwt.verify(token, process.env.SECRET);
-
-      req.student = await Student.findById(decode._id)
-        .select("-password")
-        .lean();
-
-      // req.user = await User.findById(req.student.school)
-      //   .select("-password")
-      //   .lean();
-
-      if (!req.student) {
-        res.status(404);
-        throw new Error("404");
-      }
-    } catch (err) {
-      res.status(401);
-      throw new Error("Not Authorized!");
-    }
-
-    next();
-  }
-
-  if (!token) {
-    res.status(401);
-    throw new Error("Not authorized, no token");
-  }
-});
-
 const authorize = asyncHandler(async (req, res, next) => {
   const userType = req.user.type;
+  const privileges = req.user.privileges;
+
   const bUrl = req.baseUrl;
   const url = req.url;
+  const method = req.method;
 
   console.log("bUrl :>> ", bUrl);
   console.log("url :>> ", url);
-  if (C.isAdmins(userType)) return next();
+  console.log("method :>> ", method);
 
-  if (bUrl === "/api/system" && url.includes("/user")) {
-    if (C.isManager(userType) || C.isSchool(userType)) next();
-    else {
-      res.status(403);
-      throw new Error(C.ACCESS_DENIED);
+  if (userType) return next();
+
+  if (bUrl === "/api/system") {
+    const system = privileges.system;
+
+    if (!system.enabled) throwAccessDenied(res);
+    if (url.includes("template-privilege")) {
+      const result = checkCRUDPrivileges(method, system.privilege_template);
+      if (!result) throwAccessDenied(res);
+      return next();
+    } else if (url.includes("user")) {
+      const result = checkCRUDPrivileges(method, system.user);
+      if (!result) throwAccessDenied(res);
+      return next();
+    } else if (url.includes("school")) {
+      const result = checkCRUDPrivileges(method, system.school);
+      if (!result) throwAccessDenied(res);
+      return next();
+    } else if (url.includes("whatsapp-coin")) {
+      if (!system.whatsapp_coin.enabled) throwAccessDenied(res);
+      return next();
+    } else return next();
+  } else if (bUrl === "/api/user") {
+    return next();
+  } else if (bUrl === "/api/util") {
+    if (!privileges.util.enabled) throwAccessDenied(res);
+    else return next();
+  } else if (bUrl === "/api/admin-section") {
+    const adminSection = privileges.admin_section;
+
+    if (!adminSection.enabled) throwAccessDenied(res);
+    if (url.includes("id-card")) {
+      if (!adminSection.id_card.enabled) return next();
+      return next();
     }
-  } else {
-    res.status(403);
-    throw new Error(C.ACCESS_DENIED);
-  }
+  } else throwAccessDenied(res);
 });
 
 const adminAuthorize = asyncHandler(async (req, res, next) => {
@@ -235,10 +227,24 @@ const parentAuthorize = asyncHandler(async (req, res, next) => {
   }
 });
 
+const checkCRUDPrivileges = (method, privileges) => {
+  if (!privileges.enabled) return false;
+
+  if (method == "POST" && privileges.create) return true;
+  else if (method == "GET" && privileges.read) return true;
+  else if (method == "PATCH" && privileges.update) return true;
+  else if (method == "DELETE" && privileges.delete) return true;
+  else return false;
+};
+
+const throwAccessDenied = (res) => {
+  res.status(403);
+  throw new Error(C.ACCESS_DENIED);
+};
+
 module.exports = {
   authenticate,
   authenticateApikey,
-  parentAuthenticate,
   authorize,
   adminAuthorize,
   schoolAuthorize,

@@ -18,6 +18,7 @@ const BusStop = require("../models/transport/busStopModel");
 const BusStaff = require("../models/transport/busStaffModel");
 const Section = require("../models/academics/sectionModel");
 const Subject = require("../models/academics/subjectModel");
+const SubWard = require("../models/studentInfo/subwardTypeModel");
 
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
@@ -47,7 +48,7 @@ const paginatedQuery = async (
   if (page > pages) return false;
 
   const startIdx = (page - 1) * limit;
-  const results = { total: total, pages, page, result: [] };
+  const results = { total, pages, page, result: [] };
 
   results.result = await Model.find(query)
     .select(select)
@@ -67,6 +68,18 @@ const excelToJson = (filePath) => {
   const data = xlsx.utils.sheet_to_json(worksheet);
 
   return data;
+};
+
+const jsonToExcel = (filePath, data) => {
+  const workbook = xlsx.utils.book_new();
+
+  const worksheet = xlsx.utils.json_to_sheet(data);
+
+  xlsx.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+
+  xlsx.writeFile(workbook, filePath);
+
+  return true;
 };
 
 // ************************
@@ -105,7 +118,10 @@ const getUserContactInfo = async (usertypes, ids = []) => {
     }
 
     query.type = ut;
+
+    console.log(query);
     const users = await User.find(query).select("email phone").lean();
+    console.log(users);
 
     result.push(...users);
   }
@@ -193,151 +209,339 @@ const addMultipleSchools = async (userId, fileData) => {
 // STUDENT FUNCTIONS START
 // ************************
 
-const addMultipleStudents = async (userId, userType, fileData) => {
+// const addMultipleStudents = async (fileData, school) => {
+//   const students = [];
+
+//   const errors = [];
+//   const admNoObj = {};
+//   const rfidObj = {};
+
+//   for (let i = 0; i < fileData.length; i++) {
+//     const row = fileData[i];
+
+//     if (!row.fname) errors.push(C.getFieldIsReqAtIdx("fname", i));
+//     if (!row.lname) errors.push(C.getFieldIsReqAtIdx("lname", i));
+
+//     const name = {
+//       f: row.fname,
+//       m: row.mname,
+//       l: row.lname,
+//     };
+
+//     if (!row.phone) errors.push(C.getFieldIsReqAtIdx("phone", i));
+//     if (!row.email) errors.push(C.getFieldIsReqAtIdx("email", i));
+
+//     if (!row.admissionNo) errors.push(C.getFieldIsReqAtIdx("admissionNo", i));
+//     // Store counts to check for duplication
+//     const admNo = row.admissionNo.toUpperCase();
+//     if (!admNoObj[admNo]) admNoObj[admNo] = 1;
+//     else admNoObj[admNo] += 1;
+
+//     if (!row.rfid) errors.push(C.getFieldIsReqAtIdx("rfid", i));
+//     // Store counts to check for duplication
+//     const rfid = row.rfid.toUpperCase();
+//     if (!rfidObj[rfid]) rfidObj[rfid] = 1;
+//     else rfidObj[rfid] += 1;
+
+//     if (!row.doa) errors.push(C.getFieldIsReqAtIdx("doa", i));
+//     if (isNaN(new Date(row.doa))) {
+//       errors.push(C.getFieldIsInvalidAtIdx("doa", i));
+//     }
+
+//     row.doa = new Date(row.doa + "T00:00:00Z");
+
+//     if (!row.dob) errors.push(C.getFieldIsReqAtIdx("dob", i));
+//     if (isNaN(new Date(row.dob))) {
+//       errors.push(C.getFieldIsInvalidAtIdx("dob", i));
+//     }
+
+//     row.dob = new Date(row.dob + "T00:00:00Z");
+
+//     if (!row.gender) errors.push(C.getFieldIsReqAtIdx("gender", i));
+//     if (!["m", "f", "o"].includes(row.gender)) {
+//       errors.push(C.getValueNotSupAtIdx(row.gender, i));
+//     }
+
+//     if (!row.school) errors.push(C.getFieldIsReqAtIdx("school", i));
+
+//     const school = await School.findOne({
+//       _id: row.school,
+//       createdBy: userId,
+//     })
+//       .select("_id")
+//       .lean();
+
+//     if (!school) errors.push(C.getResourse404Id("school", row.school));
+
+//     if (!row.bus) errors.push(C.getFieldIsReqAtIdx("bus", i));
+
+//     const bus = await Bus.findOne({
+//       _id: row.bus,
+//       createdBy: userId,
+//     })
+//       .select("_id")
+//       .lean();
+
+//     if (!bus) errors.push(C.getResourse404Id("bus", row.bus));
+
+//     if (!row.address) errors.push(C.getFieldIsReqAtIdx("address", i));
+//     if (!row.lat) errors.push(C.getFieldIsReqAtIdx("lat", i));
+//     if (!row.lon) errors.push(C.getFieldIsReqAtIdx("lon", i));
+//     if (!row.radius) errors.push(C.getFieldIsReqAtIdx("radius", i));
+
+//     const pickupLocation = {
+//       address: row.address,
+//       lat: row.lat,
+//       lon: row.lon,
+//       radius: row.radius,
+//     };
+
+//     const manager = [C.SUPERADMIN, C.ADMIN].includes(userType)
+//       ? row.manager
+//       : userId;
+
+//     if (!manager) errors.push(C.getFieldIsReqAtIdx("manager", i));
+
+//     students.push({
+//       name,
+//       phone: row.phone,
+//       email: row.email,
+//       rfid: row.rfid,
+//       admissionNo: row.admissionNo,
+//       doa: row.doa,
+//       dob: row.dob,
+//       gender: row.gender,
+//       school: row.school,
+//       bus: row.bus,
+//       pickupLocations: [pickupLocation],
+//       manager,
+//       createdBy: userId,
+//     });
+//   }
+
+//   for (const key of Object.keys(admNoObj)) {
+//     if (admNoObj[key] > 1) {
+//       errors.push(`Duplicate Values: admissionNo [${key}]`);
+//     }
+//   }
+
+//   for (const key of Object.keys(rfidObj)) {
+//     if (rfidObj[key] > 1) {
+//       errors.push(`Duplicate Values: admissionNo [${key}]`);
+//     }
+//   }
+
+//   if (errors.length > 0) {
+//     return {
+//       status: 400,
+//       errors,
+//     };
+//   }
+
+//   const result = await Student.create(students);
+
+//   return {
+//     msg: `${result.length} students successfully added.`,
+//   };
+// };
+
+const addMultipleStudents = async (fileData, school, ayear) => {
+  const CLASSES = await Class.find().lean();
+  const SECTIONS = await Section.find().lean();
+  const STREAMS = await Stream.find().lean();
+  const BOARDINGTYPES = await BoardingType.find().lean();
+  const SUBWARDS = await SubWard.find().lean();
+  const BUSSES = await Bus.find().lean();
+  const BUSSTOPS = await BusStop.find().lean();
+
+  const naStream = STREAMS.find((s) => s.name === "NA");
+  const naBoarding = BOARDINGTYPES.find((s) => s.name === "NA");
+  const naSubward = SUBWARDS.find((s) => s.name === "NA");
+
   const students = [];
-
   const errors = [];
-  const admNoObj = {};
-  const rfidObj = {};
 
-  for (let i = 0; i < fileData.length; i++) {
-    const row = fileData[i];
-
-    if (!row.fname) errors.push(C.getFieldIsReqAtIdx("fname", i));
-    if (!row.lname) errors.push(C.getFieldIsReqAtIdx("lname", i));
-
-    const name = {
-      f: row.fname,
-      m: row.mname,
-      l: row.lname,
-    };
-
-    if (!row.phone) errors.push(C.getFieldIsReqAtIdx("phone", i));
-    if (!row.email) errors.push(C.getFieldIsReqAtIdx("email", i));
-
-    if (!row.admissionNo) errors.push(C.getFieldIsReqAtIdx("admissionNo", i));
-    // Store counts to check for duplication
-    const admNo = row.admissionNo.toUpperCase();
-    if (!admNoObj[admNo]) admNoObj[admNo] = 1;
-    else admNoObj[admNo] += 1;
-
-    if (!row.rfid) errors.push(C.getFieldIsReqAtIdx("rfid", i));
-    // Store counts to check for duplication
-    const rfid = row.rfid.toUpperCase();
-    if (!rfidObj[rfid]) rfidObj[rfid] = 1;
-    else rfidObj[rfid] += 1;
-
+  let i = 1;
+  for (const row of fileData) {
+    if (!row.admission_no) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row.name) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row.class) errors.push(C.getFieldIsReqAtIdx("class", i));
+    if (!row.section) errors.push(C.getFieldIsReqAtIdx("section", i));
+    if (!row.admission_time_class)
+      errors.push(C.getFieldIsReqAtIdx("admission_time_class", i));
     if (!row.doa) errors.push(C.getFieldIsReqAtIdx("doa", i));
-    if (isNaN(new Date(row.doa))) {
-      errors.push(C.getFieldIsInvalidAtIdx("doa", i));
-    }
-
-    row.doa = new Date(row.doa + "T00:00:00Z");
-
+    if (!row.student_status)
+      errors.push(C.getFieldIsReqAtIdx("student_status", i));
+    if (!row.phone) errors.push(C.getFieldIsReqAtIdx("phone", i));
     if (!row.dob) errors.push(C.getFieldIsReqAtIdx("dob", i));
-    if (isNaN(new Date(row.dob))) {
-      errors.push(C.getFieldIsInvalidAtIdx("dob", i));
+
+    if (students.find((ele) => ele.admission_no === row.admission_no)) {
+      errors.push(`Duplicate admissionNo [${row.admission_no}] at row: ${i}`);
     }
 
-    row.dob = new Date(row.dob + "T00:00:00Z");
+    row.doa = excelDateToJSDate(row.doa);
+    row.dob = excelDateToJSDate(row.dob);
 
-    if (!row.gender) errors.push(C.getFieldIsReqAtIdx("gender", i));
-    if (!["m", "f", "o"].includes(row.gender)) {
-      errors.push(C.getValueNotSupAtIdx(row.gender, i));
+    row.phone = String(row.phone);
+
+    if (row.phone.length !== 10) {
+      row.phone = "9123123123";
+      // errors.push(`phone number shoud be of 10 digits at row: ${i}`);
     }
 
-    if (!row.school) errors.push(C.getFieldIsReqAtIdx("school", i));
+    const section = SECTIONS.find((s) => s.name === row.section);
 
-    const school = await School.findOne({
-      _id: row.school,
-      createdBy: userId,
-    })
-      .select("_id")
-      .lean();
+    let stream;
+    if (row.stream) {
+      stream = STREAMS.find((s) => s.name === row.stream);
+      if (!stream) errors.push(`stream not found at row: ${i}`);
+    } else stream = naStream;
 
-    if (!school) errors.push(C.getResourse404Id("school", row.school));
-
-    if (!row.bus) errors.push(C.getFieldIsReqAtIdx("bus", i));
-
-    const bus = await Bus.findOne({
-      _id: row.bus,
-      createdBy: userId,
-    })
-      .select("_id")
-      .lean();
-
-    if (!bus) errors.push(C.getResourse404Id("bus", row.bus));
-
-    if (!row.address) errors.push(C.getFieldIsReqAtIdx("address", i));
-    if (!row.lat) errors.push(C.getFieldIsReqAtIdx("lat", i));
-    if (!row.lon) errors.push(C.getFieldIsReqAtIdx("lon", i));
-    if (!row.radius) errors.push(C.getFieldIsReqAtIdx("radius", i));
-
-    const pickupLocation = {
-      address: row.address,
-      lat: row.lat,
-      lon: row.lon,
-      radius: row.radius,
-    };
-
-    const manager = [C.SUPERADMIN, C.ADMIN].includes(userType)
-      ? row.manager
-      : userId;
-
-    if (!manager) errors.push(C.getFieldIsReqAtIdx("manager", i));
-
-    students.push({
-      name,
-      phone: row.phone,
-      email: row.email,
-      rfid: row.rfid,
-      admissionNo: row.admissionNo,
-      doa: row.doa,
-      dob: row.dob,
-      gender: row.gender,
-      school: row.school,
-      bus: row.bus,
-      pickupLocations: [pickupLocation],
-      manager,
-      createdBy: userId,
+    let cStream = stream ? stream._id : naStream._id;
+    // console.log("cStream", cStream);
+    const class_ = CLASSES.find((C) => {
+      // console.log("C.stream === cStream", C.stream.equals(cStream));
+      if (C.name === row.class && C.stream.equals(cStream)) return true;
+      else return false;
     });
-  }
 
-  for (const key of Object.keys(admNoObj)) {
-    if (admNoObj[key] > 1) {
-      errors.push(`Duplicate Values: admissionNo [${key}]`);
+    console.log(row.class, ":", class_.name);
+
+    const atclass = CLASSES.find((c) => c.name === row.admission_time_class);
+
+    const boardingType =
+      BOARDINGTYPES.find((bt) => bt.name === row.boarding_type) || naBoarding;
+
+    const subward =
+      SUBWARDS.find((sw) => sw.name === row.sub_ward) || naSubward;
+
+    const bus_pick = BUSSES.find((b) => b.name === row.bus_pick);
+    if (row.bus_pick && !bus_pick) {
+      errors.push(`bus_pick not found at row: ${i}`);
     }
-  }
 
-  for (const key of Object.keys(rfidObj)) {
-    if (rfidObj[key] > 1) {
-      errors.push(`Duplicate Values: admissionNo [${key}]`);
+    const bus_drop = BUSSES.find((b) => b.name === row.bus_drop);
+    if (row.bus_drop && !bus_drop) {
+      errors.push(`bus_drop not found at row: ${i}`);
     }
-  }
 
-  if (errors.length > 0) {
-    return {
-      status: 400,
-      errors,
+    const busStop = BUSSTOPS.find((bs) => bs.name === row.stop);
+    if (row.stop && !busStop) {
+      errors.push(`stop not found at row: ${i}`);
+    }
+
+    const email =
+      row["Email ID"] == "N/A" || !row["Email ID"]
+        ? row.admission_no.replace("/", "_") + "@email.com"
+        : row["Email ID"];
+
+    const student = {
+      admission_no: row.admission_no,
+      admission_serial: row.admission_serial,
+      student_id: row.student_id,
+      roll_no: row.roll_no,
+      name: row.name,
+      class: class_._id,
+      section: section._id,
+      stream: stream?._id,
+      admission_time_class: atclass?._id,
+      gender: !row.gender ? "na" : row.gender === "MALE" ? "m" : "f",
+      house: row.house,
+      blood_group: row.blood_group == "NONE" ? "na" : row.blood_group,
+      staff_child: row.staff_child,
+      doa: row.doa,
+      student_status: row.student_status === "New" ? "n" : "o",
+      student_left: row.student_left === "Yes",
+      phone: row.phone ? row.phone : "9123123123",
+      father_details: {
+        name: row.father_name,
+        phone: row.father_phone,
+        designation: row.father_designation,
+        office_address: row.father_office,
+        job_title: row.father_job,
+        adhaar: row.father_adhaar,
+      },
+      mother_details: {
+        name: row.mother_name,
+        phone: row.mother_phone,
+        job_title: row.mother_job,
+        adhaar: row.mother_adhaar,
+      },
+      dob: row.dob,
+      age: row.age,
+      address: {
+        permanent: row.permanent_address,
+        correspondence: row.correspondence_address,
+      },
+      religion: row.religion,
+      cast: row.cast === "GENERAL" ? "GEN" : row.cast,
+      boarding_type: boardingType._id,
+      sub_ward: subward._id,
+      student_club: row.student_club,
+      student_work_exp: row.student_work_exp,
+      language_2nd: row.language_2nd,
+      language_3rd: row.language_3rd,
+      exam_subjects: {
+        one: row.exam_sub1,
+        two: row.exam_sub2,
+        three: row.exam_sub3,
+        four: row.exam_sub4,
+        five: row.exam_sub5,
+        six: row.exam_sub6,
+        seven: row.exam_sub7,
+        eigth: row.exam_sub8,
+        nine: row.exam_sub9,
+        ten: row.exam_sub10,
+      },
+      ews_applicable: row.ews_applicable === "Yes",
+      bank_details: {
+        name: row.bankname,
+        account_type: row.account_type,
+        account_holder: row.account_holder,
+        account_no: row.account_no,
+        ifsc: row.ifsc,
+      },
+      relation_with_student: row.relation_with_student,
+      class_teacher: row.class_teacher,
+      bus_pick: bus_pick ? bus_pick._id : undefined,
+      bus_drop: bus_drop ? bus_drop._id : undefined,
+      bus_stop: busStop ? busStop._id : undefined,
+      student_adhaar: row.student_adhaar,
+      sibling: row.sibling === "Yes",
+      single_girl_child: row.single_girl_child === "Yes",
+      handicapped: row.handicapped === "Yes",
+      email,
+      photo: row.admission_no.replace("/", "") + ".jpg",
+      rfid: crypto.randomBytes(10).toString("hex"),
+      academic_year: ayear,
+      school: school._id,
     };
+
+    students.push(student);
+
+    i++;
   }
 
-  const result = await Student.create(students);
+  // return errors.length ? errors : students;
 
-  return {
-    msg: `${result.length} students successfully added.`,
-  };
-};
+  if (errors.length > 0) return errors;
 
-const getPersonName = (name) => {
-  if (!name) return "";
-  if (!name.f || !name.l) return "";
+  const results = [];
+  for (const stuData of students) {
+    if (await Student.any({ admission_no: stuData.admission_no })) {
+      const update = await Student.updateOne(
+        { admission_no: stuData.admission_no },
+        { $set: stuData }
+      );
 
-  let studentName = name.f;
-  studentName += name.m ? ` ${name.m} ` : " ";
-  studentName += name.l;
+      results.push({ admission_no: stuData.admission_no, msg: update });
+    } else {
+      const student = await Student.create(stuData);
+      results.push(student);
+    }
+  }
 
-  return studentName;
+  return results;
 };
 
 const getStudentAddress = (address) => {
@@ -355,6 +559,86 @@ const getStudentAddress = (address) => {
 // ************************
 
 // ************************
+// BUS-STAFF FUNCTIONS START
+// ************************
+
+const addMultipleBusStaffs = async (data, school) => {
+  const staffs = [];
+  const errors = [];
+
+  let i = 1;
+  for (const row of data) {
+    if (!row.type) errors.push(C.getFieldIsReqAtIdx("type", i));
+    if (!row.name) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row.doj) errors.push(C.getFieldIsReqAtIdx("doj", i));
+    if (!row.phone_primary)
+      errors.push(C.getFieldIsReqAtIdx("phone_primary", i));
+
+    if (staffs.find((s) => s.phone.primary === row.phone_primary)) {
+      errors.push(`Duplicate Values: phone_primary [${row.phone_primary}]`);
+    }
+
+    const doj = new Date(row.doj + "T00:00:00Z");
+
+    if (isNaN(doj)) errors.push(C.getFieldIsInvalidAtIdx("doj", i));
+
+    staffs.push({
+      type: row.type,
+      name: row.name,
+      doj,
+      email: row.email,
+      phone: {
+        primary: row.phone_primary,
+        secondary: row.phone_secondary,
+      },
+      driving_license: {
+        number: row.dl_number,
+        expiry_date: row.dl_expiry_date,
+      },
+      school: school._id,
+    });
+
+    i++;
+  }
+
+  if (errors.length > 0) return errors;
+
+  const busStaffs = [];
+  for (const staff of staffs) {
+    if (await BusStaff.any({ "phone.primary": staff.phone.primary })) {
+      const update = await BusStaff.updateOne(
+        { "phone.primary": staff.phone.primary },
+        {
+          $set: {
+            type: row.type,
+            name: row.name,
+            doj: row.doj,
+            email: row.email,
+            "phone.secondary": staff.phone.secondary,
+            driving_license: {
+              number: row.dl_number,
+              expiry_date: row.dl_expiry_date,
+            },
+          },
+        }
+      );
+
+      busStaffs.push({ phone_primary: staff.phone.primary, msg: update });
+    } else {
+      const busStaff = await BusStaff.create(staff);
+
+      busStaffs.push(busStaff._id);
+    }
+  }
+
+  return busStaffs;
+};
+
+// ************************
+// BUS-STAFF FUNCTIONS END
+// ************************
+
+// ************************
 // BUS-STOP FUNCTIONS START
 // ************************
 
@@ -366,8 +650,8 @@ const addMultipleBusStops = async (data, school) => {
   for (const row of data) {
     if (!row.name) errors.push(C.getFieldIsReqAtIdx("name", i));
     if (!row.address) errors.push(C.getFieldIsReqAtIdx("address", i));
-    if (!row.fare && row.fare !== 0)
-      errors.push(C.getFieldIsReqAtIdx("fare", i));
+    if (!row.monthly_charges && row.monthly_charges !== 0)
+      errors.push(C.getFieldIsReqAtIdx("monthly_charges", i));
     if (!row.lat && row.lat !== 0) errors.push(C.getFieldIsReqAtIdx("lat", i));
     if (!row.lon && row.lon !== 0) errors.push(C.getFieldIsReqAtIdx("lon", i));
 
@@ -380,7 +664,7 @@ const addMultipleBusStops = async (data, school) => {
     stops.push({
       name: row.name,
       address: row.address,
-      fare: row.fare,
+      monthly_charges: row.monthly_charges,
       lat: parseFloat(row.lat).toFixed(6),
       lon: parseFloat(row.lon).toFixed(6),
       school: school._id,
@@ -399,7 +683,7 @@ const addMultipleBusStops = async (data, school) => {
         {
           $set: {
             address: stop.address,
-            fare: stop.fare,
+            monthly_charges: stop.monthly_charges,
             lat: parseFloat(stop.lat).toFixed(6),
             lon: parseFloat(stop.lon).toFixed(6),
           },
@@ -475,14 +759,14 @@ const addMultipleBuses = async (data, school) => {
     if (!row.no_plate) errors.push(C.getFieldIsReqAtIdx("no_plate", i));
     if (!row.model) errors.push(C.getFieldIsReqAtIdx("model", i));
     if (!row.imei) errors.push(C.getFieldIsReqAtIdx("imei", i));
-    if (!row.bus_stops) errors.push(C.getFieldIsReqAtIdx("bus_stops", i));
+    if (!row.stops) errors.push(C.getFieldIsReqAtIdx("stops", i));
     if (!row.driver) errors.push(C.getFieldIsReqAtIdx("driver", i));
     if (!row.conductor) errors.push(C.getFieldIsReqAtIdx("conductor", i));
 
     const name = String(row.name).toUpperCase();
     const no_plate = String(row.no_plate).toUpperCase();
     const model = String(row.model).toUpperCase();
-    const busStops = row.bus_stops.split("|");
+    const busStops = row.stops.split(";");
     const driverName = row.driver.toUpperCase();
     const conductorName = row.conductor.toUpperCase();
 
@@ -495,7 +779,7 @@ const addMultipleBuses = async (data, school) => {
     }
 
     if (busStops.length === 0) {
-      errors.push(C.getFieldIsReqAtIdx("bus_stops", i));
+      errors.push(C.getFieldIsReqAtIdx("stops", i));
     }
 
     const stops = [];
@@ -691,9 +975,20 @@ const validateClasses = async (classes, academic_year) => {
   const result = [];
 
   for (const name of classes) {
-    const c = await Class.findOne({ name: name.toUpperCase(), academic_year })
-      .select("_id")
-      .lean();
+    const query = { name: name.toUpperCase(), academic_year };
+    // if name contains stream
+
+    if (name.includes(" ")) {
+      const nameArr = name.toUpperCase().split(" ");
+      const stream = await Stream.findOne({ name: nameArr[1] })
+        .select("_id")
+        .lean();
+
+      query.name = nameArr[0];
+      query.stream = stream._id;
+    }
+
+    const c = await Class.findOne(query).select("_id").lean();
 
     if (!c) {
       throwCustomValidationErr(C.getResourse404Id("classes", name));
@@ -1061,12 +1356,19 @@ const formatDateToAMPM = (dateTime) => {
   return `${D}-${M}-${Y.slice(2, 4)} ${h}:${m}:${s} ${postFix}`;
 };
 
-const generateApiKey = () => crypto.randomBytes(32).toString("hex");
+const excelDateToJSDate = (excelDate) => {
+  // Unix epoch starts on 1970-01-01, and Excel epoch starts on 1900-01-01
+  const excelEpochStart = new Date(Date.UTC(1900, 0, 1));
+  const dateOffset = excelDate - 2; // Adjust for Excel's 1900 leap year bug
+  const jsDate = new Date(excelEpochStart.getTime() + dateOffset * 86400000); // Convert days to milliseconds
+  return jsDate;
+};
 
 module.exports = {
   createSearchQuery,
   paginatedQuery,
   excelToJson,
+  jsonToExcel,
 
   getUsernameFromEmail,
   managerExists,
@@ -1079,6 +1381,8 @@ module.exports = {
 
   addMultipleStudents,
   getStudentAddress,
+
+  addMultipleBusStaffs,
 
   addMultipleBusStops,
 
@@ -1115,6 +1419,5 @@ module.exports = {
 
   convUTCTo0530,
   formatDateToAMPM,
-
-  generateApiKey,
+  excelDateToJSDate,
 };

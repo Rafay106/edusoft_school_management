@@ -18,7 +18,6 @@ router.get("/subject-list", Util.getSubjectList);
 router.get("/fee-group-list", Util.getFeeGroupList);
 router.get("/fee-type-list", Util.getFeeTypeList);
 router.get("/fee-term-list", Util.getFeeTermList);
-router.get("/fee-head-list", Util.getFeeHeadList);
 router.get("/designation-list", Util.getDesignationList);
 router.get("/department-list", Util.getDepartmentList);
 router.get("/library-category-list", Util.getLibraryCategoryList);

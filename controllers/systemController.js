@@ -1,16 +1,16 @@
-const fs = require("node:fs");
-const path = require("node:path");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
 const School = require("../models/system/schoolModel");
 const User = require("../models/system/userModel");
-const TemplatePrivilege = require("../models/system/templatePrivilegeModel");
+const {
+  TemplatePrivilege,
+} = require("../models/system/templatePrivilegeModel");
 const Student = require("../models/studentInfo/studentModel");
 const AcademicYear = require("../models/academics/academicYearModel");
+const WhatsappCoinTransaction = require("../models/system/whatsappCoinTransactionModel");
 
 const bcrypt = require("bcrypt");
-const WhatsappCoinTransaction = require("../models/system/whatsappCoinTransactionModel");
 const { credit } = require("../tools/whatsapp_coin");
 
 const init = asyncHandler(async (req, res) => {
@@ -26,148 +26,93 @@ const init = asyncHandler(async (req, res) => {
     throw new Error("Invalid Key");
   }
 
+  const crudSuperadmin = {
+    enabled: true,
+    create: true,
+    read: true,
+    update: true,
+    delete: true,
+  };
+
   // Superadmin
   const templatePrivilege = await TemplatePrivilege.create({
     type: C.SUPERADMIN,
     privileges: {
-      sidebar_manager: true,
-      dashboard: {
-        no_of_students: true,
-        no_of_teacher: true,
-        no_of_parents: true,
-        no_of_staff: true,
-        cmiaec: true,
-        cyiaec: true,
-        notice_board: true,
-        calender_section: true,
-        to_do_list: true,
+      system: {
+        enabled: true,
+        privilege_template: crudSuperadmin,
+        user: crudSuperadmin,
+        school: crudSuperadmin,
+        whatsapp_coin: { enabled: true },
       },
-      admin_section: {
-        admission_query: { add: true, edit: true, delete: true },
-        visitor_book: { add: true, edit: true, delete: true, download: true },
-        complaint: { add: true, edit: true, delete: true, download: true },
-        postal_receive: {
-          add: true,
-          edit: true,
-          delete: true,
-          download: true,
-        },
-        postal_dispatch: {
-          add: true,
-          edit: true,
-          delete: true,
-          download: true,
-        },
-        phone_call_log: { add: true, edit: true, delete: true },
-        admin_setup: { add: true, edit: true, delete: true },
-        student_id_card: { add: true, edit: true, delete: true },
-        generate_certificate: true,
-        generate_id_card: true,
-      },
-      sutdent_info: {
-        category: { add: true, edit: true, delete: true },
-        add: true,
-        list: {
-          add: true,
-          edit: true,
-          delete: true,
-          assign_class: true,
-          show_all: true,
-        },
-        multi_class: true,
-        delete_record: true,
-        unassign: true,
-        attendance: { add: true },
-        group: { add: true, edit: true, delete: true },
-        promote: { add: true },
-        disabled: { search: true, enable: true, delete: true },
-        subject_wise_attendance: { save: true },
-        export: { to_csv: true, to_pdf: true },
-        time_setup: true,
-      },
+      util: { enabled: true },
+      adminSection: { enabled: true, id_card: { enabled: true } },
       academics: {
-        optional_subject: true,
-        section: { add: true, edit: true, delete: true },
-        class: { add: true, edit: true, delete: true },
-        subjects: { add: true, edit: true, delete: true },
-        assign_class_teacher: { add: true, edit: true, delete: true },
-        assign_subject: { add: true, view: true },
-        class_room: { add: true, edit: true, delete: true },
-        class_routine: { add: true, delete: true },
-        teacher_class_routine: true,
+        enabled: true,
+        academic_year: crudSuperadmin,
+        section: crudSuperadmin,
+        stream: crudSuperadmin,
+        class: crudSuperadmin,
+        subject: crudSuperadmin,
+        class_routine: crudSuperadmin,
       },
-      download_center: {
-        content_type: { add: true, edit: true, update: true, delete: true },
-        content_list: {
-          add: true,
-          edit: true,
-          update: true,
-          delete: true,
-          search: true,
+      student_info: {
+        enabled: true,
+        boarding_type: crudSuperadmin,
+        subward: crudSuperadmin,
+        student: { ...crudSuperadmin, bulk_ops: true, attendance: true },
+      },
+      transport: {
+        enabled: true,
+        bus_staff: crudSuperadmin,
+        bus_stop: { ...crudSuperadmin, bulk_ops: true },
+        bus: {
+          ...crudSuperadmin,
+          bulk_ops: true,
+          set_unset_alternate: true,
+          track: true,
+          bus_status: true,
         },
-        shared_content_list: { add: true, generate_link: true },
-        video_list: { add: true, update: true, delete: true, search: true },
       },
-      study_material: {
-        upload_content: {
-          add: true,
-          download: true,
-          delete: true,
-          edit: true,
-        },
-        assignment: { edit: true, download: true, delete: true },
-        syllabus: { edit: true, download: true, delete: true },
-        other_downloads: { download: true, delete: true, edit: true },
+      fee: {
+        enabled: true,
+        fee_group: crudSuperadmin,
+        fee_type: crudSuperadmin,
+        fee_term: crudSuperadmin,
+        fee_concession: crudSuperadmin,
+        fee_fine: crudSuperadmin,
+        fee_structure: crudSuperadmin,
+        calculate_fee: true,
+        collect_fee: true,
       },
+      hr: {
+        enabled: true,
+        department: crudSuperadmin,
+        designation: crudSuperadmin,
+        staff: crudSuperadmin,
+      },
+      parent_util: { enabled: true },
+      parent: { enabled: true },
+      dashboard: { enabled: true },
+      library: {
+        enabled: true,
+        category: crudSuperadmin,
+        subject: crudSuperadmin,
+        book: crudSuperadmin,
+        book_issued: crudSuperadmin,
+      },
+      homework: { ...crudSuperadmin, evaluation: crudSuperadmin },
       lesson_plan: {
-        lesson: { add: true, edit: true, delete: true },
-        topic: { add: true, edit: true, delete: true },
-        topic_overview: true,
-        lesson_plan: { add: true, edit: true, delete: true, view: true },
-        my_lesson_plan: true,
-        my_lesson_plan_overview: true,
-        lesson_plan_overview: true,
+        enabled: true,
+        lesson: crudSuperadmin,
+        topic: crudSuperadmin,
       },
-      fees_settings: {
-        fee_invoic_settings: { update: true },
+      communication: {
+        enabled: true,
+        noticeboard: { ...crudSuperadmin, bulk_ops: true },
+        send_message: { enabled: true },
       },
-      exam_settings: {
-        format_settings: true,
-        setup_exam_rule: true,
-        position_setup: true,
-        all_exam_position: true,
-        exam_signature_settings: true,
-        admit_card_setting: true,
-        seat_plan_setting: true,
-      },
-      student_report: {},
-      exam_report: {},
-      staff_report: {},
-      fees_report: {},
-      accounts_report: {},
-      fees: {},
-      wallet: {},
-      bulk_print: {},
-      accounts: {},
-      human_resource: {},
-      leave: {},
-      teacher_evaluation: {},
-      custom_field: {},
-      chat: {},
-      examination: {},
-      exam_plan: {},
-      online_exam: {},
-      behaviour_records: {},
-      homework: {},
-      communicate: {},
-      library: {},
-      inventory: {},
-      transport: {},
-      dormitory: {},
-      role_and_permissions: {},
-      general_settings: {},
-      style: {},
-      frontend_cms: {},
+      api_key: { enabled: true },
     },
   });
 
@@ -315,7 +260,7 @@ const getUsers = asyncHandler(async (req, res) => {
   if (C.isSchool(req.user.type)) query.school = req.school._id;
 
   if (search) {
-    const fields = ["name", "email", "phone", "type"];
+    const fields = ["name", "email", "username", "phone", "type"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
     query["$or"] = searchQuery["$or"];
@@ -382,7 +327,12 @@ const requiredDataUser = asyncHandler(async (req, res) => {
 // @route   POST /api/system/user
 // @access  Private
 const createUser = asyncHandler(async (req, res) => {
-  const { email, name, phone, type } = req.body;
+  const { email, username, name, phone, type } = req.body;
+
+  if (!email) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("email"));
+  }
 
   // Validate type
   const notType = [C.SUPERADMIN, C.ADMIN];
@@ -404,14 +354,13 @@ const createUser = asyncHandler(async (req, res) => {
     school = await UC.validateSchool(req.user, req.body.school);
   }
 
-  console.log("school :>> ", school);
-
   // Get privileges
   const privileges = await TemplatePrivilege.findOne({ type }).lean();
 
   const user = await User.create({
     name,
     email,
+    username,
     password: req.body.password || "123456",
     phone,
     type,
@@ -474,13 +423,6 @@ const deleteUser = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
-// @desc    Get a User Privileges
-// @route   GET /api/system/user/privileges
-// @access  Private
-const getUserPrivileges = asyncHandler(async (req, res) => {
-  res.status(200).json(req.user.privileges);
-});
-
 // @desc    Reset student password
 // @route   PATCH /api/system/user/reset-password
 // @access  Private
@@ -538,7 +480,9 @@ const getSchool = asyncHandler(async (req, res) => {
     throw new Error("Access Denied");
   }
 
-  const school = await School.findOne().lean();
+  const school = await School.findOne()
+    .populate("current_academic_year")
+    .lean();
 
   if (!school) {
     res.status(404);
@@ -654,7 +598,7 @@ const deleteSchool = asyncHandler(async (req, res) => {
 // @route   POST /api/system/whatsapp-coin/add
 // @access  Private
 const addWhatsappCoins = asyncHandler(async (req, res) => {
-  if (!C.isAdmins(req.user.type)) {
+  if (!C.isSuperAdmin(req.user.type)) {
     res.status(403);
     throw new Error(C.ACCESS_DENIED);
   }
@@ -673,6 +617,11 @@ const addWhatsappCoins = asyncHandler(async (req, res) => {
 // @route   POST /api/system/whatsapp-coin/transaction
 // @access  Private
 const getWhatsappCoinTransactions = asyncHandler(async (req, res) => {
+  if (!C.isSuperAdmin(req.user.type)) {
+    res.status(403);
+    throw new Error(C.ACCESS_DENIED);
+  }
+
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
   const sort = req.query.sort || "-createdAt";
@@ -736,7 +685,6 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
-  getUserPrivileges,
   resetPassword,
   setCurrentAcademicYear,
 

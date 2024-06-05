@@ -28,10 +28,12 @@ const getBusStaffs = asyncHandler(async (req, res) => {
     query["$or"] = searchQuery["$or"];
   }
 
+  console.log(query);
+
   const results = await UC.paginatedQuery(
     BusStaff,
     query,
-    "type name photo",
+    "",
     page,
     limit,
     sort
@@ -77,7 +79,10 @@ const addBusStaff = asyncHandler(async (req, res) => {
     name: req.body.name,
     doj: req.body.doj,
     email: req.body.email,
-    phone: req.body.phone,
+    phone: {
+      primary: req.body.phone_primary,
+      secondary: req.body.phone_secondary,
+    },
     photo,
     driving_license: {
       number: req.body.dl_no,
@@ -95,17 +100,12 @@ const addBusStaff = asyncHandler(async (req, res) => {
 const updateBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const busStaff = await BusStaff.findOne(query).select("_id").lean();
+  const busStaff = await BusStaff.findOne(query).select("_id photo").lean();
 
   if (!busStaff) {
     res.status(404);
     throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
-
-  const name = {};
-  if (req.body.fname) name.f = req.body.fname;
-  if (req.body.mname) name.m = req.body.mname;
-  if (req.body.lname) name.l = req.body.lname;
 
   const photo = req.file ? req.file.filename : undefined;
 
@@ -117,13 +117,26 @@ const updateBusStaff = asyncHandler(async (req, res) => {
     }
   }
 
+  // Delete previous photo
+  if (photo && busStaff.photo) {
+    const photoPath = path.join(
+      "static",
+      "uploads",
+      "bus_staff",
+      busStaff.photo
+    );
+
+    if (fs.existsSync(photoPath)) fs.unlinkSync(photoPath);
+  }
+
   const result = await BusStaff.updateOne(query, {
     $set: {
       type: req.body.type,
-      name,
+      name: req.body.name,
       doj: req.body.doj,
       email: req.body.email,
-      phone: req.body.phone,
+      "phone.primary": req.body.phone_primary,
+      "phone.secondary": req.body.phone_secondary,
       photo,
       "driving_license.number": req.body.dl_no,
       "driving_license.expiry_date": req.body.dl_exp,
@@ -140,10 +153,10 @@ const updateBusStaff = asyncHandler(async (req, res) => {
 const deleteBusStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const staff = await BusStaff.findOne(query).select("_id").lean();
+  const staff = await BusStaff.findOne(query).select("_id photo").lean();
 
   if (!staff) {
-    res.status(400);
+    res.status(404);
     throw new Error(C.getResourse404Id("BusStaff", req.params.id));
   }
 
@@ -154,9 +167,86 @@ const deleteBusStaff = asyncHandler(async (req, res) => {
     throw new Error(C.getUnableToDel("BusStaff", "Bus"));
   }
 
+  // Delete photo
+  if (staff.photo) {
+    const photoPath = path.join("static", "uploads", "bus_staff", staff.photo);
+
+    if (fs.existsSync(photoPath)) fs.unlinkSync(photoPath);
+  }
+
   const result = await BusStaff.deleteOne(query);
 
   res.status(200).json(result);
+});
+
+// @desc    Bulk operations for bus-staff
+// @route   POST /api/transport/bus-staff/bulk
+// @access  Private
+const bulkOpsBusStaff = asyncHandler(async (req, res) => {
+  const cmd = req.body.cmd;
+  const busStaffs = req.body.bus_staffs;
+
+  if (!cmd) {
+    res.status(400);
+    throw new Error("cmd is required!");
+  }
+
+  if (cmd === "import-xlsx") {
+    if (!req.file) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("file"));
+    }
+
+    const fileData = UC.excelToJson(req.file.path);
+    fs.unlinkSync(req.file.path);
+
+    const result = await UC.addMultipleBusStaffs(fileData, req.school);
+
+    return res.status(200).json({ total: result.length, msg: result });
+  }
+
+  if (cmd === "delete") {
+    if (!busStaffs || busStaffs.length === 0) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("bus_staffs"));
+    }
+
+    if (await Bus.any({ driver: { $in: busStaffs } })) {
+      res.status(400);
+      throw new Error(C.getUnableToDel("BusStaff", "Bus"));
+    }
+
+    if (await Bus.any({ conductor: { $in: busStaffs } })) {
+      res.status(400);
+      throw new Error(C.getUnableToDel("BusStaff", "Bus"));
+    }
+
+    const result = await BusStaff.deleteMany({ _id: busStaffs });
+
+    return res.status(200).json({ ...result });
+  } else if (cmd === "export-json") {
+    if (!busStaffs || busStaffs.length === 0) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("bus_staffs"));
+    }
+
+    const busesToExport = await BusStaff.find({ _id: busStaffs })
+      .select("-createdAt -updatedAt")
+      .sort("name")
+      .lean();
+
+    const fileName = `Bus_stops_${UC.getYMD()}.json`;
+    const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
+
+    fs.writeFileSync(fileDir, JSON.stringify(busesToExport));
+
+    return res.download(fileDir, fileName, () => {
+      fs.unlinkSync(fileDir);
+    });
+  } else {
+    res.status(400);
+    throw new Error("cmd not found!");
+  }
 });
 
 /** 2. BusStop */
@@ -215,7 +305,7 @@ const addBusStop = asyncHandler(async (req, res) => {
   const busStop = await BusStop.create({
     name: req.body.name,
     address: req.body.address,
-    fare: req.body.fare,
+    monthly_charges: req.body.monthly_charges,
     lat: parseFloat(req.body.lat).toFixed(6),
     lon: parseFloat(req.body.lon).toFixed(6),
     school: req.school,
@@ -242,6 +332,7 @@ const updateBusStop = asyncHandler(async (req, res) => {
     $set: {
       name: req.body.name,
       address: req.body.address,
+      monthly_charges: req.body.monthly_charges,
       lat: req.body.lat,
       lon: req.body.lon,
     },
@@ -293,7 +384,7 @@ const bulkOpsBusStop = asyncHandler(async (req, res) => {
   if (cmd === "import-xlsx") {
     if (!req.file) {
       res.status(400);
-      throw new Error(C.getFieldIsReq("import-xlsx"));
+      throw new Error(C.getFieldIsReq("file"));
     }
 
     const fileData = UC.excelToJson(req.file.path);
@@ -310,7 +401,12 @@ const bulkOpsBusStop = asyncHandler(async (req, res) => {
       throw new Error(C.getFieldIsReq("bus_stops"));
     }
 
-    const result = await Bus.deleteMany({ _id: busStops });
+    if (await Bus.any({ stops: { $in: busStops } })) {
+      res.status(400);
+      throw new Error(C.getUnableToDel("BusStop", "Bus"));
+    }
+
+    const result = await BusStop.deleteMany({ _id: busStops });
 
     return res.status(200).json({ ...result });
   } else if (cmd === "export-json") {
@@ -319,17 +415,12 @@ const bulkOpsBusStop = asyncHandler(async (req, res) => {
       throw new Error(C.getFieldIsReq("bus_stops"));
     }
 
-    const busesToExport = await Bus.find({ _id: busStops })
+    const busesToExport = await BusStop.find({ _id: busStops })
       .select("-createdAt -updatedAt")
       .sort("name")
       .lean();
 
-    const dt = new Date();
-    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
-    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const D = String(dt.getUTCDate()).padStart(2, "0");
-
-    const fileName = `Bus_stops_${Y}-${M}-${D}.json`;
+    const fileName = `Bus_stops_${UC.getYMD()}.json`;
     const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
 
     fs.writeFileSync(fileDir, JSON.stringify(busesToExport));
@@ -557,7 +648,7 @@ const bulkOpsBus = asyncHandler(async (req, res) => {
   if (cmd === "import-xlsx") {
     if (!req.file) {
       res.status(400);
-      throw new Error(C.getFieldIsReq("import-xlsx"));
+      throw new Error(C.getFieldIsReq("file"));
     }
 
     const fileData = UC.excelToJson(req.file.path);
@@ -594,12 +685,7 @@ const bulkOpsBus = asyncHandler(async (req, res) => {
       .sort("name")
       .lean();
 
-    const dt = new Date();
-    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
-    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const D = String(dt.getUTCDate()).padStart(2, "0");
-
-    const fileName = `Bus_${Y}-${M}-${D}.json`;
+    const fileName = `Bus_${UC.getYMD()}.json`;
     const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
 
     fs.writeFileSync(fileDir, JSON.stringify(busesToExport));
@@ -645,15 +731,10 @@ const setAlternateBus = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("alt_bus", req.body.alt_bus));
   }
 
-  if (!req.body.status) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("status"));
-  }
-
   const result = await Bus.updateOne(query, {
     $set: {
       alternate: { enabled: true, bus: altBus._id },
-      status: { value: req.body.status, dt: new Date() },
+      status: { value: req.body.status || "NA", dt: new Date() },
     },
   });
 
@@ -810,6 +891,7 @@ module.exports = {
   addBusStaff,
   updateBusStaff,
   deleteBusStaff,
+  bulkOpsBusStaff,
 
   getBusStops,
   getBusStop,

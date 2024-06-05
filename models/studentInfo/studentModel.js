@@ -28,11 +28,7 @@ const schema = new mongoose.Schema(
     class: { type: ObjectId, required, ref: "academics_classes" },
     section: { type: ObjectId, required, ref: "academics_sections" },
     stream: { type: ObjectId, required, ref: "academics_streams" },
-    admission_time_class: {
-      type: ObjectId,
-      required,
-      ref: "academics_classes",
-    },
+    admission_time_class: { type: ObjectId, ref: "academics_classes" },
     gender: {
       type: String,
       required,
@@ -44,6 +40,7 @@ const schema = new mongoose.Schema(
     doa: { type: Date, required },
     student_status: {
       type: String,
+      required,
       enum: { values: ["n", "o"], message: C.VALUE_NOT_SUP },
     },
     student_left: { type: Boolean, default: false },
@@ -129,7 +126,7 @@ const schema = new mongoose.Schema(
     parent: { type: ObjectId, ref: "users" },
     school: { type: ObjectId, required, ref: "schools" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
 schema.index({ admission_no: 1 }, { unique: true });

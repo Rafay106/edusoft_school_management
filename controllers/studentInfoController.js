@@ -1,3 +1,4 @@
+const fs = require("node:fs");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
@@ -65,12 +66,21 @@ const getBoardingType = asyncHandler(async (req, res) => {
 // @route   POST /api/student-info/boarding-type
 // @access  Private
 const addBoardingType = asyncHandler(async (req, res) => {
-  const type = await BoardingType.create({
-    name: req.body.name,
-    school: req.school._id,
-  });
+  const names = req.body.names;
 
-  res.status(201).json({ msg: type._id });
+  if (!names || names.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("names"));
+  }
+
+  const result = [];
+  for (const name of names) {
+    const type = await BoardingType.create({ name, school: req.school._id });
+
+    result.push(type._id);
+  }
+
+  res.status(201).json({ total: result.length, msg: result });
 });
 
 // @desc    Update a BoardingType
@@ -92,12 +102,37 @@ const updateBoardingType = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete a BoardingType
-// @route   DELETE /api/student-info/boarding-type/:id
+// @route   DELETE /api/student-info/boarding-type
 // @access  Private
 const deleteBoardingType = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
+  const names = req.body.names;
 
-  const result = await BoardingType.deleteOne(query);
+  if (!names || names.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("names"));
+  }
+
+  const ids = [];
+  for (const name of names) {
+    const type = await BoardingType.findOne({
+      name: name.toUpperCase(),
+      school: req.school._id,
+    });
+
+    if (!type) {
+      res.status(404);
+      throw new Error(C.getResourse404Id("BoardingType", name));
+    }
+
+    if (await Student.any({ boarding_type: type._id })) {
+      res.status(400);
+      throw new Error(C.getUnableToDel("BoardingType", "Student"));
+    }
+
+    ids.push(type._id);
+  }
+
+  const result = await BoardingType.deleteMany({ _id: ids });
 
   res.status(200).json(result);
 });
@@ -155,12 +190,21 @@ const getSubWard = asyncHandler(async (req, res) => {
 // @route   POST /api/student-info/sub-ward
 // @access  Private
 const addSubWard = asyncHandler(async (req, res) => {
-  const type = await SubWard.create({
-    name: req.body.name,
-    school: req.school._id,
-  });
+  const names = req.body.names;
 
-  res.status(201).json({ msg: type._id });
+  if (!names || names.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("names"));
+  }
+
+  const result = [];
+  for (const name of names) {
+    const ward = await SubWard.create({ name, school: req.school._id });
+
+    result.push(ward._id);
+  }
+
+  res.status(201).json({ total: result.length, msg: result });
 });
 
 // @desc    Update a SubWard
@@ -185,9 +229,34 @@ const updateSubWard = asyncHandler(async (req, res) => {
 // @route   DELETE /api/student-info/sub-ward/:id
 // @access  Private
 const deleteSubWard = asyncHandler(async (req, res) => {
-  const query = { _id: req.params.id };
+  const names = req.body.names;
 
-  const result = await SubWard.deleteOne(query);
+  if (!names || names.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("names"));
+  }
+
+  const ids = [];
+  for (const name of names) {
+    const ward = await SubWard.findOne({
+      name: name.toUpperCase(),
+      school: req.school._id,
+    });
+
+    if (!ward) {
+      res.status(404);
+      throw new Error(C.getResourse404Id("SubWard", name));
+    }
+
+    if (await Student.any({ sub_ward: ward._id })) {
+      res.status(400);
+      throw new Error(C.getUnableToDel("SubWard", "Student"));
+    }
+
+    ids.push(ward._id);
+  }
+
+  const result = await SubWard.deleteMany({ _id: ids });
 
   res.status(200).json(result);
 });
@@ -589,29 +658,22 @@ const bulkOpsStudent = asyncHandler(async (req, res) => {
     throw new Error("cmd is required!");
   }
 
-  if (cmd === "import") {
-    const fileData = UC.excelToJson(
-      path.join("imports", "student", req.file.filename)
-    );
-
-    const result = await UC.addMultipleStudents(
-      req.user._id,
-      req.user.type,
-      fileData
-    );
-
-    if (result.status === 400) {
-      res.status(result.status);
-      const err = new Error(result.errors);
-      err.name = "BulkImportError";
-      throw err;
+  if (cmd === "import-xlsx") {
+    if (!req.file) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("file"));
     }
 
-    console.log("req.file :>> ", req.file);
+    const fileData = UC.excelToJson(req.file.path);
+    fs.unlinkSync(req.file.path);
 
-    fs.unlinkSync(path.join(req.file.path));
+    const result = await UC.addMultipleStudents(
+      fileData,
+      req.school,
+      req.ayear
+    );
 
-    return res.status(200).json({ msg: result.msg });
+    return res.status(200).json({ total: result.length, msg: result });
   }
 
   if (!students) {
@@ -638,12 +700,7 @@ const bulkOpsStudent = asyncHandler(async (req, res) => {
       .sort("name")
       .lean();
 
-    const dt = new Date();
-    const Y = String(dt.getUTCFullYear()).padStart(2, "0");
-    const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
-    const D = String(dt.getUTCDate()).padStart(2, "0");
-
-    const fileName = `Student_${Y}-${M}-${D}.json`;
+    const fileName = `Student_${UC.getYMD()}.json`;
     const fileDir = path.join(getAppRootDir(__dirname), "temp", fileName);
 
     fs.writeFileSync(fileDir, JSON.stringify(studentsToExport));

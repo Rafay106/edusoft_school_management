@@ -1,4 +1,5 @@
 const path = require("node:path");
+const fs = require("node:fs");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
@@ -102,9 +103,73 @@ const updateNotice = asyncHandler(async (req, res) => {
 const deleteNotice = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
+  const notice = await Notice.findOne(query).select("file").lean();
+
+  if (!notice) {
+    res.status(404);
+    throw new Error(C.getResourse404Id("Notice", req.params.id));
+  }
+
+  const filePath = path.join("static", "uploads", "notice", notice.file);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
   const result = await Notice.deleteOne(query);
 
   res.status(200).json(result);
+});
+
+// @desc    Bulk operations for notice
+// @route   POST /api/comms/notice/bulk
+// @access  Private
+const bulkOpsNotice = asyncHandler(async (req, res) => {
+  const cmd = req.body.cmd;
+  const notices = req.body.notices;
+
+  if (!cmd) {
+    res.status(400);
+    throw new Error("cmd is required!");
+  }
+
+  if (!notices || notices.length === 0) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("notices"));
+  }
+
+  const query = { _id: notices, school: req.school._id };
+
+  if (cmd === "delete") {
+    for (const id of notices) {
+      const notice = await Notice.findById(id).select("file").lean();
+
+      if (notice) {
+        const filePath = path.join("static", "uploads", "notice", notice.file);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+
+    const result = await Notice.deleteMany(query);
+
+    return res.status(200).json(result);
+  } else if (cmd === "export-json") {
+    const noticesToExport = await Notice.find(query)
+      .select("-createdAt -updatedAt")
+      .sort("name")
+      .lean();
+
+    const fileName = `Notice_${UC.getYMD()}.json`;
+    const fileDir = path.join("data", fileName);
+
+    if (!fs.existsSync(fileDir)) fs.mkdirSync(fileDir, { recursive: true });
+
+    fs.writeFileSync(fileDir, JSON.stringify(noticesToExport));
+
+    return res.download(fileDir, fileName, () => {
+      fs.unlinkSync(fileDir);
+    });
+  } else {
+    res.status(400);
+    throw new Error("cmd not found!");
+  }
 });
 
 // @desc    Send message via email, whatsapp or push
@@ -182,6 +247,11 @@ const sendMessage = asyncHandler(async (req, res) => {
     throw new Error("Invalid send_type!");
   }
 
+  if (receivers.length === 0) {
+    res.status(400);
+    throw new Error("No receivers found!");
+  }
+
   const title = req.school.name + ": Notice";
 
   for (const channel of channels) {
@@ -250,6 +320,7 @@ module.exports = {
   addNotice,
   updateNotice,
   deleteNotice,
+  bulkOpsNotice,
 
   sendMessage,
 };

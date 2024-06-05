@@ -11,7 +11,6 @@ const FeeGroup = require("../models/fees/feeGroupModel");
 const BoardingType = require("../models/studentInfo/boardingTypeModel");
 const FeeType = require("../models/fees/feeTypeModel");
 const FeeTerm = require("../models/fees/feeTermModel");
-const FeeHead = require("../models/fees/feeHeadModel");
 const Designation = require("../models/hr/designationModel");
 const Department = require("../models/hr/departmentModel");
 const Student = require("../models/studentInfo/studentModel");
@@ -110,7 +109,7 @@ const getUserList = asyncHandler(async (req, res) => {
 const getBoardingTypeList = asyncHandler(async (req, res) => {
   const types = await BoardingType.find().select("name").sort("name").lean();
 
-  res.status(200).json(types.map((e) => e.name));
+  res.status(200).json(types);
 });
 
 // @desc    Get subward-type list
@@ -119,7 +118,7 @@ const getBoardingTypeList = asyncHandler(async (req, res) => {
 const getSubwardList = asyncHandler(async (req, res) => {
   const wards = await SubWard.find().select("name").sort("name").lean();
 
-  res.status(200).json(wards.map((e) => e.name));
+  res.status(200).json(wards);
 });
 
 // @desc    Get bus-stop
@@ -138,7 +137,7 @@ const getBusStopList = asyncHandler(async (req, res) => {
 
   const busStops = await BusStop.find(query).select("name").lean();
 
-  res.status(200).json(busStops.map((e) => e.name));
+  res.status(200).json(busStops);
 });
 
 // @desc    Get drivers
@@ -226,9 +225,9 @@ const getBusList = asyncHandler(async (req, res) => {
     query["$or"] = [{ name: { $regex: search, $options: "i" } }];
   }
 
-  const buses = await Bus.find(query).select("name").lean();
+  const buses = await Bus.find(query).select("name device.imei").lean();
 
-  res.status(200).json(buses.map((e) => e.name));
+  res.status(200).json(buses);
 });
 
 // @desc    Get academic year
@@ -249,7 +248,7 @@ const getSectionList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(sections.map((e) => e.name));
+  res.status(200).json(sections);
 });
 
 // @desc    Get sections of a class
@@ -262,7 +261,7 @@ const getSectionListOfClass = asyncHandler(async (req, res) => {
     .select("sections")
     .populate("sections", "name");
 
-  res.status(200).json(c.sections.map((e) => e.name).sort());
+  res.status(200).json(c.sections.sort());
 });
 
 // @desc    Get streams
@@ -274,7 +273,7 @@ const getStreamList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(streams.map((e) => e.name));
+  res.status(200).json(streams);
 });
 
 // @desc    Get classes
@@ -282,13 +281,15 @@ const getStreamList = asyncHandler(async (req, res) => {
 // @access  Private
 const getClassList = asyncHandler(async (req, res) => {
   const classes = await Class.find({ academic_year: req.ayear })
-    .select("name")
+    .select("name stream")
+    .populate("stream", "name")
     .sort("name")
     .lean();
 
   const uniqueClasses = [];
   for (const c of classes) {
-    if (!uniqueClasses.includes(c.name)) uniqueClasses.push(c.name);
+    const name = c.stream.name === "NA" ? c.name : c.name + " " + c.stream.name;
+    uniqueClasses.push({ _id: c._id, name });
   }
 
   res.status(200).json(uniqueClasses);
@@ -315,7 +316,7 @@ const getFeeGroupList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(groups.map((e) => e.name));
+  res.status(200).json(groups);
 });
 
 // @desc    Get fee-types
@@ -327,7 +328,7 @@ const getFeeTypeList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(types.map((e) => e.name));
+  res.status(200).json(types);
 });
 
 // @desc    Get fee-terms
@@ -339,19 +340,7 @@ const getFeeTermList = asyncHandler(async (req, res) => {
     .sort("year start_month")
     .lean();
 
-  res.status(200).json(terms.map((e) => e.name));
-});
-
-// @desc    Get fee-heads
-// @route   GET /api/util/fee-head-list
-// @access  Private
-const getFeeHeadList = asyncHandler(async (req, res) => {
-  const heads = await FeeHead.find({ academic_year: req.ayear })
-    .select("name")
-    .sort("name")
-    .lean();
-
-  res.status(200).json(heads);
+  res.status(200).json(terms);
 });
 
 // @desc    Get designations
@@ -375,7 +364,7 @@ const getDepartmentList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(departments.map((e) => e.name));
+  res.status(200).json(departments);
 });
 
 // @desc    Get library category
@@ -399,7 +388,7 @@ const getLibrarySubjectList = asyncHandler(async (req, res) => {
     .sort("name")
     .lean();
 
-  res.status(200).json(subjects.map((e) => e.name));
+  res.status(200).json(subjects);
 });
 
 module.exports = {
@@ -420,7 +409,6 @@ module.exports = {
   getFeeGroupList,
   getFeeTypeList,
   getFeeTermList,
-  getFeeHeadList,
   getDesignationList,
   getDepartmentList,
   getLibraryCategoryList,

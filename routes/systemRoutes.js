@@ -21,7 +21,6 @@ templatePrivilegeRouter
 const userRouter = express.Router();
 
 userRouter.route("/").get(SC.getUsers).post(SC.createUser);
-userRouter.get("/privileges", SC.getUserPrivileges);
 userRouter.get("/required-data", SC.requiredDataUser);
 userRouter.patch("/reset-password", SC.resetPassword);
 userRouter.post("/set-current-ayear", SC.setCurrentAcademicYear);

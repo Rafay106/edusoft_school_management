@@ -1,6 +1,7 @@
 const express = require("express");
 const C = require("../controllers/hrController");
-const { staffUpload } = require("../middlewares/multerMiddleware");
+const { upload } = require("../middlewares/multerMiddleware");
+const uploadPaths = require("../config/uploadPaths");
 
 const hrRouter = express.Router();
 
@@ -33,7 +34,7 @@ staffRouter
   .route("/")
   .get(C.getStaffs)
   .post(
-    staffUpload.fields([
+    upload(uploadPaths.staff).fields([
       { name: "photo", maxCount: 1 },
       { name: "sign", maxCount: 1 },
     ]),

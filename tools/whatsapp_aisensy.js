@@ -34,14 +34,13 @@ const sendWhatsappQueue = async (
 
 const sendWhatsapp = async (
   campaignName,
-  destination,
+  destinations,
   templateParams,
   media = {}
 ) => {
   const payload = {
     apiKey: AISENSY_API_KEY,
     campaignName,
-    destination,
     userName: AISENSY_USERNAME,
     templateParams,
     source: "new-landing-page form",
@@ -55,15 +54,19 @@ const sendWhatsapp = async (
   };
 
   try {
-    const { data } = await axios.post(AISENSY_URL, payload, config);
+    for (const destination of destinations) {
+      payload.destination = destination;
 
-    const result = Boolean(data.success);
+      const { data } = await axios.post(AISENSY_URL, payload, config);
 
-    if (result) debit(1);
+      const result = Boolean(data.success);
 
-    UC.writeLog("send_whatsapp", `Response: ${JSON.stringify(data)}`);
+      if (result) debit(1);
 
-    return result;
+      UC.writeLog("send_whatsapp", `Response: ${JSON.stringify(data)}`);
+    }
+
+    return true;
   } catch (err) {
     UC.writeLog(
       "send_whatsapp",
