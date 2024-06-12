@@ -1,7 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const crypto = require("node:crypto");
 const xlsx = require("xlsx");
 
 const C = require("../constants");
@@ -20,6 +19,7 @@ const BusStaff = require("../models/transport/busStaffModel");
 const Section = require("../models/academics/sectionModel");
 const Subject = require("../models/academics/subjectModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
+const Lesson = require("../models/lesson_plan/lessonModel");
 
 const createSearchQuery = (fields, value) => {
   const query = { $or: [] };
@@ -47,7 +47,6 @@ const paginatedQuery = async (
   const total = await Model.countDocuments(query);
   const pages = Math.ceil(total / limit) || 1;
   if (page > pages) return false;
-
 
   const startIdx = (page - 1) * limit;
   const results = { total, pages, page, result: [] };
@@ -996,20 +995,7 @@ const validateClasses = async (classes, academic_year) => {
       throwCustomValidationErr(C.getResourse404Id("classes", name));
     }
 
-  const result = [];
-
-  for (const name of teachers) {
-    const teacher = await Staff.findOne({ name: name.toUpperCase() })
-      .select("_id")
-      .lean();
-
-    if (!teacher) {
-      const e = new Error(C.getResourse404Id("teacher", name));
-      e.name = teacher.CUSTOMVALIDATION;
-      throw e;
-    }
-
-    result.push(teacher._id);
+    result.push(c._id);
   }
 
   return result;
@@ -1151,6 +1137,24 @@ const validateSubjectByName = async (subjectName, academic_year) => {
   return subject._id;
 };
 
+const validateLessonByName = async (lessonName, academic_year) => {
+  if (!lessonName) {
+    throwCustomValidationErr(C.getFieldIsReq("lesson"));
+  }
+
+  const lesson = await Lesson.findOne({
+    name: lessonName.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!lesson)
+    throwCustomValidationErr(C.getResourse404Id("lesson", lessonName));
+
+  return lesson._id;
+};
+
 const throwCustomValidationErr = (msg) => {
   const e = new Error(msg);
   e.name = C.CUSTOMVALIDATION;
@@ -1175,43 +1179,9 @@ const getYMD = (dt = new Date()) => {
   const D = String(now.getUTCDate()).padStart(2, "0");
 
   return Y + M + D;
-
-  if (now.getTime() === 0) return "NA";
-
-  const Y = String(now.getUTCFullYear()).padStart(2, "0");
-  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(now.getUTCDate()).padStart(2, "0");
-
-  return Y + M + D;
 };
 
 const getDDMMYYYY = (dt = new Date()) => {
-  const now = new Date(dt.toISOString().replace("Z", "-05:30"));
-
-  if (now.getTime() === 0) return "NA";
-
-  const Y = String(now.getUTCFullYear()).padStart(2, "0");
-  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(now.getUTCDate()).padStart(2, "0");
-
-  return `${D}-${M}-${Y}`;
-};
-
-const getDDMMYYYYwithTime = (dt = new Date()) => {
-  const now = new Date(dt.toISOString().replace("Z", "-05:30"));
-
-  if (now.getTime() === 0) return "NA";
-
-  const Y = String(now.getUTCFullYear()).padStart(2, "0");
-  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(now.getUTCDate()).padStart(2, "0");
-  const h_ = now.getUTCHours();
-  const h = String(h_ > 12 ? h_ - 12 : h_).padStart(2, "0");
-  const m = String(now.getUTCMinutes()).padStart(2, "0");
-  const s = String(now.getUTCSeconds()).padStart(2, "0");
-  const postFix = h_ > 11 ? "PM" : "AM";
-
-  return `${D}-${M}-${Y} ${h}:${m}:${s} ${postFix}`;
   const now = new Date(dt.toISOString().replace("Z", "-05:30"));
 
   if (now.getTime() === 0) return "NA";
@@ -1452,10 +1422,10 @@ module.exports = {
   validateClassByName,
   validateSectionByName,
   validateSubjectByName,
+  validateLessonByName,
 
   getYMD,
   getDDMMYYYY,
-  getDDMMYYYYwithTime,
   getDDMMYYYYwithTime,
   daysBetween,
 

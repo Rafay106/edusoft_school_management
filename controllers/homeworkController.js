@@ -48,8 +48,6 @@ const getHomeworkList = asyncHandler(async (req, res) => {
 // @route   POST /api/homework/
 // @access  Private
 const addHomework = asyncHandler(async (req, res) => {
-  const ayear = await UC.getCurrentAcademicYear(req.school);
-
   if (!req.body.class) {
     res.status(400);
     throw new Error(C.getFieldIsReq("class"));
@@ -107,7 +105,7 @@ const addHomework = asyncHandler(async (req, res) => {
     marks: req.body.marks,
     doc_file,
     description: req.body.desc,
-    academic_year: ayear,
+    academic_year: req.ayear,
     school: req.school,
   });
 
@@ -314,27 +312,31 @@ const getHomeworkReportList = asyncHandler(async (req, res) => {
     subject: subject._id,
     homework_date: date,
   };
-  const homeworkList =await Homework.find(query)
-  .skip((page-1)*limit)
-  .limit(limit)
-  .sort(sort)
-  .lean();
-    
-  if(!homeworkList.length){
-       return res.status(400).json({msg:C.getResourse404("homework")});
+  const homeworkList = await Homework.find(query)
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .sort(sort)
+    .lean();
+
+  if (!homeworkList.length) {
+    return res.status(400).json({ msg: C.getResourse404("homework") });
   }
-  const homeworkIds =  homeworkList.map(hw =>hw._id);
-  const evaluations =   await HomeworkEvaluation.find({homework :{ $in : homeworkIds}}).lean();
-  const  homeworkData = await homeworkList.map(hw =>{
-    const evaluation =  evaluations.find(ev =>ev.homework.toString()=== hw._id.toString());
+  const homeworkIds = homeworkList.map((hw) => hw._id);
+  const evaluations = await HomeworkEvaluation.find({
+    homework: { $in: homeworkIds },
+  }).lean();
+  const homeworkData = await homeworkList.map((hw) => {
+    const evaluation = evaluations.find(
+      (ev) => ev.homework.toString() === hw._id.toString()
+    );
     return {
-        ...hw,
-        marks:evaluation? evaluation.marks:null
-    }
+      ...hw,
+      marks: evaluation ? evaluation.marks : null,
+    };
   });
-res.status(200).json(homeworkData);
+  res.status(200).json(homeworkData);
 });
-  
+
 module.exports = {
   addHomework,
   getHomeworkList,
@@ -344,5 +346,5 @@ module.exports = {
   updateEvaluation,
   deleteEvaluation,
 
-  getHomeworkReportList
+  getHomeworkReportList,
 };

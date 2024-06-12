@@ -96,6 +96,7 @@ const updateFeeGroup = asyncHandler(async (req, res) => {
   res.status(200).json(result);
 });
 
+
 // @desc    Delete a fee-group
 // @route   DELETE /api/fee/fee-group/:id
 // @access  Private

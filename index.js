@@ -124,7 +124,7 @@ app.use(
   require("./routes/libraryRoutes")
 );
 app.use(
-  "/api/lesson",
+  "/api/lesson-schedule",
   authenticate,
   schoolAuthorize,
   require('./routes/lessonRoutes')
@@ -147,6 +147,12 @@ app.use(
   schoolAuthorize,
   require("./routes/homeworkRoutes")
 );
+app.use(
+    "/api/examination",
+    authenticate,
+    schoolAuthorize,
+    require("./routes/examinationRoutes")
+  );
 
 app.use(
   "/api/parent-util",
@@ -160,6 +166,12 @@ app.use(
   parentAuthorize,
   require("./routes/parentRoutes")
 );
+app.use(
+   "/api/leave",
+   authenticate,
+   parentAuthorize,
+   require("./routes/leaveRoutes")
+  );
 
 app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
