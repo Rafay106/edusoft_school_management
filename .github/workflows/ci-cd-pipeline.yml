@@ -45,15 +45,3 @@ jobs:
           echo "$SSH_PRIVATE_KEY"
           echo "$SERVER_IP"
           echo "$SERVER_USER"
-
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-          # Add server to known_hosts
-          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
-
-          # Pull code to the server
-          ssh $SERVER_USER@$SERVER_IP 'cd /var/www/edusoft_school_management && git pull origin main'
-
-          # Install dependencies and restart application with PM2
-          ssh $SERVER_USER@$SERVER_IP 'cd /var/www/edusoft_school_management && npm install && pm2 restart Edusoft'
