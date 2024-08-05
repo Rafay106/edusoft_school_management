@@ -7,77 +7,17 @@ const mimeTypes = {
   "image/jpg": "jpg",
   "image/jpeg": "jpeg",
   "image/png": "png",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
 };
 
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
 });
 
-const busStaffPhotoUpload = multer({
+const homeworkUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const filePath = path.join("static", "uploads", "bus_staff");
-      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
-      cb(null, filePath);
-    },
-    filename: (req, file, cb) => {
-      const ext = mimeTypes[file.mimetype];
-      cb(null, `${req.user._id}_${Date.now()}.${ext}`);
-    },
-  }),
-  limits: { fileSize: maxSize },
-  fileFilter: (req, file, cb) => {
-    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-      return cb(new Error("Only jpg, jpeg, or png files are allowed"));
-    }
-    cb(null, true);
-  },
-});
-
-const studentPhotoUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const filePath = path.join("static", "uploads", "student");
-      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
-      cb(null, filePath);
-    },
-    filename: (req, file, cb) => {
-      const ext = mimeTypes[file.mimetype];
-      cb(null, `${req.user._id}_${Date.now()}.${ext}`);
-    },
-  }),
-  limits: { fileSize: maxSize },
-  fileFilter: (req, file, cb) => {
-    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-      return cb(new Error("Only jpg, jpeg, or png files are allowed"));
-    }
-    cb(null, true);
-  },
-});
-
-const studentBulkImportUpload = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const filePath = path.join("imports", "student");
-      if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
-      cb(null, filePath);
-    },
-    filename: function (req, file, cb) {
-      const ext = path.extname(file.originalname);
-
-      if (![".xlsx"].includes(ext)) {
-        return cb(new Error("Only xlsx files supported!"));
-      }
-
-      cb(null, `${Date.now()}${ext}`);
-    },
-  }),
-});
-
-const staffUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const filePath = path.join("static", "uploads", "staff");
+      const filePath = path.join("static", "uploads", "homework");
       if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
       cb(null, filePath);
     },
@@ -88,37 +28,100 @@ const staffUpload = multer({
   }),
 });
 
-const idCardUpload = multer({
+const homeworkEvaluationUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const filePath = path.join(
-        "static",
-        "uploads",
-        "admin_system",
-        "id_card"
-      );
+      const filePath = path.join("static", "uploads", "homework");
       if (!fs.existsSync(filePath)) fs.mkdirSync(filePath, { recursive: true });
       cb(null, filePath);
     },
     filename: (req, file, cb) => {
-      const ext = mimeTypes[file.mimetype];
-      cb(null, `${req.user._id}_${file.fieldname}_${Date.now()}.${ext}`);
+      const ext = path.extname(file.originalname);
+      cb(null, `${req.user._id}_${Date.now()}${ext}`);
     },
   }),
-  limits: { fileSize: maxSize },
-  fileFilter: (req, file, cb) => {
-    if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
-      return cb(new Error("Only jpg, jpeg, or png files are allowed"));
-    }
-    cb(null, true);
-  },
 });
+
+const upload = (filePath) => {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        if (!fs.existsSync(filePath))
+          fs.mkdirSync(filePath, { recursive: true });
+        cb(null, filePath);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const name = req.user
+          ? `${req.user._id}_${Date.now()}${ext}`
+          : `${Date.now()}${ext}`;
+
+        cb(null, name);
+      },
+    }),
+  });
+};
+
+const photoUpload = (filePath, fileSize = maxSize) => {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        if (!fs.existsSync(filePath)) {
+          fs.mkdirSync(filePath, { recursive: true });
+        }
+
+        cb(null, filePath);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const admNo = req.body.adm_no;
+        const name = admNo ? admNo.replaceAll("/", "_") : Date.now().toString();
+        cb(null, name + ext);
+      },
+    }),
+    limits: { fileSize },
+    fileFilter: (req, file, cb) => {
+      if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+        return cb(new Error("Only jpg, jpeg, or png files are allowed"));
+      }
+
+      cb(null, true);
+    },
+  });
+};
+
+const uploadExcel = (filePath) => {
+  return multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        if (!fs.existsSync(filePath))
+          fs.mkdirSync(filePath, { recursive: true });
+        cb(null, filePath);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        const name = req.user
+          ? `${req.user._id}_${Date.now()}${ext}`
+          : `${Date.now()}${ext}`;
+
+        cb(null, name);
+      },
+      fileFilter: (req, file, cb) => {
+        if (!file.originalname.match(/\.(xlsx|xls|csv)$/)) {
+          return cb(new Error("Only xlsx/xls/csv files are supported!"));
+        }
+
+        cb(null, true);
+      },
+    }),
+  });
+};
 
 module.exports = {
   memoryUpload,
-  busStaffPhotoUpload,
-  studentPhotoUpload,
-  studentBulkImportUpload,
-  staffUpload,
-  idCardUpload,
+  homeworkUpload,
+  homeworkEvaluationUpload,
+  upload,
+  photoUpload,
+  uploadExcel,
 };

@@ -7,6 +7,7 @@ const isValidJSON = (text) => {
   if (typeof text !== "string") {
     return false;
   }
+
   try {
     var json = JSON.parse(text);
     return typeof json === "object";
@@ -14,7 +15,6 @@ const isValidJSON = (text) => {
     return false;
   }
 };
-
 const isAlphaNumeric = (str) => {
   for (let i = 0; i < str.length; i++) {
     const code = str.charCodeAt(i);
@@ -26,6 +26,7 @@ const isAlphaNumeric = (str) => {
       return false;
     }
   }
+
   return true;
 };
 
@@ -36,13 +37,21 @@ const isIMEIValid = (imei) => {
   return false;
 };
 
-const isUsernameValid = (imei) => {
-  const regExp = /^[A-Za-z][A-Za-z0-9_]{2,20}$/;
-  if (imei.match(regExp)) return true;
+const isEmailValid = (email) => {
+  if (!email) return true;
+  else return validator.isEmail(email);
+};
+
+const isUsernameValid = (username) => {
+  const regExp = /^[A-Za-z0-9_\/\-]{3,20}$/;
+  if (!username) return true;
+  else if (username.match(regExp)) return true;
   return false;
 };
 
 const timeValidator = (time) => {
+  if (time === "") return true;
+
   const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
   return timeRegex.test(time);
 };
@@ -53,6 +62,6 @@ module.exports = {
   isAlphaNumeric,
   isIMEIValid,
   isUsernameValid,
-  isEmailValid: validator.isEmail,
+  isEmailValid,
   timeValidator,
 };

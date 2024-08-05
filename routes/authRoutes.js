@@ -7,9 +7,12 @@ const { generateToken } = require("../utils/fn_jwt");
 const User = require("../models/system/userModel");
 const Student = require("../models/studentInfo/studentModel");
 const School = require("../models/system/schoolModel");
-const TemplatePrivilege = require("../models/system/templatePrivilegeModel");
+const RolePrivilege = require("../models/system/rolePrivilegeModel");
+const { isEmailValid } = require("../utils/validators");
+const Staff = require("../models/hr/staffModel");
+const Role = require("../models/system/roleModel");
 
-// @desc    Register User
+// @desc    Login User
 // @route   POST /api/login
 // @access  Private
 router.post(
@@ -27,9 +30,11 @@ router.post(
       throw new Error(C.getFieldIsReq("password"));
     }
 
-    const user = await User.findOne({ email })
-      .select("email username name phone type manager school password")
-      .populate("manager school", "name")
+    const user = await User.findOne({
+      $or: [{ email }, { username: email }, { username: email.toUpperCase() }],
+    })
+      .select("password role")
+      .populate("role", "title")
       .lean();
 
     if (user) {
@@ -38,170 +43,100 @@ router.post(
         throw new Error(C.INVALID_CREDENTIALS);
       }
 
-      const token = generateToken(user._id);
+      const token = generateToken(user._id, user.password);
 
-      delete user.privileges;
       delete user.password;
-      delete user.__v;
-
-      if (C.isSchool(user.type)) {
-        user.school = await School.findOne({ school: user._id }).lean();
-      }
 
       return res.status(200).json({ ...user, ...token });
     }
 
+    // If no user found with email or username
+
     const admissionNo = email.toUpperCase();
 
-    const parentUser = await User.findOne({ username: admissionNo })
-      .select("email username name phone type manager school password")
-      .populate("manager school", "name")
-      .lean();
+    const student = await Student.findByAdmNo(admissionNo);
 
-    if (parentUser) {
-      if (!(await bcrypt.compare(password, parentUser.password))) {
-        res.status(401);
-        throw new Error(C.INVALID_CREDENTIALS);
-      }
+    // If student is found then parent is trying to login fist time
+    if (student) {
+      const newParent = await createParentFromStudent(student);
 
-      const student = await Student.findOne({ admission_no: admissionNo })
-        .select("roll_no name email phone photo age class section bus")
-        .populate("class section", "name")
-        .populate("bus", "name no_plate")
-        .lean();
+      const token = generateToken(newParent._id, newParent.password);
 
-      if (!student) {
-        res.status(404);
-        throw new Error(`Student not found with admission_no: ${admissionNo}`);
-      }
-
-      student.name = UC.getPersonName(student.name);
-      if (!student.photo) student.photo = "/user-blank.svg";
-      student.class = student.class.name;
-      student.section = student.section.name;
-      student.bus = student.bus.name;
-
-      const token = generateToken(parentUser._id);
-
-      delete parentUser.privileges;
-      delete parentUser.password;
-      delete parentUser.__v;
-
-      parentUser.student = student;
-
-      return res.status(200).json({ ...parentUser, ...token });
-    } else {
-      const student = await Student.findOne({
-        admission_no: admissionNo,
-      }).lean();
-
-      if (!student) {
-        res.status(401);
-        throw new Error(C.INVALID_CREDENTIALS);
-      }
-
-      if (student.parent) {
-        const parent = await User.findById(student.parent)
-          .select("email username name phone type manager school password")
-          .populate("manager school", "name")
-          .lean();
-
-        if (parent) {
-          if (!(await bcrypt.compare(password, parent.password))) {
-            res.status(401);
-            throw new Error(C.INVALID_CREDENTIALS);
-          }
-
-          const student_ = await Student.findOne({ admission_no: admissionNo })
-            .select("roll_no photo class section bus")
-            .populate("class section", "name")
-            .populate("bus", "name no_plate")
-            .lean();
-
-          if (!student_) {
-            res.status(404);
-            throw new Error(
-              `Student not found with admission_no: ${admissionNo}`
-            );
-          }
-
-          const token = generateToken(parent._id);
-
-          delete parent.privileges;
-          delete parent.password;
-          delete parent.__v;
-
-          parent.student = student_;
-
-          return res.status(200).json({ ...parent, ...token });
-        }
-      }
-
-      const template = await TemplatePrivilege.findOne({
-        type: C.PARENT,
-      }).lean();
-
-      const newParentUser = await User.create({
-        email: student.email,
-        password: "123456",
-        username: student.admission_no,
-        name: `${UC.getPersonName(student.name)}'s parent`,
-        phone: student.phone,
-        type: C.PARENT,
-        privileges: template.privileges,
-        manager: student.manager,
-        school: student.school,
-      });
-
-      await Student.updateOne(
-        { _id: student._id },
-        { $set: { parent: newParentUser._id } }
-      );
-
-      const token = generateToken(newParentUser._id);
-
-      const parentObj = {
-        email: newParentUser.email,
-        username: newParentUser.username,
-        name: newParentUser.name,
-        phone: newParentUser.phone,
-        type: newParentUser.type,
-        manager: newParentUser.manager,
-        school: newParentUser.school,
+      const result = {
+        _id: newParent._id,
+        role: { _id: newParent.role, title: C.PARENT },
+        token: token.token,
       };
 
-      res.status(200).json({ ...parentObj, ...token });
+      return res.status(200).json(result);
     }
+
+    const staff = await Staff.findOne({ email }).lean();
+
+    if (staff) {
+      const newStaff = await createStaff(staff);
+
+      const role = await Role.findById(newStaff.role).select("title").lean();
+
+      const token = generateToken(newStaff._id, newStaff.password);
+
+      const result = {
+        _id: newStaff._id,
+        role,
+        token: token.token,
+      };
+
+      return res.status(200).json(result);
+    }
+
+    res.status(400);
+    throw new Error("Invalid credentials!");
   })
 );
 
-// @desc    Register User
-// @route   POST /api/login/parent
-// @access  Private
-router.post(
-  "/parent",
-  asyncHandler(async (req, res) => {
-    const { adm_no: admNo, password } = req.body;
+const createParentFromStudent = async (student) => {
+  let parent = await User.findOne({ email: student.email })
+    .select("password")
+    .lean();
 
-    const student = await Student.findOne({ admission_no: admNo }).lean();
+  if (!parent) {
+    const role = await UC.getRoleId(C.PARENT);
 
-    if (!student) {
-      res.status(401);
-      throw new Error(C.INVALID_CREDENTIALS);
+    if (!role) {
+      throw new Error(C.getResourse404Id("Role", C.PARENT));
     }
 
-    if (!(await bcrypt.compare(password, student.password))) {
-      res.status(401);
-      throw new Error(C.INVALID_CREDENTIALS);
-    }
+    parent = await User.create({
+      name: `${student.name}'s parent`,
+      email: student.email,
+      username: student.admission_no,
+      password: "123456",
+      phone: student.phone,
+      role,
+      school: student.school,
+    });
+  }
 
-    const token = generateToken(student._id);
+  await Student.updateOne(
+    { _id: student._id },
+    { $set: { parent: parent._id } }
+  );
 
-    delete student.password;
-    delete student.__v;
+  return parent;
+};
 
-    res.status(200).json({ ...student, ...token });
-  })
-);
+const createStaff = async (staff) => {
+  const newStaff = await User.create({
+    name: `${staff.salutation} ${staff.name}`,
+    email: staff.email,
+    username: UC.replaceEmailSymbols(staff.email.split("@")[0]),
+    password: "123456",
+    phone: staff.mobile.primary,
+    role: staff.role,
+    school: staff.school,
+  });
+
+  return newStaff;
+};
 
 module.exports = router;

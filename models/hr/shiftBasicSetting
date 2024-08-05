@@ -1,0 +1,16 @@
+// const mongoose = require("mongoose");
+// const ObjectId = mongoose.Schema.Types.ObjectId;
+// const C = require("../../constants");
+// const { any } = require("../../plugins/schemaPlugins");
+// const required = [true, C.FIELD_IS_REQ];
+
+// const shiftBasicSettingSchema = new mongoose.Schema({
+     
+
+// },{
+//       timestamps:true,
+//       versionKey:false
+// });
+// shiftBasicSettingSchema.plugin(any);
+// const ShiftBasicSetting = mongoose.model("hr_shift_basic_setting",shiftBasicSettingSchema);
+// module.exports = ShiftBasicSetting;

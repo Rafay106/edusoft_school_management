@@ -1,4 +1,12 @@
-/node_modules
+/backup
+/data
+/dist
+/init
 /logs
-test.js
+/node_modules
 /static/uploads
+.env
+test.js
+test1.js
+Edusoft School Management.zip
+latest_scanned_rfid.txt

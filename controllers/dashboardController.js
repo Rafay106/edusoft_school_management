@@ -2,26 +2,14 @@ const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
 const Student = require("../models/studentInfo/studentModel");
-const StuBusAtt = require("../models/attendance/stuBusAttModel");
+const StuBusAtt = require("../models/attendance/studentBusAttendanceModel");
 const Bus = require("../models/transport/busModel");
-const AcademicYear = require("../models/academics/academicYearModel");
-const User = require("../models/system/userModel");
 
 // @desc    School Dashbaord
 // @route   POST /api/dashboard/school
 // @access  Private
 const schoolDashboard = asyncHandler(async (req, res) => {
   const busIds = req.body.bus_ids;
-  let manager = req.body.manager;
-  let school = req.body.school;
-
-  [manager, school] = await UC.validateManagerAndSchool(
-    req.user,
-    manager,
-    school
-  );
-
-  const ayear = await UC.getCurrentAcademicYear(school);
 
   // Validate date
   const dtStart = UC.validateAndSetDate(req.body.dt_start, "dt_start");
@@ -29,15 +17,15 @@ const schoolDashboard = asyncHandler(async (req, res) => {
 
   const noOfDays = UC.daysBetween(dtStart, dtEnd);
 
-  const stuQuery = { academic_year: ayear, manager, school };
+  const stuQuery = { academic_year: req.ayear };
 
   if (busIds) {
     for (const _id of busIds) {
-      const isBus = await Bus.any({ _id, manager, school });
+      const isBus = await Bus.any({ _id });
 
       if (!isBus) {
         res.status(400);
-        throw new Error(C.getResourse404Error("Bus", _id));
+        throw new Error(C.getResourse404Id("Bus", _id));
       }
     }
     if (busIds.length !== 0) stuQuery.bus = busIds;

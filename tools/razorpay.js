@@ -1,12 +1,15 @@
-const router = require("express").Router();
 const crypto = require("node:crypto");
-const asyncHandler = require("express-async-handler");
+const assert = require("node:assert");
+const School = require("../models/system/schoolModel");
 const Razorpay = require("razorpay");
-const RazorpayPayment = require("../models/fees/razorPayModel");
+const RazorpayFeePayment = require("../models/fees/razorpayFeePaymentModel");
+const FeePaid = require("../models/fees/feePaidModel");
 const C = require("../constants");
-const UC = require("../utils/common");
+const LEDGER = require("../services/ledger");
+const FEE = require("../utils/fees");
 
-const { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_EMAIL } = process.env;
+const { DOMAIN, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_EMAIL } =
+  process.env;
 
 // Razorpay instance
 const razorpay = new Razorpay({
@@ -14,197 +17,239 @@ const razorpay = new Razorpay({
   key_secret: RAZORPAY_KEY_SECRET,
 });
 
-// const HOST = "https://gdgranchi.edusoft.in";
-const HOST = "http://localhost:8001";
+const createStudentFeeOrder = async (orderName, orderDesc, student, amount) => {
+  assert(orderName !== undefined, "orderName missing!");
+  assert(orderDesc !== undefined, "orderDesc missing!");
+  assert(student !== undefined, "student missing!");
+  assert(amount !== undefined, "amount missing!");
 
-const STUDENTS = [
-  {
-    name: "Mohit Sain",
-    admission_no: "A123",
-    fees: "2500",
-    phone: "911231231230",
-    email: "mohit@gmail.com",
-    address: "",
-  },
-  {
-    name: "Vishal Singh",
-    admission_no: "A234",
-    fees: "3500",
-    phone: "911231231230",
-    email: "vishal@gmail.com",
-    address: "",
-  },
-  {
-    name: "Mudit Mangtani",
-    admission_no: "A345",
-    fees: "4500",
-    phone: "911231231230",
-    email: "mudit@gmail.com",
-    address: "",
-  },
-  {
-    name: "Divij Gupta",
-    admission_no: "A456",
-    fees: "2500",
-    phone: "911231231230",
-    email: "divij@gmail.com",
-    address: "",
-  },
-  {
-    name: "Raghav Jhalani",
-    admission_no: "A567",
-    fees: "3000",
-    phone: "911231231230",
-    email: "raghav@gmail.com",
-    address: "",
-  },
-];
-
-const createOrder = asyncHandler(async (req, res) => {
-  let admNo = req.body.adm_no;
-
-  if (!admNo) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("admNo"));
-  }
-
-  admNo = admNo.toUpperCase();
-
-  // const student = await Student.findOne({ admission_no: admNo })
-  //   .select("name email phone address manager school")
-  //   .lean();
-
-  const student = STUDENTS.find((ele) => ele.admission_no === admNo);
-
-  if (!student) {
-    res.status(400);
-    throw new Error("Student not found!");
-  }
-
-  const amount = parseInt(student.fees);
-
-  const options = {
-    amount: amount * 100, // Amount in paise
+  const order = await razorpay.orders.create({
+    amount: amount * 100,
     currency: "INR",
     receipt: RAZORPAY_EMAIL,
-  };
+  });
 
+  order.razorpay_key = RAZORPAY_KEY_ID;
+  order.name = orderName;
+  order.description = orderDesc;
+
+  order.stuName = student.name;
+  order.stuPhone = student.phone;
+  order.stuEmail = student.email;
+  order.stuAddress = student.address.permanent || "NA";
+  order.redirect_url = `${DOMAIN}/api/razorpay/verify/student-fee-payment`;
+
+  return order;
+};
+
+const baseURL = `${DOMAIN}/student-fee-payment`;
+// const baseURL = `http://localhost:3000/student-fee-payment`;
+
+const verifyStudentFeePayment = async (req, res) => {
   try {
-    const order = await razorpay.orders.create(options);
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
+      req.body;
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expSignature = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
 
-    order.razorpay_key = RAZORPAY_KEY_ID;
-    order.name = "Edusoft";
-    order.description = "Student Fee Payment";
+    const isAuth = expSignature === razorpay_signature;
 
-    let stuName = student.name.f;
-    if (student.name.m) stuName += ` ${student.name.m}`;
-    stuName += ` ${student.name.l}`;
+    const order = await razorpay.orders.fetch(razorpay_order_id);
+    const payment = await razorpay.payments.fetch(razorpay_payment_id);
 
-    order.stuName = student.name; // stuName;
-    order.stuPhone = student.phone;
-    order.stuEmail = student.email;
-    order.stuAddress = student.address || "NA";
-
-    await RazorpayPayment.create({
-      order,
-      student: "65f83813b5a6842a063f4782",
-      manager: "65f82505e113e46069900161",
-      school: "65f82511e113e46069900173",
-    });
-
-    res.status(200).json(order);
-  } catch (err) {
-    console.log(err);
-    res.status(400).json({ success: false, msg: err.error || err.message });
-  }
-});
-
-const verifyPayment = asyncHandler(async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-    req.body;
-  const body = razorpay_order_id + "|" + razorpay_payment_id;
-  const expSignature = crypto
-    .createHmac("sha256", RAZORPAY_KEY_SECRET)
-    .update(body.toString())
-    .digest("hex");
-
-  const isAuth = expSignature === razorpay_signature;
-
-  if (!isAuth) {
-    const metadata = JSON.parse(req.body["error[metadata]"]);
-    const orderId = metadata.order_id;
-    const paymentId = metadata.payment_id;
-
-    const order = await razorpay.orders.fetch(orderId);
-    const payment = await razorpay.payments.fetch(paymentId);
-
-    await RazorpayPayment.updateOne(
-      { "order.id": orderId },
+    await RazorpayFeePayment.updateOne(
+      { "order.id": razorpay_order_id },
       { $set: { order: order, payment, signature: razorpay_signature } }
     );
 
-    return res.redirect(`${HOST}/failure?msg=SIGNATURE_VERIFICATION_FAILED`);
-  }
+    if (!isAuth) {
+      return res.redirect(
+        `${baseURL}/failure?msg=SIGNATURE_VERIFICATION_FAILED`
+      );
+    }
 
-  const order = await razorpay.orders.fetch(razorpay_order_id);
-  const payment = await razorpay.payments.fetch(razorpay_payment_id);
+    if (!payment.captured) {
+      return res.redirect(
+        `${baseURL}/failure?msg=PAYMENT_CAPTURE_FAILED&order_id=${razorpay_order_id}&amount=${amount}`
+      );
+    }
 
-  await RazorpayPayment.updateOne(
-    { "order.id": razorpay_order_id },
-    { $set: { order: order, payment, signature: razorpay_signature } }
-  );
+    const amount = payment.amount / 100;
 
-  if (!payment.captured) {
+    const rpPayment = await RazorpayFeePayment.findOne({
+      "order.id": razorpay_order_id,
+    })
+      .populate("student", "admission_no name academic_year school")
+      .lean();
+
+    const [oneTimeFees, termFees, partialFees] = FEE.splitFeesArrays(
+      rpPayment.paid_for
+    );
+
+    const fees = await FEE.getStudentFees(
+      rpPayment.student.admission_no,
+      rpPayment.academic_year,
+      termFees,
+      partialFees,
+      oneTimeFees
+    );
+
+    if (
+      await FeePaid.any({
+        student: fees.student._id,
+        academic_year: rpPayment.academic_year,
+      })
+    ) {
+      await FeePaid.updateOne(
+        { student: fees.student._id, academic_year: rpPayment.academic_year },
+        {
+          $push: {
+            razorpay_payments: rpPayment._id,
+            one_time_fees: fees.one_time_fees,
+            term_fees: fees.term_fees,
+            partial_fees: fees.partial_fees,
+          },
+          $inc: {
+            total_amount: fees.total_amount,
+            total_concession: fees.total_concession,
+            total_fine: fees.total_fine,
+            total_due_amount: fees.total_due_amount,
+          },
+        }
+      );
+    } else {
+      const feePaid = await FeePaid.create({
+        student: fees.student._id,
+        razorpay_payments: [rpPayment._id],
+        one_time_fees: fees.one_time_fees,
+        term_fees: fees.term_fees,
+        partial_fees: fees.partial_fees,
+        total_amount: fees.total_amount,
+        total_concession: fees.total_concession,
+        total_fine: fees.total_fine,
+        total_due_amount: fees.total_due_amount,
+        academic_year: rpPayment.academic_year,
+      });
+    }
+
+    // Ledger
+    const bank = req.school?.defaults?.razorpay_bank;
+
+    if (bank) {
+      const note = `STUDENT ONLINE PORTAL FEE PAYMENT: ${razorpay_order_id}`;
+
+      const ledger = await LEDGER.credit(
+        C.ONLINE,
+        payment.amount / 100,
+        note,
+        C.FEE_COLLECTION,
+        bank
+      );
+    }
+
     return res.redirect(
-      `${HOST}/failure?order_id=${razorpay_order_id}&amount=${amount}`
+      `${baseURL}/success?order_id=${razorpay_order_id}&payment_id=${razorpay_payment_id}&amount=${amount}`
+    );
+  } catch (error) {
+    console.log(error);
+    return res.redirect(
+      `${baseURL}/internal-server-error?error=${JSON.stringify(error)}`
     );
   }
+};
 
-  const amount = payment.amount / 100;
+const verifyStudentFeePaymentFlutter = async (req, res) => {
+  try {
+    const { order_id, payment_id, signature } = req.body;
 
-  return res.redirect(
-    `${HOST}/success?order_id=${razorpay_order_id}&payment_id=${razorpay_payment_id}&amount=${amount}`
-  );
-});
+    assert(order_id !== undefined, C.getFieldIsReq("order_id"));
+    assert(payment_id !== undefined, C.getFieldIsReq("payment_id"));
+    assert(signature !== undefined, C.getFieldIsReq("signature"));
 
-const checkPaymentStatus = asyncHandler(async (req, res) => {
-  const payment_id = req.query.payment_id;
+    const body = order_id + "|" + payment_id;
+    const expSignature = crypto
+      .createHmac("sha256", RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
 
-  if (!payment_id) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("payment_id"));
+    const isAuth = expSignature === signature;
+
+    const order = await razorpay.orders.fetch(order_id);
+    const payment = await razorpay.payments.fetch(payment_id);
+
+    await RazorpayFeePayment.updateOne(
+      { "order.id": order_id },
+      { $set: { order: order, payment, signature: signature } }
+    );
+
+    if (!isAuth) {
+      return res.json({ success: false, msg: "SIGNATURE_VERIFICATION_FAILED" });
+    }
+
+    if (!payment.captured) {
+      return res.json({ success: false, msg: "PAYMENT_CAPTURE_FAILED" });
+    }
+
+    const rpPayment = await RazorpayFeePayment.findOne({
+      "order.id": order_id,
+    })
+      .populate("student", "name academic_year school")
+      .lean();
+
+    const termsSummary = rpPayment.terms_summary;
+
+    for (const ts of termsSummary) {
+      const feePaid = await FeePaid.create({
+        student: rpPayment.student._id,
+        razorpay_payment: rpPayment._id,
+        fee_term: ts.fee_term,
+        fee_types: ts.fee_types,
+        amount: ts.amount,
+        concession: ts.concession,
+        fine: ts.fine,
+        final_amount: ts.final_amount,
+        academic_year: rpPayment.student.academic_year,
+      });
+    }
+
+    // Ledger
+    const bank = req.school?.defaults?.razorpay_bank;
+
+    if (bank) {
+      const note = `Student Fee Payment Online Order: ${razorpay_order_id}`;
+      const ledger = await LEDGER.credit(
+        C.ONLINE,
+        payment.amount / 100,
+        note,
+        C.FEE_COLLECTION,
+        bank
+      );
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.log(err);
+    return res.json({
+      success: false,
+      msg: `INTERNAL_SERVER_ERROR: ${err.message}`,
+    });
   }
+};
 
-  const payment = await razorpay.payments.fetch(payment_id);
+const addSchoolToReq = async (req, res, next) => {
+  const school = await School.findOne().lean();
 
-  res.status(200).json(payment);
+  req.school = school;
 
-  UC.writeLog("verifyPayment", "END");
-});
+  next();
+};
 
-router.post("/pay", createOrder);
-
-router.post("/verify", verifyPayment);
-
-router.get("/key", (req, res) => {
-  return res.status(200).send(RAZORPAY_KEY_ID);
-});
-
-router.get("/check-status", checkPaymentStatus);
-
-router.get(
-  "/payment-cancel",
-  asyncHandler(async (req, res) => {
-    console.log("req.body :>>", req.body);
-    res.redirect(`${HOST}/payment-cancel`);
-  })
-);
-
-router.get(
-  "/fee-list",
-  asyncHandler((req, res) => {
-    res.json(STUDENTS);
-  })
-);
-
-module.exports = router;
+module.exports = {
+  createStudentFeeOrder,
+  verifyStudentFeePayment,
+  verifyStudentFeePaymentFlutter,
+  addSchoolToReq,
+};

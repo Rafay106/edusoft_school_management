@@ -1,9 +1,18 @@
-const Bus = require("../models/transport/busModel");
-const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
+const getDeviceHistoryModel = require("../models/system/deviceHistoryModel");
+const Device = require("../models/system/deviceModel");
 const UnusedDevice = require("../models/system/unusedDeviceModel");
-const { getAngle, getLenBtwPointsInKm, writeLog } = require("../utils/common");
+const {
+  getAngle,
+  getLenBtwPointsInKm,
+  writeLog,
+  getAppRootDir,
+} = require("../utils/common");
 const { isAlphaNumeric } = require("../utils/validators");
-const { checkStuBusAttendance } = require("./attendance");
+const {
+  studentBusAttendance,
+  studentClassAttendance,
+} = require("./attendance");
+const C = require("../constants");
 
 const insert_db_loc = async (loc) => {
   console.log("*****insert_db_loc() START*****");
@@ -23,35 +32,55 @@ const insert_db_loc = async (loc) => {
   // check for wrong IMEI
   if (!isAlphaNumeric(loc.imei)) return false;
 
+  if (isNaN(loc.lat)) {
+    writeLog(
+      "insert",
+      `Error: loc.lat is NaN | imei: ${loc.imei} | dt_tracker: ${loc.dt_tracker}`
+    );
+
+    return false;
+  }
+
+  if (isNaN(loc.lon)) {
+    writeLog(
+      "insert",
+      `Error: loc.lon is NaN | imei: ${loc.imei} | dt_tracker: ${loc.dt_tracker}`
+    );
+
+    return false;
+  }
+
   // check for wrong speed
-  if (loc.speed > 1000) return false;
+  // if (loc.speed > 1000) return false;
 
   // check if device exists in system
-  if (!(await Bus.any({ "device.imei": loc.imei }))) {
+  const device = await Device.findOne({ imei: loc.imei }).lean();
+
+  if (!device) {
     await insert_db_unused(loc);
     return false;
   }
 
-  // apply GPS Roll Over fix
-  const now = new Date();
-  if (
-    loc.dt_tracker.getUTCFullYear() > now.getUTCFullYear() + 10 ||
-    loc.dt_tracker.getUTCFullYear() < now.getUTCFullYear() - 10
-  ) {
-    if (
-      loc.dt_tracker.getUTCMonth() === now.getUTCMonth() &&
-      loc.dt_tracker.getUTCDate() === now.getUTCDate()
-    ) {
-      loc.dt_tracker.setUTCFullYear(now.getUTCFullYear());
-    } else {
-      loc.dt_tracker = new Date(now);
-    }
-  }
+  // // apply GPS Roll Over fix
+  // const now = new Date();
+  // if (
+  //   loc.dt_tracker.getUTCFullYear() > now.getUTCFullYear() + 10 ||
+  //   loc.dt_tracker.getUTCFullYear() < now.getUTCFullYear() - 10
+  // ) {
+  //   if (
+  //     loc.dt_tracker.getUTCMonth() === now.getUTCMonth() &&
+  //     loc.dt_tracker.getUTCDate() === now.getUTCDate()
+  //   ) {
+  //     loc.dt_tracker.setUTCFullYear(now.getUTCFullYear());
+  //   } else {
+  //     loc.dt_tracker = new Date(now);
+  //   }
+  // }
 
-  // check if dt_tracker is one day too far - skip coordinate
-  if (loc.dt_tracker >= new Date(now.getTime() + 86400000)) {
-    return false;
-  }
+  // // check if dt_tracker is one day too far - skip coordinate
+  // if (loc.dt_tracker >= new Date(now.getTime() + 86400000)) {
+  //   return false;
+  // }
 
   // check if dt_tracker is at least one hour too far - set 0 UTC time
   // if (loc.dt_tracker >= new Date(now.getTime() + 3600000)) {
@@ -64,84 +93,23 @@ const insert_db_loc = async (loc) => {
   // get previous known location
   let locPrev = await getDeviceData(loc.imei);
 
-  // forward loc data
-  // if (locPrev.forward_loc_data && locPrev.forward_loc_data_imei != "") {
-  //   if (!(await Bus.any({ imei: locPrev.forward_loc_data_imei }))) {
+  // // avoid incorrect lat and lon signs
+  // if (loc.lat != locPrev.lat) {
+  //   if (Math.abs(loc.lat) === Math.abs(locPrev.lat)) {
   //     return false;
   //   }
-
-  //   loc.imei = locPrev.forward_loc_data_imei;
-  //   locPrev = await getDeviceData(loc.imei);
   // }
 
-  // avoid incorrect lat and lon signs
-  if (loc.lat != locPrev.lat) {
-    if (Math.abs(loc.lat) === Math.abs(locPrev.lat)) {
-      return false;
-    }
-  }
-
-  if (loc.lon != locPrev.lon) {
-    if (Math.abs(loc.lon) === Math.abs(locPrev.lon)) {
-      return false;
-    }
-  }
-
-  // Fetch device data
-  // const device = await Bus.findOne({ "device.imei": loc.imei })
-  // .select("sensors odometer engine_hours")
-  // .populate("sensors")
-  // .lean();
+  // if (loc.lon != locPrev.lon) {
+  //   if (Math.abs(loc.lon) === Math.abs(locPrev.lon)) {
+  //     return false;
+  //   }
+  // }
 
   // merge params only if dt_tracker is newer
-  // if (loc.dt_tracker >= locPrev.dt_tracker) {
-  //   loc.params = { ...locPrev.params, ...loc.params };
-  // }
-
-  // accvirt
-  // if (locPrev.accvirt) {
-  //   let accvirt_cn;
-  //   try {
-  //     accvirt_cn = JSON.parse(locPrev.accvirt_cn);
-  //   } catch (error) {
-  //     accvirt_cn = null;
-  //   }
-  //   if (accvirt_cn) {
-  //     let cn_1 = false,
-  //       cn_0 = false;
-
-  //     // check if param exits
-  //     if (loc.params[accvirt_cn.param]) {
-  //       if (accvirt_cn.accvirt_1_cn === "eq") {
-  //         if (loc.params[accvirt_cn.param] === accvirt_cn.accvirt_1_val)
-  //           cn_1 = true;
-  //       } else if (accvirt_cn.accvirt_1_cn === "gr") {
-  //         if (loc.params[accvirt_cn.param] > accvirt_cn.accvirt_1_val)
-  //           cn_1 = true;
-  //       } else if (accvirt_cn.accvirt_1_cn === "lw") {
-  //         if (loc.params[accvirt_cn.param] < accvirt_cn.accvirt_1_val)
-  //           cn_1 = true;
-  //       }
-
-  //       if (accvirt_cn.accvirt_0_cn === "eq") {
-  //         if (loc.params[accvirt_cn.param] === accvirt_cn.accvirt_0_val)
-  //           cn_0 = true;
-  //       } else if (accvirt_cn.accvirt_0_cn === "gr") {
-  //         if (loc.params[accvirt_cn.param] > accvirt_cn.accvirt_0_val)
-  //           cn_0 = true;
-  //       } else if (accvirt_cn.accvirt_0_cn === "lw") {
-  //         if (loc.params[accvirt_cn.param] < accvirt_cn.accvirt_0_val)
-  //           cn_0 = true;
-  //       }
-
-  //       if (cn_1 && !cn_0) {
-  //         loc.params.accvirt = "1";
-  //       } else if (!cn_1 && cn_0) {
-  //         loc.params.accvirt = "0";
-  //       }
-  //     }
-  //   }
-  // } else delete loc.params.accvirt;
+  if (loc.dt_tracker >= locPrev.dt_tracker) {
+    loc.params = { ...locPrev.params, ...loc.params };
+  }
 
   // sort params array
   loc.params = Object.keys(loc.params)
@@ -151,17 +119,17 @@ const insert_db_loc = async (loc) => {
       return obj;
     }, {});
 
-  // check if location without valid lat and lon
-  if (!loc.loc_valid && (loc.lat === 0 || loc.lon === 0)) {
-    if (loc.dt_tracker >= locPrev.dt_tracker) {
-      // add previous known location
-      loc.lat = locPrev.lat;
-      loc.lon = locPrev.lon;
-      loc.altitude = locPrev.altitude;
-      loc.angle = locPrev.angle;
-      loc.speed = 0;
-    }
-  }
+  // // check if location without valid lat and lon
+  // if (!loc.loc_valid && (loc.lat === 0 || loc.lon === 0)) {
+  //   if (loc.dt_tracker >= locPrev.dt_tracker) {
+  //     // add previous known location
+  //     loc.lat = locPrev.lat;
+  //     loc.lon = locPrev.lon;
+  //     loc.altitude = locPrev.altitude;
+  //     loc.angle = locPrev.angle;
+  //     loc.speed = 0;
+  //   }
+  // }
 
   // insert data into various services
   await updateDeviceLocData(loc, locPrev);
@@ -169,20 +137,35 @@ const insert_db_loc = async (loc) => {
   await updateDeviceStatus(loc, locPrev);
 
   // check for duplicate locations
-  if (locFilter(loc, locPrev)) return;
+  // if (locFilter(loc, locPrev)) return;
 
   // Save history of device
   await insertDeviceHistory(loc);
 
-  if (loc.lat == 0 || loc.lon == 0) return;
+  // if (loc.lat == 0 || loc.lon == 0) return;
 
-  if (loc.dt_tracker < locPrev.dt_tracker) return;
+  // if (loc.dt_tracker < locPrev.dt_tracker) return;
 
-  writeLog("insert", `${loc.imei}: ${loc.params}`);
-  if (!loc.params.io78) return;
+  writeLog(
+    "insert",
+    `${loc.imei} | ${loc.dt_tracker.toISOString()} | ${JSON.stringify(
+      loc.params
+    )}`
+  );
+  if (!loc.params.io78 || loc.params.io78 === "0") return;
 
-  const result = await checkStuBusAttendance(loc);
-  console.log("result :>> ", result);
+  if (device.type === C.BUS) {
+    const result = await studentBusAttendance(loc);
+    console.log("result :>> ", result);
+  } else if (device.type === C.SCHOOL) {
+    const result = await studentClassAttendance(loc);
+    console.log("result :>> ", result);
+  } else if (device.type === C.TEST) {
+    const fs = require("node:fs");
+
+    fs.writeFileSync("./latest_scanned_rfid.txt", loc.params.io78);
+  }
+
   console.log("*****insert_db_loc() END*****");
 };
 
@@ -214,6 +197,7 @@ const insert_db_unused = async (loc) => {
       }
     );
   }
+
   return result;
 };
 
@@ -227,78 +211,80 @@ const updateDeviceLocData = async (loc, locPrev) => {
         loc.angle = getAngle(locPrev.lat, locPrev.lon, loc.lat, loc.lon);
       }
 
-      res = await Bus.updateOne(
-        { "device.imei": loc.imei },
+      console.log("loc.angle :>> ", loc.angle);
+
+      res = await Device.updateOne(
+        { imei: loc.imei },
         {
           $set: {
-            "device.protocol": loc.protocol,
-            "device.net_protocol": loc.net_protocol,
-            "device.ip": loc.ip,
-            "device.port": loc.port,
-            "device.dt_server": loc.dt_server,
-            "device.dt_tracker": loc.dt_tracker,
-            "device.lat": loc.lat,
-            "device.lon": loc.lon,
-            "device.speed": loc.speed,
-            "device.altitude": loc.altitude,
-            "device.angle": loc.angle,
-            "device.params": loc.params,
-            "device.loc_valid": true,
+            protocol: loc.protocol,
+            net_protocol: loc.net_protocol,
+            ip: loc.ip,
+            port: loc.port,
+            dt_server: loc.dt_server,
+            dt_tracker: loc.dt_tracker,
+            lat: loc.lat,
+            lon: loc.lon,
+            speed: loc.speed,
+            altitude: loc.altitude,
+            angle: loc.angle,
+            params: loc.params,
+            loc_valid: true,
           },
         }
       );
     } else {
       loc.speed = 0;
       if (loc.lat !== 0 && loc.lon !== 0) {
-        res = await Bus.updateOne(
-          { "device.imei": loc.imei },
+        res = await Device.updateOne(
+          { imei: loc.imei },
           {
             $set: {
-              "device.protocol": loc.protocol,
-              "device.net_protocol": loc.net_protocol,
-              "device.ip": loc.ip,
-              "device.port": loc.port,
-              "device.dt_server": loc.dt_server,
-              "device.dt_tracker": loc.dt_tracker,
-              "device.lat": loc.lat,
-              "device.lon": loc.lon,
-              "device.speed": loc.speed,
-              "device.altitude": loc.altitude,
-              "device.angle": loc.angle,
-              "device.params": loc.params,
-              "device.loc_valid": false,
+              protocol: loc.protocol,
+              net_protocol: loc.net_protocol,
+              ip: loc.ip,
+              port: loc.port,
+              dt_server: loc.dt_server,
+              dt_tracker: loc.dt_tracker,
+              lat: loc.lat,
+              lon: loc.lon,
+              speed: loc.speed,
+              altitude: loc.altitude,
+              angle: loc.angle,
+              params: loc.params,
+              loc_valid: false,
             },
           }
         );
       } else {
-        res = await Bus.updateOne(
-          { "device.imei": loc.imei },
+        res = await Device.updateOne(
+          { imei: loc.imei },
           {
             $set: {
-              "device.protocol": loc.protocol,
-              "device.net_protocol": loc.net_protocol,
-              "device.ip": loc.ip,
-              "device.port": loc.port,
-              "device.dt_server": loc.dt_server,
-              "device.dt_tracker": loc.dt_tracker,
-              "device.speed": loc.speed,
-              "device.params": loc.params,
-              "device.loc_valid": false,
+              protocol: loc.protocol,
+              net_protocol: loc.net_protocol,
+              ip: loc.ip,
+              port: loc.port,
+              dt_server: loc.dt_server,
+              dt_tracker: loc.dt_tracker,
+              speed: loc.speed,
+              params: loc.params,
+              loc_valid: false,
             },
           }
         );
       }
     }
   } else {
-    res = await Bus.updateOne(
-      { "device.imei": loc.imei },
+    res = await Device.updateOne(
+      { imei: loc.imei },
       {
         $set: {
-          "device.protocol": loc.protocol,
-          "device.net_protocol": loc.net_protocol,
-          "device.ip": loc.ip,
-          "device.port": loc.port,
-          "device.dt_server": loc.dt_server,
+          protocol: loc.protocol,
+          net_protocol: loc.net_protocol,
+          ip: loc.ip,
+          port: loc.port,
+          dt_server: loc.dt_server,
         },
       }
     );
@@ -308,7 +294,7 @@ const updateDeviceLocData = async (loc, locPrev) => {
 };
 
 const insertDeviceHistory = async (loc) => {
-  if (loc.lat === 0 && loc.lon === 0) return false;
+  // if (loc.lat === 0 && loc.lon === 0) return false;
 
   const DeviceHistory = getDeviceHistoryModel(loc.imei);
   const res = await DeviceHistory.create({
@@ -374,24 +360,22 @@ const updateDeviceStatus = async (loc, locPrev) => {
     }
   }
 
-  await Bus.updateOne(
-    { "device.imei": loc.imei },
-    { $set: { "device.vehicle_status": vStat } }
+  await Device.updateOne(
+    { imei: loc.imei },
+    { $set: { vehicle_status: vStat } }
   );
 };
 
 const getDeviceData = async (imei) => {
-  const bus = await Bus.findOne({ "device.imei": imei })
-    .select("device")
-    .lean();
+  const device = await Device.findOne({ imei }).lean();
 
-  if (!bus || !bus.device) return false;
+  if (!device) return false;
 
   // Format Data
-  bus.device.lat = parseFloat(bus.device.lat);
-  bus.device.lon = parseFloat(bus.device.lon);
-  bus.device.params = bus.device.params || {};
-  return bus.device;
+  device.lat = parseFloat(device.lat);
+  device.lon = parseFloat(device.lon);
+  device.params = device.params || {};
+  return device;
 };
 
 const locFilter = (loc, locPrev) => {

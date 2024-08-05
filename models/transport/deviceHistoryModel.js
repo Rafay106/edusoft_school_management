@@ -17,7 +17,7 @@ const deviceHistorySchema = new mongoose.Schema(
 );
 
 const getDeviceHistoryModel = (imei) => {
-  const deviceHistoryModelName = `Device_${imei}`;
+  const deviceHistoryModelName = `transport_device_${imei}`;
   let DeviceHistory;
   try {
     DeviceHistory = mongoose.model(deviceHistoryModelName, deviceHistorySchema);

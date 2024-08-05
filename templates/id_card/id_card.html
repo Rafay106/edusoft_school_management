@@ -3,197 +3,248 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
     <title>ID Card</title>
     <style>
       * {
-        margin: 0;
-        padding: 0;
+        margin: 0px;
+        padding: 0px;
+        font-family: Georgia, serif;
       }
+
       .card {
-        width: 54mm;
+        position: relative;
         height: 85mm;
-        background-color: #f2f2f2;
-        border-radius: 20px;
+        width: 54mm;
+        padding: 3px;
         overflow: hidden;
-        font-size: 10px;
       }
 
-      .card-header__bg {
-        width: calc(100% + 25mm);
-        height: 33mm;
-        border-radius: 50%;
-        margin-left: 50%;
-        margin-top: -50%;
-        transform: translateX(-50%);
-        box-shadow: 0 0 28px 10px rgba(234, 51, 10, 0.3);
-        background-color: #ff2525;
-        background-image: linear-gradient(
-          281deg,
-          #ff0000 6%,
-          #ff0000 38%,
-          #f7ad0d 100%
-        );
-      }
-      .card-header-top {
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
-      }
-      #logo-img {
-        display: block;
-        width: 25px;
-        margin-inline: auto;
-      }
-      #logo-txt {
-        margin: 3px;
-        text-align: center;
-        color: #5f5e5e;
-        font-size: 7px;
-        font-weight: 700;
-      }
-      #photo-img {
-        width: 60px;
-        border-radius: 50%;
-        position: relative;
-        margin-left: auto;
-        margin-right: auto;
-        transform: translateY(-10px) translateX(-5px);
-      }
-      .bus img {
-        width: 25px;
-      }
-      .bus p {
-        text-align: center;
-        color: #5f5e5e;
-        font-size: 7px;
-        font-weight: 700;
-      }
-      .card-header-bottom {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        align-items: center;
-        color: #565656;
-      }
-      #name,
-      #school {
-        font-weight: 700;
-        font-size: 12px;
-        letter-spacing: 1px;
-      }
-      #school-address {
-        width: 45mm;
-        text-align: center;
-      }
-      .body {
-        display: flex;
-        flex-direction: column;
-        width: 80%;
-        margin: 8px auto;
-        font-size: 8px;
-      }
-      .body .head {
-        background: #ece9e9;
-        border-radius: 10px;
-        padding: 8px 5px;
-      }
-      .body .main {
-        padding: 0 5px;
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-      }
-
-      .body .footer {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: end;
-      }
-      #sign {
+      .card::before {
+        content: "";
         position: absolute;
-        top: -35px;
-        right: -15px;
-        background-color: #403f3f;
-        padding: 5px;
-        width: 50px;
-        border-radius: 5px;
-      }
-      #sign img {
-        max-width: 50px;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url("{{background}}");
+        background-size: contain;
+        background-position: center;
+        opacity: 0.8;
+        z-index: -1;
       }
 
-      .footer {
+      #head {
+        display: flex;
+        align-items: start;
+        gap: 25px;
+        color: black;
+        font-weight: bold;
+        font-size: 18px;
+      }
+
+      #head img {
+        width: 40px;
+      }
+
+      #school-name {
+        color: #692f03;
+        transform: scaleX(1.6);
+        margin-left: 10px;
+      }
+
+      #school-info {
+        font-size: 8px;
+        color: #692f03;
+        margin-left: -15px;
+      }
+
+      #school-info i {
+        color: #692f03;
+      }
+
+      #main-top {
+        display: flex;
+        align-items: start;
+      }
+
+      #session {
+        white-space: nowrap;
+        font-family: Verdana;
+        font-size: 5pt;
+        transform: rotate(-90deg);
+        transform-origin: center;
+        margin-top: 42px;
+        margin-left: -11px;
+      }
+
+      #main-top {
+        margin-top: 10px;
+      }
+
+      #main-top img {
+        height: 70px;
+        width: 70px;
+        background-color: #e6ebe0;
+        border-radius: 50px;
+        object-fit: content;
+        border: 3px solid rgba(255, 255, 255, 0.2);
+        margin-top: 10px;
+        margin-left: -13px;
+      }
+
+      #student-info {
+        display: flex;
+        flex-direction: column;
+        align-self: center;
+        gap: 5px;
+        font-size: 8px;
+        padding: 5px;
+        color: #692f03;
+        font-weight: bolder;
+      }
+
+      i {
+        color: rgb(222, 105, 3);
+      }
+
+      #main-bottom {
+        padding: 5px;
+        font-size: 8px;
+        font-weight: bold;
+      }
+
+      #main-bottom p {
+        margin: 3px 0;
+      }
+
+      #name {
+        margin: 5px 0;
+        font-size: 14px;
+      }
+
+      #section-top {
+        display: grid;
+        grid-template-columns: 3fr 1fr;
+        align-items: center;
+      }
+
+      #section-right {
+        display: flex;
+        gap: 3px;
+        margin-left: -5px;
+        align-items: center;
+      }
+
+      #section-right img {
+        width: 20px;
+      }
+
+      #section-right p {
+        color: red;
+        font-size: 11px;
+      }
+
+      #address {
+        height: 3lh;
+      }
+
+      #stop {
+        height: 2lh;
+      }
+
+      #foot {
         display: flex;
         justify-content: space-around;
-        margin-top: 4px;
+      }
+
+      #bus {
+        display: flex;
+        gap: 10px;
+        margin-left: -10px;
+      }
+      .heading-text-stretch {
+        transform: scaleX(3);
+        display: inline-block;
       }
     </style>
   </head>
 
   <body>
     <div class="card">
-      <div class="card-header">
-        <div class="card-header__bg"></div>
-        <div class="card-header-top">
-          <div class="logo">
-            <img
-              id="logo-img"
-              src="./images/logo.png"
-            />
-            <p id="logo-txt">
-              SUTLEJ <br />HOUSE <br />
-              (O+)
+      <div id="head">
+        <img src="{{logo}}" alt="" />
+        <div id="school-data">
+          <p id="school-name" class="heading-text-stretch">आचार्यकुलम्</p>
+          <div id="school-info">
+            <p>
+              <i class="fa fa-map-marker" aria-hidden="true" class=""></i>
+              <b>Tata Road Namkum, Ranchi-10</b>
+            </p>
+            <p>
+              <i class="fa fa-phone" aria-hidden="true"></i>
+              <b>Phone No. +916287842464</b>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div id="main-top">
+        <p id="session"><b>{{session}}</b></p>
+        <img src="{{photo}}" alt="" />
+        <div id="student-info">
+          <span>Adm No. : {{admno}}</span>
+          <span>Class / Sec. : {{class}}</span>
+          <span>D.O.B : {{dob}}</span>
+          <span>House : {{house}} </span>
+        </div>
+      </div>
+
+      <div id="main-bottom">
+        <p id="name"><b>{{name}}</b></p>
+
+        <div id="section-top">
+          <div id="section-left">
+            <p><i class="fa fa-user" aria-hidden="true"></i> : {{father}}</p>
+            <p><i class="fa fa-female" aria-hidden="true"></i> : {{mother}}</p>
+            <p>
+              <i class="fa fa-id-card" aria-hidden="true"></i> : {{roll_no}}
             </p>
           </div>
 
-          <div class="photo">
-            <img
-              src="./images/user-blank.svg"
-              id="photo-img"
-            />
-          </div>
-
-          <div class="bus">
-            <img src="./images/bus-school.png" />
-            <p id="bus-text">D-03</p>
+          <div id="section-right">
+            <img src="{{blood-logo}}" />
+            <p>{{blood}}</p>
           </div>
         </div>
 
-        <div class="card-header-bottom">
-          <p id="name">{{name}}</p>
-          <p id="school">DELHI PUBLIC SCHOOL</p>
-          <p id="school-address">
-            Add : SAIL Township, P.O Dhuruwa, Ranchi 834004
+        <div id="section-bottom">
+          <p id="address">
+            <i class="fa fa-map-marker" aria-hidden="true"></i> : {{address}}
           </p>
-          <p>Phone : {{phone}}</p>
+          <p id="stop"><i class="fa fa-bus" aria-hidden="true"> </i> : NONE</p>
+          <p><i class="fa fa-phone" aria-hidden="true"> </i> : {{phone}}</p>
         </div>
-      </div>
-      <div class="body">
-        <div class="head">
-          <span>Class :{{class}}</span>
-          <span>Adm No. : {{admno}}</span>
-        </div>
-        <div class="main">
-          <p>Father's Name : Bikash Chandra Dey</p>
-          <p>Mother's Name : Ruby Dey</p>
-          <p>Address : {{address}}</p>
-          <p>Pin Code : 834002</p>
-          <p>Phone Number : 7865453456</p>
-          <p>Date of Birth : 17 Aug 2007</p>
-          <p>Bus Stop : Bahu Bazaar</p>
-        </div>
-        <div class="footer">
-          <div id="sign">
-            <img id="sign-img" src="./images/signature.png" />
+
+        <div id="foot">
+          <div id="bus">
+            <p>Walker</p>
+            <img src="{{pedestrian}}" style="width: 25px" />
+            <!-- <svg width="30" viewBox="-50 -50 100 100">
+            <polygon
+              points="50,0 40.45,29.39 15.45,47.55 -15.45,47.55 -40.45,29.39 -50,0 -40.45,-29.39 -15.45,-47.55 15.45,-47.55 40.45,-29.39"
+              fill="orange" stroke="black" stroke-width="2" />
+
+            <text x="0" y="0" text-anchor="middle" dy=".3em" font-size="38" fill="black">
+              {{bus-name}}
+            </text>
+          </svg> -->
           </div>
           <p>Principal</p>
         </div>
-      </div>
-      <hr />
-      <div class="footer">
-        <p>info@dpsranchi.com</p>
-        <p>dpsranchi.com</p>
       </div>
     </div>
   </body>

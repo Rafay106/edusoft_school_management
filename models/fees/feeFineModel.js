@@ -3,49 +3,36 @@ const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
+const required = [true, C.FIELD_IS_REQ];
+
+const fineDescSchema = new mongoose.Schema(
+  {
+    amount: { type: Number, required },
+    from: { type: Date, required },
+    to: { type: Date, required },
+  },
+  { _id: false }
+);
 
 const schema = new mongoose.Schema(
   {
-    class: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "classes" },
-    fee_term: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "fee_terms",
-    },
-    student_type: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "student_types",
-    },
+    boarding_type: { type: ObjectId, required, ref: "boarding_types" },
     type: {
       type: String,
-      required: [true, C.FIELD_IS_REQ],
+      required,
       enum: {
-        values: ["f", "d", "w", "m"], // fixed, daily, weekly, monthly
+        values: [C.FIXED, C.DAILY, C.WEEKLY, C.MONTHLY, C.CUSTOM],
         message: C.VALUE_NOT_SUP,
       },
     },
-    amount: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    range: {
-      start: { type: Number, required: [true, C.FIELD_IS_REQ] },
-      end: { type: Number, required: [true, C.FIELD_IS_REQ] },
-    },
-    fixed: { type: Boolean, required: [true, C.FIELD_IS_REQ] },
-    date_range: {
-      start: { type: Date, required: [true, C.FIELD_IS_REQ] },
-      end: { type: Date, required: [true, C.FIELD_IS_REQ] },
-    },
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
-    manager: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
-    school: { type: ObjectId, required: [true, C.FIELD_IS_REQ], ref: "users" },
+    amount: { type: Number, default: 0 },
+    custom: [fineDescSchema],
+    academic_year: { type: ObjectId, required, ref: "academic_years" },
   },
-  { timestamps: true }
+  { timestamps: true, versionKey: false }
 );
 
+schema.index({ boarding_type: 1, academic_year: 1 }, { unique: true });
 schema.plugin(any);
 
 const FeeFine = mongoose.model("fee_fines", schema);

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+  <title>ID Card</title>
+  <style>
+    * {
+      margin: 0px;
+      padding: 0px;
+    }
+
+    .card {
+      position: relative;
+      height: 85mm;
+      width: 54mm;
+      padding: 3px;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url("{{background}}");
+      background-size: contain;
+      background-position: center;
+      opacity: 0.8;
+      z-index: -1;
+    }
+
+    #head {
+      display: flex;
+      align-items: start;
+      gap: 25px;
+      color: black;
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    #head img {
+      width: 40px;
+    }
+
+    #school-name {
+      color: #692f03;
+      transform: scaleX(1.6);
+      margin-left:10px;
+    }
+
+    #school-info {
+      font-size: 8px;
+      color: #692f03;
+      margin-left: -15px;
+    }
+
+    #school-info i {
+      color: #692f03;
+    }
+
+    #main-top {
+      display: flex;
+      align-items: start;
+    }
+
+    #session {
+      white-space: nowrap;
+      font-family: Verdana;
+      font-size: 5pt;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      margin-top: 42px;
+      margin-left: -11px;
+    }
+
+    #main-top {
+      margin-top: 10px;
+    }
+
+    #main-top img {
+      height: 70px;
+      width: 70px;
+      background-color: #e6ebe0;
+      border-radius: 50px;
+      object-fit: content;
+      border: 3px solid rgba(255, 255, 255, 0.2);
+      margin-top: 10px;
+      margin-left: -13px;
+    }
+
+    #student-info {
+      display: flex;
+      flex-direction: column;
+      align-self: center;
+      gap: 5px;
+      font-size: 8px;
+      padding: 5px;
+      color: #692f03;
+      font-weight: bolder;
+    }
+
+    i {
+      color: rgb(222, 105, 3);
+    }
+
+    #main-bottom {
+      padding: 5px;
+      font-size: 8px;
+      font-weight: bold;
+    }
+
+    #main-bottom p {
+      margin: 3px 0;
+    }
+
+    #name {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+
+    #section-top {
+      display: grid;
+      grid-template-columns: 3fr 1fr;
+      align-items: center;
+    }
+
+    #section-right {
+      display: flex;
+      gap: 3px;
+      margin-left: -5px;
+      align-items: center;
+    }
+
+    #section-right img {
+      width: 20px;
+    }
+
+    #section-right p {
+      color: red;
+      font-size: 11px;
+    }
+
+    #address {
+      height: 3lh;
+    }
+
+    #stop {
+      height: 2lh;
+    }
+
+    #foot {
+      display: flex;
+      justify-content: space-around;
+    }
+
+    #bus {
+      display: flex;
+      gap: 10px;
+      margin-left: -10px;
+    }
+    .heading-text-stretch {
+            transform: scaleX(3);
+            display: inline-block;
+        }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div id="head">
+      <img src="{{logo}}" alt="" />
+      <div id="school-data">
+        <p id="school-name" class="heading-text-stretch">आचार्यकुलम्</p>
+        <div id="school-info">
+          <p>
+            <i class="fa fa-map-marker" aria-hidden="true" class=""></i>
+            <b>Tata Road Namkum, Ranchi-10</b>
+          </p>
+          <p>
+            <i class="fa fa-phone" aria-hidden="true"></i>
+            <b>Phone No. +916287842464</b>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div id="main-top">
+      <p id="session"><b>{{session}}</b></p>
+      <img src="{{photo}}" alt="" />
+      <div id="student-info">
+        <span>Adm No. : {{admno}}</span>
+        <span>Class / Sec. : {{class}}</span>
+        <span>D.O.B : {{dob}}</span>
+        <span>House : {{house}} </span>
+      </div>
+    </div>
+
+    <div id="main-bottom">
+      <p id="name"><b>{{name}}</b></p>
+
+      <div id="section-top">
+        <div id="section-left">
+          <p><i class="fa fa-user" aria-hidden="true"></i> : {{father}}</p>
+          <p><i class="fa fa-female" aria-hidden="true"></i> : {{mother}}</p>
+          <p>
+            <i class="fa fa-id-card" aria-hidden="true"></i> : {{roll_no}}
+          </p>
+        </div>
+
+        <div id="section-right">
+          <img src="{{blood-logo}}" />
+          <p>{{blood}}</p>
+        </div>
+      </div>
+
+      <div id="section-bottom">
+        <p id="address">
+          <i class="fa fa-map-marker" aria-hidden="true"></i> : {{address}}
+        </p>
+        <p id="stop">
+          <i class="fa fa-bus" aria-hidden="true"> </i> : {{bus-stop}}
+        </p>
+        <p><i class="fa fa-phone" aria-hidden="true"> </i> : {{phone}}</p>
+      </div>
+
+      <div id="foot">
+        <div id="bus">
+          <p>Bus No.</p>
+          <svg width="30" viewBox="-50 -50 100 100">
+            <polygon
+              points="50,0 40.45,29.39 15.45,47.55 -15.45,47.55 -40.45,29.39 -50,0 -40.45,-29.39 -15.45,-47.55 15.45,-47.55 40.45,-29.39"
+              fill="orange" stroke="black" stroke-width="2" />
+
+            <text x="0" y="0" text-anchor="middle" dy=".3em" font-size="38" fill="black">
+              {{bus-name}}
+            </text>
+          </svg>
+        </div>
+        <p>Principal</p>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

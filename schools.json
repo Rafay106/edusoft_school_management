@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Acharyakulam Ranchi",
+    "url": "https://acharyakulamranchi.edusoft.in/api",
+    "logo": "https://app.edusoft.in/acharyakulam-logo.png"
+  },
+  {
+    "name": "Delhi Public School, Ranchi",
+    "url": "https://dpsranchi.edusoft.in/api",
+    "logo": "https://app.edusoft.in/dps-logo.png"
+  },
+  {
+    "name": "GD Goenka Public School, Ranchi",
+    "url": "https://gdgranchi.edusoft.in/api",
+    "logo": "https://app.edusoft.in/gdgoenka-logo.png"
+  },
+  {
+    "name": "Tender Heart Senior Secondary School, Ranchi",
+    "url": "https://tenderheart.edusoft.in/api",
+    "logo": "https://app.edusoft.in/tenderheart-logo.png"
+  },
+  {
+    "name": "Edusoft Main",
+    "url": "https://app.edusoft.in/api",
+    "logo": "https://app.edusoft.in/edusoft-logo.png"
+  }
+]
