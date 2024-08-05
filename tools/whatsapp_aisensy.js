@@ -16,7 +16,7 @@ const sendWhatsappQueue = async (
 
   if (!school) return false;
 
-  if (school.whatsapp_coins < 1) return false;
+  if (school.whatsapp_coins <= 0) return false;
 
   const data = {
     campaignName,
@@ -47,11 +47,7 @@ const sendWhatsapp = async (
     media,
   };
 
-  const config = {
-    headers: {
-      "Content-Type": "application/json",
-    },
-  };
+  const config = { headers: { "Content-Type": "application/json" } };
 
   try {
     for (const destination of destinations) {

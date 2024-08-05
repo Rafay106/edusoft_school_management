@@ -18,7 +18,7 @@ const getNotices = asyncHandler(async (req, res) => {
     const fields = ["name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(Notice, query, {}, page, limit, sort);

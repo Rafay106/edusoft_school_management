@@ -8,11 +8,6 @@ const Bus = require("../models/transport/busModel");
 // @route   GET /api/parent-util/children
 // @access  Private
 const getChildrenOfParent = asyncHandler(async (req, res) => {
-  if (!C.isParent(req.user.type)) {
-    res.status(403);
-    throw new Error("Only parent account has access to this route.");
-  }
-
   const students = await Student.find({ parent: req.user._id })
     .select("admission_no name")
     .lean();
@@ -24,17 +19,9 @@ const getChildrenOfParent = asyncHandler(async (req, res) => {
 // @route   GET /api/pparent-util/bus-list
 // @access  Private
 const getBusList = asyncHandler(async (req, res) => {
-  if (!C.isParent(req.user.type)) {
-    res.status(403);
-    throw new Error("Only parent account has access to this route.");
-  }
-
-  const manager = req.user.manager;
-  const school = req.user.school;
-
-  return res.json({ manager, school });
-
-  const buses = await Bus.find({ manager, school }).select("name").lean();
+  const buses = await Bus.find({ school: req.school._id })
+    .select("name")
+    .lean();
 
   res.status(200).json(buses);
 });

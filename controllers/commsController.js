@@ -4,12 +4,12 @@ const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
 const Notice = require("../models/comms/noticeBoardModel");
-const { sendEmailQueue } = require("../tools/email");
 const Student = require("../models/studentInfo/studentModel");
 const User = require("../models/system/userModel");
-const { isEmailValid } = require("../utils/validators");
+const { sendEmailQueue } = require("../tools/email");
 const { sendWhatsappQueue } = require("../tools/whatsapp_aisensy");
 const { sendPushQueue } = require("../tools/push");
+const UserNotification = require("../models/system/pushNotificationModel");
 
 // @desc    Get all notices
 // @route   GET /api/comms/notice
@@ -17,7 +17,7 @@ const { sendPushQueue } = require("../tools/push");
 const getNotices = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.rows) || 10;
-  const sort = req.query.sort || "createdAt";
+  const sort = req.query.sort || "-createdAt";
   const search = req.query.search;
 
   const query = {};
@@ -26,7 +26,7 @@ const getNotices = asyncHandler(async (req, res) => {
     const fields = ["name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(Notice, query, {}, page, limit, sort);
@@ -46,9 +46,7 @@ const getNotices = asyncHandler(async (req, res) => {
 const getNotice = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const notice = await Notice.findOne(query)
-    .populate("manager school", "name")
-    .lean();
+  const notice = await Notice.findOne(query).populate("school", "name").lean();
 
   if (!notice) {
     res.status(404);
@@ -223,18 +221,24 @@ const sendMessage = asyncHandler(async (req, res) => {
 
     receivers = await UC.getUserContactInfo(userTypes, userIds);
   } else if (sendType == "class") {
-    const classId = await UC.validateClassByName(req.body.class, req.ayear);
-    const sectionIds = await UC.validateSections(
-      req.body.sections.split(","),
+    if (!req.body.class_section_names) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("class_section_names"));
+    }
+
+    const classSectionNames = req.body.class_section_names?.split(",");
+
+    const [classIds, secIds] = await UC.getClassesNSectionsIdsFromNames(
+      classSectionNames,
       req.ayear
     );
 
-    const students = await Student.find({ class: classId, section: sectionIds })
+    const students = await Student.find({ class: classIds, section: secIds })
       .select("email phone parent")
       .lean();
 
     if (userTypes.includes(C.STUDENT)) receivers = students;
-    else if (userTypes.include(C.PARENT)) {
+    else if (userTypes.includes(C.PARENT)) {
       const parentIds = students.map((ele) => ele.parent);
       const parents = await User.find({ _id: parentIds, type: C.PARENT })
         .select("email phone")
@@ -304,6 +308,7 @@ const sendMessage = asyncHandler(async (req, res) => {
 
       await sendPushQueue(
         receivers.map((ele) => ele._id),
+        C.NOTICE,
         title,
         msg,
         media

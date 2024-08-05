@@ -1,28 +1,37 @@
 const express = require("express");
 const SC = require("../controllers/systemController");
-const { memoryUpload } = require("../middlewares/multerMiddleware");
 
 const systemRouter = express.Router();
 
-// 1. Template Privilege Routes
-const templatePrivilegeRouter = express.Router();
+// 1. Role Routes
+const roleRouter = express.Router();
 
-templatePrivilegeRouter
-  .route("/")
-  .get(SC.getTemplatePrivileges)
-  .post(SC.createTemplatePrivilege);
-templatePrivilegeRouter
+roleRouter.route("/").get(SC.getRoles).post(SC.createRole);
+roleRouter
   .route("/:id")
-  .get(SC.getTemplatePrivilege)
-  .patch(SC.updateTemplatePrivilege)
-  .delete(SC.deleteTemplatePrivilege);
+  .get(SC.getRole)
+  .patch(SC.updateRole)
+  .delete(SC.deleteRole);
 
-// 2. User Routes
+// 2. Role Privilege Routes
+const rolePrivilegeRouter = express.Router();
+
+rolePrivilegeRouter
+  .route("/")
+  .get(SC.getRolePrivileges)
+  .post(SC.createRolePrivilege);
+rolePrivilegeRouter.get("/update-from-file", SC.updateRoleFromFile);
+rolePrivilegeRouter
+  .route("/:id")
+  .get(SC.getRolePrivilege)
+  .patch(SC.updateRolePrivilege)
+  .delete(SC.deleteRolePrivilege);
+
+// 3. User Routes
 const userRouter = express.Router();
 
 userRouter.route("/").get(SC.getUsers).post(SC.createUser);
 userRouter.get("/required-data", SC.requiredDataUser);
-userRouter.patch("/reset-password", SC.resetPassword);
 userRouter.post("/set-current-ayear", SC.setCurrentAcademicYear);
 userRouter
   .route("/:id")
@@ -30,7 +39,7 @@ userRouter
   .patch(SC.updateUser)
   .delete(SC.deleteUser);
 
-// 3. School Routes
+// 4. School Routes
 const schoolRouter = express.Router();
 
 schoolRouter
@@ -39,16 +48,29 @@ schoolRouter
   .post(SC.addSchool)
   .patch(SC.updateSchool)
   .delete(SC.deleteSchool);
+schoolRouter.post("/update-cash", SC.updateSchoolCash);
 
-// 4. School Routes
+// 5. WhatsappCoin Routes
 const whatsappCoinRouter = express.Router();
 
 whatsappCoinRouter.post("/add", SC.addWhatsappCoins);
 whatsappCoinRouter.post("/transaction", SC.getWhatsappCoinTransactions);
 
-systemRouter.use("/template-privilege", templatePrivilegeRouter);
+// 6. Device Routes
+const deviceRouter = express.Router();
+
+deviceRouter.route("/").get(SC.getDevices).post(SC.addDevice);
+deviceRouter
+  .route("/:id")
+  .get(SC.getDevice)
+  .patch(SC.updateDevice)
+  .delete(SC.deleteDevice);
+
+systemRouter.use("/role", roleRouter);
+systemRouter.use("/role-privilege", rolePrivilegeRouter);
 systemRouter.use("/user", userRouter);
 systemRouter.use("/school", schoolRouter);
 systemRouter.use("/whatsapp-coin", whatsappCoinRouter);
+systemRouter.use("/device", deviceRouter);
 
 module.exports = systemRouter;

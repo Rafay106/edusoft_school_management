@@ -9,6 +9,8 @@ const Subject = require("../models/academics/subjectModel");
 const School = require("../models/system/schoolModel");
 const Stream = require("../models/academics/streamModel");
 const ClassRoutine = require("../models/academics/classRoutineModel");
+const ClassTeacherAssign = require("../models/academics/classTeacherAssignModel");
+const AssignSubject = require("../models/academics/assignSubjectModel");
 
 /** 1. Academic Year */
 
@@ -26,7 +28,7 @@ const getAcademicYears = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["year", "title"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -169,7 +171,7 @@ const deleteAcademicYear = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
+  if (UC.isSchool(req.user)) delQuery.school = req.user.school;
 
   const result = await AcademicYear.deleteOne(delQuery);
 
@@ -216,7 +218,7 @@ const getSections = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["name"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -225,7 +227,8 @@ const getSections = asyncHandler(async (req, res) => {
     {},
     page,
     limit,
-    sort
+    sort,
+    ["academic_year", "title"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -301,15 +304,10 @@ const updateSection = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete a section
-// @route   DELETE /api/academics/section
+// @route   DELETE /api/academics/section/:id
 // @access  Private
 const deleteSection = asyncHandler(async (req, res) => {
-  const ids = req.body.ids;
-
-  if (!ids || ids.length === 0) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("ids"));
-  }
+  const ids = req.params.id.split(",");
 
   const results = {
     acknowledged: true,
@@ -354,7 +352,7 @@ const getStreams = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["name"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(Stream, query, {}, page, limit, sort);
@@ -450,7 +448,7 @@ const getClasses = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["name"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -604,17 +602,17 @@ const updateClass = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("Class", req.params.id));
   }
 
-  const section = req.body.section;
+  const sections = req.body.sections;
 
-  if (section) {
-    if (!(await Section.any({ ...query, _id: section }))) {
+  if (sections) {
+    if (!(await Section.any({ ...query, _id: sections }))) {
       res.status(400);
-      throw new Error(C.getResourse404Id("Section", section));
+      throw new Error(C.getResourse404Id("Section", sections));
     }
   }
 
   const result = await Class.updateOne(query, {
-    $set: { name: req.body.name, section },
+    $set: { name: req.body.name, sections },
   });
 
   res.status(200).json(result);
@@ -660,7 +658,7 @@ const getSubjects = asyncHandler(async (req, res) => {
     const fields = ["name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -751,23 +749,25 @@ const deleteSubject = asyncHandler(async (req, res) => {
 // @route   POST / api/academics/class-routine
 // @access  Private
 const addClassRoutine = asyncHandler(async (req, res) => {
-  const ayear = await UC.getCurrentAcademicYear(req.school);
-  if (!req.body.class) {
+  if (!req.body.class_name) {
     res.status(400);
     throw new Error(C.getFieldIsReq("class"));
   }
-  const c = await Class.findOne({ name: req.body.class.toUpperCase() })
+
+  const c = await Class.findOne({ name: req.body.class_name.toUpperCase() })
     .select("_id")
     .lean();
 
-if (!c) {
+  if (!c) {
     res.status(400);
-    throw new Error(C.getResourse404Id("class", req.body.class));
+    throw new Error(C.getResourse404Id("class", req.body.class_name));
   }
+
   if (!req.body.section) {
     res.status(400);
     throw new Error(C.getFieldIsReq("section"));
   }
+
   const section = await Section.findOne({
     name: req.body.section.toUpperCase(),
   })
@@ -777,10 +777,12 @@ if (!c) {
     res.status(400);
     throw new Error(C.getResourse404Id("section", req.body.section));
   }
+
   if (!req.body.subject) {
     res.status(400);
     throw new Error(C.getFieldIsReq("subject"));
   }
+
   const subject = await Subject.findOne({
     name: req.body.subject.toUpperCase(),
   })
@@ -790,18 +792,22 @@ if (!c) {
     res.status(400);
     throw new Error(C.getResourse404Id("subject", req.body.subject));
   }
+
   if (!req.body.start_time) {
     res.status(400);
     throw new Error(C.getResourse404("start_time"));
   }
+
   if (!req.body.end_time) {
     res.status(400);
     throw new Error(C.getResourse404("end_time"));
   }
+
   if (!req.body.break) {
     res.status(400);
     throw new Error(C.getResourse404("break"));
   }
+
   //  if (!req.body.other_day.week) {
   //   res.status(400);
   //   throw new Error(C.getResourse404("other_day's week"));
@@ -854,7 +860,7 @@ const getClassRoutine = asyncHandler(async (req, res) => {
     const fields = ["name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -876,17 +882,276 @@ const getClassRoutine = asyncHandler(async (req, res) => {
 // @desc    delete classRoutine
 // @route   DELETE /api/academics/class-routine
 // @access  private
-
 const deleteClassRoutine = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
-  if (C.isSchool(req.user.type)) {
+  if (UC.isSchool(req.user)) {
     query.school = req.user.school;
     query.manager = req.user.manager;
   }
+
   if (C.isManager(req.user.type)) {
     query.manager = req.user._id;
   }
+
   const result = await ClassRoutine.deleteOne(query);
+  res.status(200).json(result);
+});
+
+/**  5 class_teacher_assign */
+
+// @desc    Get all class teachers assign
+// @route   GET /api/academics/class-teacher-assign
+// @access  Private
+const getClassTeachersAssign = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const search = req.query.search;
+
+  const query = {};
+
+  if (search) {
+    const fields = ["teacher", "class", "section", "subjects"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery;
+  }
+
+  const results = await UC.paginatedQueryProPlus(
+    ClassTeacherAssign,
+    query,
+    {},
+    page,
+    limit,
+    sort,
+    [
+      { path: "class", select: "name" },
+      { path: "section", select: "name" },
+      { path: "subjects.class", select: "name" },
+      { path: "subjects.section", select: "k`name" },
+      { path: "subjects.subject", select: "name" },
+    ]
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a class-teacher-assign
+// @route   GET /api/academics/class-teacher-assign/:id
+// @access  Private
+const getClassTeacherAssign = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const classTeacherAssign = await ClassTeacherAssign.findOne(query)
+    .populate("class section subjects.subject", "name")
+    .lean();
+
+  if (!classTeacherAssign) {
+    res.status(404);
+    throw new Error(C.getResourse404Id("classTeacherAssign", req.params.id));
+  }
+
+  res.status(200).json(classTeacherAssign);
+});
+
+// @desc    add  classTeacherAssign
+// @route   POST /api/academics/class-teacher-assign
+// @access  Private
+const addClassTeacherAssign = asyncHandler(async (req, res) => {
+  const [classId, secId] = await UC.getClassNSectionIdFromName(
+    req.body.class_section_name,
+    req.ayear
+  );
+
+  const teacher = await UC.validateStaffById(req.body.teacher);
+
+  const subjects = [];
+  for (const item of req.body.subjects) {
+    const subjectClassSectionNames = item.class_section_name;
+    const [subClassId, subSecId] = await UC.getClassNSectionIdFromName(
+      subjectClassSectionNames,
+      req.ayear
+    );
+
+    subjects.push({
+      class: subClassId, // Assuming single class ID
+      section: subSecId, // Assuming single section ID
+      subject: await UC.validateSubjectByName(item.subject, req.ayear),
+    });
+  }
+
+  const classTeacherAssign = await ClassTeacherAssign.create({
+    teacher: teacher._id,
+    class: classId,
+    section: secId,
+    subjects,
+    academic_year: req.ayear,
+  });
+  console.log(req.body);
+  res.status(200).json(classTeacherAssign._id);
+});
+
+// @desc    update  classTeacherAssign
+// @route   PATCH /api/academics/class-teacher-assign/:id
+// @access  Private
+const updateClassTeacherAssign = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (!(await ClassTeacherAssign.any(query))) {
+    res.status(404);
+    throw new Error(C.getResourse404Id("classTeacherAssign", req.params.id));
+  }
+
+  const result = await ClassTeacherAssign.updateOne(query, {
+    $set: {
+      teacher: req.body.teacher,
+      class: req.body.class_name,
+      section: req.body.section,
+      subject: req.body.subject,
+    },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a classTeacherAssign
+// @route   DELETE /api/academics/class-teacher-assign/:id
+// @access  Private
+const deleteClassTeacherAssign = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const classTeacherAssign = await ClassTeacherAssign.findOne(query)
+    .select("_id")
+    .lean();
+
+  if (!classTeacherAssign) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("classTeacherAssign", req.params.id));
+  }
+
+  const result = await ClassTeacherAssign.deleteOne(query);
+
+  res.status(200).json(result);
+});
+
+/**  5 Assign subjects */
+
+// @desc    Get all assign subjects
+// @route   GET /api/academics/assign-subject
+// @access  Private
+const getAssignSubjects = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const search = req.query.search;
+
+  const query = {};
+
+  if (search) {
+    const fields = ["subject"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery;
+  }
+
+  const results = await UC.paginatedQuery(
+    AssignSubject,
+    query,
+    {},
+    page,
+    limit,
+    sort,
+    ["class section subject", "name"]
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a assign subject
+// @route   GET /api/academics/assign-subject/:id
+// @access  Private
+const getAssignSubject = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const assignSubject = await AssignSubject.findOne(query)
+    .populate("class section subject", "name")
+    .lean();
+
+  if (!assignSubject) {
+    res.status(404);
+    throw new Error(C.getResourse404Id("assignSubject", req.params.id));
+  }
+
+  res.status(200).json(assignSubject);
+});
+
+// @desc    add  assign subject
+// @route   POST /api/academics/assign-subject
+// @access  Private
+const addAssignSubject = asyncHandler(async (req, res) => {
+  const [classId, secId] = await UC.getClassNSectionIdFromName(
+    req.body.class_section_name,
+    req.ayear
+  );
+
+  const sub = await UC.validateSubjectByName(req.body.subject, req.ayear);
+  const teacher = await UC.validateStaffById(req.body.teacher);
+
+  if (!classId || !secId || !sub || !teacher) {
+    return res
+      .status(400)
+      .json({ message: "Validation failed for provided data" });
+  }
+
+  const assignSubject = await AssignSubject.create({
+    class: classId,
+    section: secId,
+    subject: sub._id,
+    teacher: teacher._id,
+  });
+  res.status(200).json(assignSubject._id);
+});
+
+// @desc    update  assignSubject
+// @route   PATCH /api/academics/assign-subject/:id
+// @access  Private
+const updateAssignSubject = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  if (!(await AssignSubject.any(query))) {
+    res.status(404);
+    throw new Error(C.getResourse404Id("assignSubject", req.params.id));
+  }
+
+  const result = await AssignSubject.updateOne(query, {
+    $set: {
+      teacher: req.body.teacher,
+      class: req.body.class,
+      section: req.body.section,
+      subject: req.body.subject,
+    },
+  });
+
+  res.status(200).json(result);
+});
+
+// @desc    Delete a assignSubject
+// @route   DELETE /api/academics/asign-subject/:id
+// @access  Private
+const deleteAssignSubject = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const assignSubject = await AssignSubject.findOne(query).select("_id").lean();
+
+  if (!assignSubject) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("assignSubject", req.params.id));
+  }
+
+  const result = await AssignSubject.deleteOne(query);
+
   res.status(200).json(result);
 });
 
@@ -922,7 +1187,19 @@ module.exports = {
   updateSubject,
   deleteSubject,
 
-  addClassRoutine,
   getClassRoutine,
+  addClassRoutine,
   deleteClassRoutine,
+
+  getClassTeachersAssign,
+  getClassTeacherAssign,
+  addClassTeacherAssign,
+  updateClassTeacherAssign,
+  deleteClassTeacherAssign,
+
+  getAssignSubjects,
+  getAssignSubject,
+  addAssignSubject,
+  updateAssignSubject,
+  deleteAssignSubject,
 };

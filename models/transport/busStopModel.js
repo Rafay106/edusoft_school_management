@@ -12,12 +12,11 @@ const schema = new mongoose.Schema(
     monthly_charges: { type: Number, required },
     lat: { type: Number, required },
     lon: { type: Number, required },
-    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }
 );
 
-schema.index({ name: 1, school: 1 }, { unique: true });
+schema.index({ name: 1 }, { unique: true });
 
 schema.plugin(any);
 

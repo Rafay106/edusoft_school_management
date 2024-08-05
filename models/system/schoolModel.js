@@ -34,7 +34,16 @@ const schema = new mongoose.Schema(
     lat: { type: Number, required },
     lon: { type: Number, required },
     radius: { type: Number, required },
+    defaults: {
+      razorpay_bank: { type: ObjectId, ref: "account_banks" },
+    },
+    cash_amount: { type: Number, default: 0 },
     morning_attendance_end: {
+      type: String,
+      required,
+      validate: { validator: timeValidator, message: timingErr },
+    },
+    half_day_end: {
       type: String,
       required,
       validate: { validator: timeValidator, message: timingErr },
@@ -52,6 +61,7 @@ const schema = new mongoose.Schema(
               const email = this._update["$set"]["bus_incharge.email"];
               return !email || isEmailValid(value);
             }
+
             return !this.email || isEmailValid(value);
           },
           message: C.FIELD_IS_INVALID,
@@ -72,7 +82,7 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-schema.index({ name: 1, manager: 1 }, { unique: true });
+schema.index({ name: 1 }, { unique: true });
 schema.index({ email: 1 }, { unique: true });
 
 schema.pre("updateOne", function (next) {

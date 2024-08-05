@@ -8,11 +8,10 @@ const morgan = require("morgan");
 const fs = require("node:fs");
 const path = require("node:path");
 const cron = require("node-cron");
+const cors = require("cors");
 const { errorHandler } = require("./middlewares/errorMiddleware");
 const {
   authenticate,
-  parentAuthorize,
-  schoolAuthorize,
   authorize,
   authenticateApikey,
 } = require("./middlewares/authMiddleware");
@@ -25,28 +24,18 @@ const WORKER = require("./tools/bullmq/workers");
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(cors("*"));
 
-app.use(function (req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET,HEAD,OPTIONS,PUT,POST,PATCH,DELETE"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  next();
-});
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: false }));
 
 const logPath = path.join(__dirname, "logs");
 if (!fs.existsSync(logPath)) fs.mkdirSync(logPath, { recursive: true });
 
-const accessLogStream = fs.createWriteStream(path.join(logPath, "access.log"), {
-  flags: "a",
-});
+const accessLogStream = fs.createWriteStream(
+  path.join(logPath, `access_${UC.getYMD()}.log`),
+  { flags: "a" }
+);
 
 app.use(morgan("combined", { stream: accessLogStream }));
 app.use(morgan("dev"));
@@ -70,6 +59,11 @@ app.get("/api/schools-list", (req, res) => {
 });
 
 app.post("/api/init", require("./controllers/systemController").init);
+app.get("/api/backup-db", require("./controllers/systemController").backupDB);
+app.delete(
+  "/api/delete-empty-collections",
+  require("./controllers/systemController").deleteEmptyCollections
+);
 
 app.use(
   "/api/system",
@@ -95,77 +89,88 @@ app.use(
 app.use(
   "/api/student-info",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/studentInfoRoutes")
 );
 app.use(
   "/api/transport",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/transportRoutes")
 );
-app.use("/api/hr", authenticate, schoolAuthorize, require("./routes/hrRoutes"));
+app.use("/api/hr", authenticate, authorize, require("./routes/hrRoutes"));
+app.use("/api/fee", authenticate, authorize, require("./routes/feeRoutes"));
 app.use(
-  "/api/fee",
-  authenticate,
-  schoolAuthorize,
-  require("./routes/feeRoutes")
+  "/api/fee-direct/calculate",
+  require("./controllers/feeController").feeDirectCalculate
+);
+app.use(
+  "/api/fee-direct/pay",
+  require("./controllers/feeController").feeDirectPayment
 );
 app.use(
   "/api/dashboard",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/dashboardRoutes")
 );
 app.use(
   "/api/library",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/libraryRoutes")
 );
 app.use(
-  "/api/lesson",
+  "/api/lesson-schedule",
   authenticate,
-  schoolAuthorize,
-  require('./routes/lessonRoutes')
+  authorize,
+  require("./routes/lessonRoutes")
 );
-app.use(
-  "/api/comms",
-  authenticate,
-  schoolAuthorize,
-  require("./routes/commsRoutes")
-);
+app.use("/api/comms", authenticate, authorize, require("./routes/commsRoutes"));
 app.use(
   "/api/library",
   authenticate,
-  schoolAuthorize,
+  authorize,
   require("./routes/libraryRoutes")
 );
 app.use(
-  "/api/homework",
+  "/api/tuition",
   authenticate,
-  schoolAuthorize,
-  require("./routes/homeworkRoutes")
+  authorize,
+  require("./routes/tutionRoutes")
+);
+app.use(
+  "/api/examination",
+  authenticate,
+  authorize,
+  require("./routes/examinationRoutes")
 );
 
 app.use(
   "/api/parent-util",
   authenticate,
-  parentAuthorize,
+  authorize,
   require("./routes/parentUtilRoutes")
 );
 app.use(
   "/api/parent",
   authenticate,
-  parentAuthorize,
+  authorize,
   require("./routes/parentRoutes")
+);
+app.use("/api/leave", authenticate, authorize, require("./routes/leaveRoutes"));
+app.use(
+  "/api/account",
+  authenticate,
+  authorize,
+  require("./routes/accountRoutes")
 );
 
 app.post("/api/listener", listenDeviceData);
 app.use("/api/gprs", require("./routes/deviceServiceRoutes"));
 
 // Razorpay
-app.use("/api/razorpay", require("./tools/razorpay_old"));
+app.use("/api/razorpay", require("./routes/razorpayRoutes"));
 
 // API KEY Routes
 app.use("/api-key", authenticateApikey, require("./routes/apikeyRoutes"));
@@ -174,22 +179,10 @@ app.use("/api-key", authenticateApikey, require("./routes/apikeyRoutes"));
  * Cron Jobs *
  *************/
 
-cron.schedule("* * * * *", async () => {
-  if (process.env.NODE_ENV != "production") return;
-  if (process.env.NODE_APP_INSTANCE != 0) return;
-
-  try {
-    // await SERVICE.serviceEmailQueue();
-    // await SERVICE.servicePushQueue();
-    // await SERVICE.serviceWhatsappQueue();
-  } catch (err) {
-    UC.writeLog("errors", `${err.stack}`);
-  }
-});
-
 cron.schedule("0 0 * * *", async () => {
   if (process.env.NODE_ENV != "production") return;
-  if (process.env.NODE_APP_INSTANCE != 0) return;
+  if (process.env.NODE_APP_INSTANCE && process.env.NODE_APP_INSTANCE != 0)
+    return;
 
   try {
     await SERVICE.serviceDbBackup();
@@ -202,18 +195,21 @@ cron.schedule("0 0 * * *", async () => {
   }
 });
 
-// CRON TEST
-cron.schedule("* * * * * *", async () => {
-  if (process.env.NODE_ENV != "development") return;
+// cron.schedule("*/5 * * * * *", async () => {
+//   if (process.env.NODE_ENV != "development") return;
+//   if (process.env.NODE_APP_INSTANCE && process.env.NODE_APP_INSTANCE != 0)
+//     return;
 
-  try {
-    // await SERVICE.serviceEmailQueue();
-    // await SERVICE.servicePushQueue();
-    // await SERVICE.serviceWhatsappQueue();
-  } catch (err) {
-    console.log(err);
-  }
-});
+//   try {
+//     await SERVICE.serviceDbBackup();
+//     await SERVICE.serviceClearHistory();
+//     await SERVICE.serviceResetAlternateBus();
+//     await SERVICE.serviceResetCurrAcademicYear();
+//     await SERVICE.serviceCalculateOverdueAndApplyFine();
+//   } catch (err) {
+//     UC.writeLog("errors", `${err.stack}`);
+//   }
+// });
 
 /*************
  * Cron Jobs *
@@ -224,11 +220,15 @@ cron.schedule("* * * * * *", async () => {
  *************/
 const IORedis = require("ioredis");
 
-const connection = new IORedis({ maxRetriesPerRequest: null });
+try {
+  const connection = new IORedis({ maxRetriesPerRequest: null });
 
-WORKER.workerEmailQueue(connection);
-WORKER.workerWhatsappQueue(connection);
-WORKER.workerPushQueue(connection);
+  WORKER.workerEmailQueue(connection);
+  WORKER.workerWhatsappQueue(connection);
+  WORKER.workerPushQueue(connection);
+} catch (err) {
+  UC.writeLog("errors", JSON.stringify(err));
+}
 
 /*************
  * Workers End *
@@ -239,12 +239,16 @@ app.use("/api/test", require("./routes/testRoutes"));
 
 app.use(express.static(path.join(__dirname, "build")));
 
+app.all("/api/*", (req, res) =>
+  res.status(404).json({ msg: "Url not found!" })
+);
+
 app.get("*", (req, res) =>
   res.sendFile(path.resolve(__dirname, "build", "index.html"))
 );
 
-app.all("*", (req, res) => res.status(404).json({ msg: "Url not found!" }));
-
 app.use(errorHandler);
 
-app.listen(PORT, () => console.log(`Edusoft running on port: ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`${process.env.NAME} running on port: ${PORT}`)
+);

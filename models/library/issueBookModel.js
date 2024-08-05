@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+  const mongoose = require("mongoose");
 const C = require("../../constants");
 const { any } = require("../../plugins/schemaPlugins");
 
@@ -28,6 +28,14 @@ const issueBookSchema = new mongoose.Schema({
 });
 
 issueBookSchema.plugin(any);
+issueBookSchema.pre("updateOne",async function(next){
+  this.setOptions({runValidators:true});
+  next();
+})
+issueBookSchema.pre("updateMany",async function(next){
+   this.setOptions({runValidators:true});
+   next();
+})
 
 const LibraryIssueBook = mongoose.model("library_issue_book", issueBookSchema);
 

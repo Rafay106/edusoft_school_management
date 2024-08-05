@@ -6,8 +6,14 @@ const UC = require("../utils/common");
 const User = require("../models/system/userModel");
 const Designation = require("../models/hr/designationModel");
 const Department = require("../models/hr/departmentModel");
-const Staff = require("../models/hr/staffModels");
+const Staff = require("../models/hr/staffModel");
 const StaffAttendance = require("../models/hr/staffAttendanceModel");
+const Shift = require("../models/hr/shiftModel");
+const uploadPaths = require("../config/uploadPaths");
+const ShiftPlan = require("../models/hr/shiftPlanModel");
+const ShiftRule = require("../models/hr/shiftPlanRuleModel");
+
+const { DOMAIN } = process.env;
 
 /** 1. Designation */
 
@@ -26,7 +32,7 @@ const getDesignations = asyncHandler(async (req, res) => {
     const fields = ["title"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -133,7 +139,7 @@ const getDepartments = asyncHandler(async (req, res) => {
     const fields = ["name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -240,12 +246,20 @@ const getStaffs = asyncHandler(async (req, res) => {
     const fields = ["name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(Staff, query, {}, page, limit, sort);
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  const url = `${DOMAIN}/uploads/staff`;
+
+  for (const data of results.result) {
+    data.photo = `${url}/${data.photo}`;
+    data.resume = `${url}/${data.resume}`;
+    data.joining = `${url}/${data.joining}`;
+  }
 
   res.status(200).json(results);
 });
@@ -256,7 +270,7 @@ const getStaffs = asyncHandler(async (req, res) => {
 const getStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const staff = await Staff.findOne(query).populate("school", "name").lean();
+  const staff = await Staff.findOne(query).populate("name").lean();
 
   if (!staff) {
     res.status(404);
@@ -270,105 +284,84 @@ const getStaff = asyncHandler(async (req, res) => {
 // @route   POST /api/hr/staff
 // @access  Private
 const addStaff = asyncHandler(async (req, res) => {
-  if (!req.body.department) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("department"));
-  }
-  const dpt = await Department.findOne({
-    name: req.body.department.toUpperCase(),
-  })
-    .select("_id")
-    .lean();
-  if (!dpt) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("department", req.body.department));
-  }
-  if (!req.body.designation) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("designation"));
-  }
-  const dsg = await Designation.findOne({
-    title: req.body.designation.toUpperCase(),
-  })
-    .select("_id")
-    .lean();
+  const role = await UC.getRoleId(req.body.role);
+  const dept = await UC.validateDepartmentByName(req.body.department);
+  const desg = await UC.validateDesignationByName(req.body.designation);
 
-  if (!dsg) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("designation", req.body.designation));
-  }
-
-  const signFile = req.files.sign;
-  const biometricFile = req.files.biometric;
-  // console.log('image is',biometricFile);
- console.log(req.files.biometric.filename);
-  if (!biometricFile[0]) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("biometric"));
-  }
-
-  if (!signFile[0]) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("sign"));
-  }
- console.log('all files are',req.files);
   const photoFile = req.files.photo;
   const photo = photoFile ? photoFile[0].filename : "";
-  const Address = {
-    street: req.body.street,
-    state: req.body.state,
-    pin: req.body.pin,
-    city: req.body.city,
-    country: req.body.country,
-  };
-  const Family = {
-    father_name: req.body.father_name,
-    mother_name: req.body.mother_name,
-    spouse_name: req.body.spouse_name,
-    father_profession: req.body.father_profession,
-    spouse_profession: req.body.spouse_profession,
-    mother_profession: req.body.mother_profession,
-    father_contact: req.body.father_contact,
-    mother_contact: req.body.mother_contact,
-    spouse_contact: req.body.spouse_contact,
-  };
+
+  const resumeFile = req.files.resume;
+  const resume = resumeFile ? resumeFile[0].filename : "";
+
+  const joiningLetterFile = req.files.joining;
+  const joiningLetter = joiningLetterFile ? joiningLetterFile[0].filename : "";
+
+  const otherDocumentFile = req.files.other;
+  const otherDocument = otherDocumentFile ? otherDocumentFile[0].filename : "";
 
   const staff = await Staff.create({
-    role: req.body.role,
-    saluation: req.body.saluation,
-    sign: signFile[0].filename,
-    name: req.body.name,
+    staff_no: req.body.staff_no,
+    role,
+    department: dept,
+    designation: desg,
+    name: {
+      first: req.body.f_name,
+      last: req.body.l_name,
+    },
+    father_name: req.body.fath_name,
+    mother_name: req.body.moth_name,
     email: req.body.email,
-    mobile: req.body.mobile,
-    designation: dsg._id,
-    name: req.body.name,
-    biometric: req.files.biometric.filename,
-    date_of_regular: req.body.date_of_regular,
-    marital_status: req.body.marital_status,
-    sequence_no: req.body.sequence_no,
-    reporting_authority: req.body.reporting_authority,
-    birth_date: req.body.birth_date,
-    joining_date: req.body.joining_date,
     gender: req.body.gender,
-    department: dpt._id,
-    incharge: req.body.incharge,
+    dob: req.body.dob,
+    doj: req.body.doj,
+    mobile: {
+      primary: req.body.primary,
+      secondary: req.body.secondary,
+    },
+    marital_status: req.body.marital_status,
+    driving_license: req.body.driving_license,
     photo,
-    staff_id: req.body.staff_id,
-    staff_type: req.body.staff_type,
-    rfid: req.body.rfid,
-    wing: req.body.wing,
-    confirmation_date: req.body.confirmation_date,
-    intercommunication: req.body.intercommunication,
-    religion: req.body.religion,
-    blood_group: req.body.blood_group,
-    service_end_date: req.body.service_end_date,
-    class_interchange: req.body.class_interchange,
-    Address,
-    Family,
-    nationality: req.body.nationality,
-    school: req.school,
+    expert_staff: req.body.expert_staff,
+    per_address: {
+      street: req.body.street,
+      city: req.body.city,
+      pin: req.body.pin,
+      state: req.body.state,
+      country: req.body.country,
+    },
+    cur_address: {
+      street: req.body.street,
+      city: req.body.city,
+      pin: req.body.pin,
+      state: req.body.state,
+      country: req.body.country,
+    },
+    qualification: req.body.qualification,
+    experience: req.body.experience,
+    payroll_details: {
+      epf_no: req.body.epf_no,
+      b_salary: req.body.b_salary,
+      contract: req.body.contract,
+    },
+    bank_info_details: {
+      account_name: req.body.account_name,
+      account_no: req.body.account_no,
+      bank_name: req.body.bank_name,
+      branch_name: req.body.branch_name,
+    },
+    social_details: {
+      facebook: req.body.facebook,
+      twitter: req.body.twitter,
+      linkedin: req.body.linkedin,
+      instagram: req.body.instagram,
+    },
+    document_info: {
+      resume,
+      joiningLetter,
+      otherDocument,
+    },
   });
-
   res.status(200).json({ msg: staff._id });
 });
 
@@ -450,25 +443,17 @@ const updateStaff = asyncHandler(async (req, res) => {
 const deleteStaff = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const staff = await Staff.findOne(query).select("photo sign").lean();
+  const staff = await Staff.findOne(query).select("photo").lean();
 
-  if (staff.photo !== "") {
-    fs.unlinkSync(
-      path.join(UC.getAppRootDir(__dirname), "uploads", "staff", staff.photo)
-    );
-  }
-  if (staff.sign !== "") {
-    fs.unlinkSync(
-      path.join(UC.getAppRootDir(__dirname), "uploads", "staff", staff.sign)
-    );
+  const photoPath = path.join(uploadPaths.staff, staff.photo);
+  if (staff.photo !== "" && fs.existsSync(photoPath)) {
+    fs.unlinkSync(photoPath);
   }
 
   const result = await Staff.deleteOne(query);
 
   res.status(200).json(result);
 });
-
-//  4. Attendance
 
 /** 2. Department */
 
@@ -481,6 +466,7 @@ const addHrAttendance = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(C.FIELD_IS_REQ("role"));
   }
+
   const r = Staff.find({ role: req.body.role.toUpperCase() })
     .select("_id")
     .lean();
@@ -489,6 +475,7 @@ const addHrAttendance = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("role", req.body.role);
   }
+
   if (!(await req.body.attendance_date)) {
     res.status(400);
     throw new Error(C.FIELD_IS_REQ("attendance_date"));
@@ -502,6 +489,386 @@ const addHrAttendance = asyncHandler(async (req, res) => {
   // }
   // )
 });
+
+/** 2. Shift */
+
+// @desc    Get shifts
+// @route   GET /api/hr/shift
+// @access  Private
+const getShifts = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort;
+  const search = req.query.search;
+  const query = {};
+
+  if (search) {
+    const fields = ["name"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
+  }
+  const results = UC.paginatedQuery({
+    Shift,
+    query,
+    page,
+    limit,
+    sort,
+  });
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+  res.status(200).json(results);
+});
+
+// @desc    Get shift
+// @route   GET /api/hr/shift/:id
+// @access  Private
+const getShift = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+  const shift = await Shift.find(query);
+
+  if (!shift) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("shift", req.params.id));
+  }
+  res.status(200).json(shift);
+});
+
+// @desc    Add shift
+// @route   POST /api/hr/shift
+// @access  Private
+const addShift = asyncHandler(async (req, res) => {
+  const shiftData = { name: req.body.name, type: req.body.type };
+
+  if (shiftData.type === C.FIXED) {
+    if (!req.body.clock_in_time) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("start_time"));
+    }
+
+    if (!req.body.clock_out_time) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("end_time"));
+    }
+
+    if (!req.body.grace_period) req.body.grace_period = C.NO;
+
+    shiftData.fixed = {
+      clock_in_time: req.body.clock_in_time,
+      clock_out_time: req.body.clock_out_time,
+      no_of_hours:req.body.no_of_hours,
+      overtime_allowed: req.body.overtime_allowed,
+      grace_period: req.body.grace_period,
+    };
+
+    if (shiftData.fixed.grace_period === C.YES) {
+      if (!req.body.after_shift_start) {
+        res.status(400);
+        throw new Error(C.getFieldIsReq("after_shift_start"));
+      }
+
+      shiftData.fixed.after_shift_start = req.body.after_shift_start;
+
+      if (!req.body.before_shift_ends) {
+        res.status(400);
+        throw new Error(C.getFieldIsReq("before_shift_ends"));
+      }
+
+      shiftData.fixed.before_shift_ends = req.body.before_shift_ends;
+    }
+
+    // Calculate duration
+    const duration = await  UC.getDifferenceBetweenHours(
+      shiftData.fixed.clock_out_time,
+      shiftData.fixed.clock_in_time
+    );
+
+    shiftData.duration = duration;
+  } else if (shiftData.type === C.FLEXIBLE) {
+    if (!req.body.core_hours) {
+      res.status(400);
+      throw new Error(C.getFieldIsReq("core_hours"));
+    }
+
+    shiftData.flexible = { core_hours: req.body.core_hours };
+
+    if (shiftData.flexible.core_hours === C.YES) {
+      if (!req.body.core_start_time) {
+        res.status(400);
+        throw new Error(C.getFieldIsReq("core_start_time"));
+      }
+      if (!req.body.core_end_time) {
+        res.status(400);
+        throw new Error(C.getFieldIsReq("core_end_time"));
+      }
+
+      shiftData.flexible.core_start_time = req.body.core_start_time;
+      shiftData.flexible.core_end_time = req.body.core_end_time;
+    }
+
+    shiftData.duration = req.body.duration;
+  } else {
+    res.status(400);
+    throw new Error(C.getValueNotSup(shiftData.type));
+  }
+
+  shiftData.full_day_min_hours = req.body.full_day_min_hours;
+  shiftData.half_day_min_hours = req.body.half_day_min_hours;
+  shiftData.mode = req.body.mode;
+
+  const durationMinutes = UC.convertHHMMToMinutes(shiftData.duration);
+  const fdmhMinutes = UC.convertHHMMToMinutes(shiftData.full_day_min_hours);
+  const hdmhMinutes = UC.convertHHMMToMinutes(shiftData.half_day_min_hours);
+
+  if (durationMinutes < fdmhMinutes) {
+    res.status(400);
+    throw new Error(`full_day_min_hours should be less than duration`);
+  }
+
+  if (durationMinutes < hdmhMinutes) {
+    res.status(400);
+    throw new Error(`half_day_min_hours should be less than duration`);
+  }
+
+  if (fdmhMinutes <= hdmhMinutes) {
+    res.status(400);
+    throw new Error(
+      `half_day_min_hours should be less than full_day_min_hours`
+    );
+  }
+
+  const shift = await Shift.create(shiftData);
+
+  res.status(200).json({ msg: shift._id });
+});
+
+// @desc update  shift
+// @route PATCH /api/hr/shift/:id
+// @access  Private
+const updateShift = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+  if (!(await Shift.any(query))) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("shift", req.params.id));
+  }
+  const updatedShift = await Shift.updateOne(query, {
+    $set: {
+      name: req.body.name,
+      type: req.body.type,
+      start_time: req.body.start_time,
+      end_time: req.body.end_time,
+      duration: req.body.duration,
+      grace_period: req.body.grace_period,
+      after_shift_start: req.body.after_shift_start,
+      before_shift_ends: req.body.before_shift_ends,
+      core_hours: req.body.core_hours,
+      core_start_time: req.body.core_start_time,
+      core_end_time: req.body.core_end_time,
+      fullDay_minHour: req.body.fullDay_minHour,
+      halfDay_minHour: req.body.halfDay_minHour,
+      mode: req.body.mode,
+    },
+  });
+  res.status(200).json(updatedShift);
+});
+
+// @desc delete hr shift
+// @route DELETE /api/hr/shift/:id
+// @access Private
+
+const deleteShift = asyncHandler(async (req, res) => {
+  const hrShift = await Shift.findById(req.params.id).select("_id").lean();
+  if (!hrShift) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("hrShift", req.params.id));
+  }
+  const delQuery = { _id: req.params.id };
+  const result = await Shift.deleteOne(delQuery);
+
+  res.status(200).json(result);
+});
+
+// @desc   get shift plan rules
+// @route  GET /api/hr/shift-rule
+// @access  Private
+const getShiftsRules = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort;
+  const search = req.query.search;
+  const query = {};
+
+  if (search) {
+    const fields = ["staff"];
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery["$or"];
+  }
+  const results = await UC.paginatedQuery({
+    ShiftRule,
+    query,
+    page,
+    limit,
+    sort,
+  });
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+  res.status(200).json(results);
+});
+
+// @desc   get shift plan rule
+// @route  GET /api/hr/shift-rule/:id
+// @access  Private
+const getShiftRule = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+  const shiftRule = await ShiftRule.find(query);
+
+  if (!shiftRule) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("shiftRule", req.params.id));
+  }
+  res.status(200).json(shiftRule);
+});
+
+// @desc   add shift plan rule
+// @route  POST /api/hr/shift-rule
+// @access Private
+const addShiftRule = asyncHandler(async (req, res) => {
+    const shift = await UC.validateShiftByName(req.body.shift.name,req.body.shift.type);
+
+  const shiftRuleData = {
+    shift:shift._id,
+    clock_in_time_valid: req.body.clock_in_time_valid,
+    clock_out_early_time: req.body.clock_out_early_time,
+    late_allow: req.body.late_allow,
+    early_leave_allow: req.body.early_leave_allow,
+    overtime: req.body.overtime,
+    is_clock_in: req.body.is_clock_in,
+    is_clock_out: req.body.is_clock_out,
+    weekend: req.body.weekend,
+  }
+  if(shift.type === C.FIXED){
+    shiftRuleData.overtime = UC.calculateOverTime(shift);
+  }
+  const shiftRule = await ShiftRule.create(shiftRuleData);
+  res.status(200).json(shiftRule);
+  
+});
+
+// @desc update  shift rule
+// @route PATCH  /api/hr/shift/:id
+// @access  Private
+const updateShiftRule = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+  if (!(await ShiftRule.any(query))) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("shiftRule", req.params.id));
+  }
+  const updatedShiftRule = await ShiftRule.updateOne(query, {
+    $set: {
+      clock_in_time_valid: req.body.clock_in_time_valid,
+      clock_out_early_time: req.body.clock_out_early_time,
+      late_allow: req.body.late_allow,
+      early_leave_allow: req.body.early_leave_allow,
+      overtime: req.body.overtime,
+      is_clock_in: req.body.is_clock_in,
+      is_clock_out: req.body.is_clock_out,
+      weekend: req.body.weekend,
+    },
+  });
+  res.status(200).json(updatedShiftRule);
+});
+
+// @desc delete hr shift-rule
+// @route DELETE /api/hr/shift-rule/:id
+// @access Private
+
+const deleteShiftRule = asyncHandler(async (req, res) => {
+  const shiftRule = await ShiftRule.findById(req.params.id)
+    .select("_id")
+    .lean();
+  if (!shiftRule) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("shiftRule", req.params.id));
+  }
+  const delQuery = { _id: req.params.id };
+  const result = await ShiftRule.deleteOne(delQuery);
+
+  res.status(200).json(result);
+});
+
+// @desc add shift plan
+// @route /api/hr/shift-plan/
+// @access secured
+
+// const addShiftPlan = asyncHandler(async (req, res) => {
+//   if (!req.body.shift) {
+//     res.status(400);
+//     throw new Error(C.FIELD_IS_REQ("shift"));
+//   }
+//   const sh = await Shift.find({ _id: req.body.shift })
+
+//   if (!sh) {
+//     res.status(400);
+//     throw new Error(C.FIELD_IS_REQ("shift"));
+//   }
+//   const shiftPlan = await ShiftPlan.create({
+//     shift: req.body.shift,
+//     effective_from: req.body.effective_from,
+//     repeat: req.body.repeat,
+//     choose_oneShift_from_multipleShift:
+//     req.body.choose_oneShift_from_multipleShift,
+//     status: req.body.status,
+
+//   });
+//   res.status(200).json(shiftPlan._id);
+// });
+
+// // @desc    Get shiftPlans
+// // @route   GET /api/hr/shift-plan
+// // @access  Private
+// const getShiftPlans = asyncHandler(async (req, res) => {
+//   const page = parseInt(req.query.page) || 1;
+//   const limit = parseInt(req.query.rows) || 10;
+//   const sort = req.query.sort || "class";
+//   const search = req.query.search;
+
+//   const query = {};
+
+//   if (search) {
+//     const fields = ["shift"];
+
+//     const searchQuery = UC.createSearchQuery(fields, search);
+//     query["$or"] = searchQuery["$or"];
+//   }
+
+//   const results = await UC.paginatedQuery({
+//     ShiftPlan,
+//     query,
+//     page,
+//     limit,
+//     sort,
+//     // ["shift","name"]
+//   });
+//   if (!results) {
+//     res.status(400).json({ msg: C.PAGE_LIMIT_REACHED });
+//   }
+//   res.status(200).json(results);
+// });
+
+// // @desc   get ShiftPlan
+// // @route  GET /api/hr/shift-plan/:id
+// // @access  Private
+// const getShiftPlan = asyncHandler(async (req, res) => {
+//   const query = { _id: req.params.id };
+//   const shiftPlan = await ShiftPlan.find(query);
+
+//   if (!shiftPlan) {
+//     res.status(400);
+//     throw new Error(C.getResourse404Id("shiftPlan", req.params.id));
+//   }
+//   res.status(200).json(shiftPlan);
+// });
+
+// // @desc update  shiftPlan
+// // @route PATCH /api/hr/shift-plan/:id
+// // @access  Private
 
 module.exports = {
   getDesignations,
@@ -523,4 +890,20 @@ module.exports = {
   deleteStaff,
 
   addHrAttendance,
+
+  getShifts,
+  getShift,
+  addShift,
+  updateShift,
+  deleteShift,
+
+  getShiftsRules,
+  getShiftRule,
+  addShiftRule,
+  updateShiftRule,
+  deleteShiftRule,
+
+  //   getShiftPlans,
+  //   getShiftPlan,
+  //   addShiftPlan,
 };

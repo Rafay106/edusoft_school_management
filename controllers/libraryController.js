@@ -5,9 +5,8 @@ const LibraryCategory = require("../models/library/categoryModel");
 const LibrarySubject = require("../models/library/subjectModels");
 const LibraryBook = require("../models/library/bookModel");
 const Student = require("../models/studentInfo/studentModel");
-const Staff = require("../models/hr/staffModels");
+const Staff = require("../models/hr/staffModel");
 const LibraryIssueBook = require("../models/library/issueBookModel");
-
 
 // @desc    Get all categories
 // @route   GET /api/library/category
@@ -24,7 +23,7 @@ const getCategories = asyncHandler(async (req, res) => {
     const fields = ["title"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -61,11 +60,9 @@ const getCategory = asyncHandler(async (req, res) => {
 // @route   POST /api/library/category
 // @access  Private
 const addCategory = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
-
   const category = await LibraryCategory.create({
     title: req.body.title,
-    academic_year: ayear,
+    // academic_year: ayear,
     school: req.school,
   });
 
@@ -113,7 +110,7 @@ const deleteCategory = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
+  if (UC.isSchool(req.user)) delQuery.school = req.user.school;
 
   console.log(delQuery);
 
@@ -138,8 +135,9 @@ const getSubjects = asyncHandler(async (req, res) => {
     const fields = ["title", "name"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
+
   const results = await UC.paginatedQuery(
     LibrarySubject,
     query,
@@ -165,6 +163,7 @@ const getSubject = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(C.getResourse404Id("subject", req.params.id));
   }
+
   res.status(200).json(subject);
 });
 
@@ -172,8 +171,6 @@ const getSubject = asyncHandler(async (req, res) => {
 // @route   POST /api/library/subject
 // @access  Private
 const addSubject = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
-
   if (!req.body.category) {
     res.status(400);
     throw new Error(C.getFieldIsReq("category"));
@@ -233,7 +230,7 @@ const deleteSubject = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
+  if (UC.isSchool(req.user)) delQuery.school = req.user.school;
 
   console.log(delQuery);
 
@@ -260,7 +257,7 @@ const getBooks = asyncHandler(async (req, res) => {
     const fields = ["title", "category", "subject", "book_no", "ISBN_no"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -288,6 +285,7 @@ const getBook = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(C.getResourse404Id("book", req.params.id));
   }
+
   res.status(200).json(book);
 });
 
@@ -295,8 +293,6 @@ const getBook = asyncHandler(async (req, res) => {
 // @route   POST /api/library/book
 // @access  Private
 const addBook = asyncHandler(async (req, res) => {
-  const ayear = UC.getCurrentAcademicYear(req.school);
-
   const book = await LibraryBook.create({
     title: req.body.title,
     category: req.body.category,
@@ -309,8 +305,6 @@ const addBook = asyncHandler(async (req, res) => {
     quantity: req.body.quantity,
     book_Price: req.body.book_Price,
     description: req.body.description,
-
-    academic_year: ayear,
     school: req.school,
   });
 
@@ -348,7 +342,7 @@ const deleteBook = asyncHandler(async (req, res) => {
 
   const delQuery = { _id: req.params.id };
 
-  if (C.isSchool(req.user.type)) delQuery.school = req.user.school;
+  if (UC.isSchool(req.user)) delQuery.school = req.user.school;
 
   console.log(delQuery);
 
@@ -371,7 +365,7 @@ const getIssueBooks = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["title"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -396,8 +390,6 @@ const addIssueBook = asyncHandler(async (req, res) => {
   const id = req.body.id;
   const book = req.body.book;
   const issueDate = req.body.issue_date;
-
-  const ayear = UC.getCurrentAcademicYear(req.school);
 
   if (!type) {
     res.status(400);
@@ -488,7 +480,7 @@ const getMemberList = asyncHandler(async (req, res) => {
       const fields = ["admission_no", "name.f", "name.m", "name.l"];
 
       const searchQuery = UC.createSearchQuery(fields, search);
-      query["$or"] = searchQuery["$or"];
+      query["$or"] = searchQuery;
     }
 
     results = await UC.paginatedQuery(Student, query, select, 1, limit, sort, [
@@ -500,7 +492,7 @@ const getMemberList = asyncHandler(async (req, res) => {
       const fields = ["name", "email"];
 
       const searchQuery = UC.createSearchQuery(fields, search);
-      query["$or"] = searchQuery["$or"];
+      query["$or"] = searchQuery;
     }
 
     results = await UC.paginatedQuery(Staff, query, select, page, limit, sort);

@@ -7,24 +7,22 @@ const required = [true, C.FIELD_IS_REQ];
 
 const topicSchema = new mongoose.Schema(
   {
-    class: { type: ObjectId, required, ref: "academics_classes" },
-    section: { type: ObjectId, required, ref: "academics_sections" },
-    subject: { type: ObjectId, required, ref: "academics_subjects" },
-    lesson: { type: ObjectId, required, ref: "lessonplan_lesson" },
     topics: [
       {
-        title: { type: String, required },
+        title: { type: String, required, uppercase: true },
         completed_date: { type: Date, default: 0 },
         teacher: { type: ObjectId, ref: "hr_staffs" },
         status: { type: String, default: "" },
       },
     ],
+    lesson: { type: ObjectId, required, ref: "lessonplan_lesson" },
     academic_year: { type: ObjectId, required, ref: "academic_years" },
     school: { type: ObjectId, required, ref: "schools" },
   },
   { versionKey: false }
 );
 
+topicSchema.index({ lesson: 1, "topics.title": 1, academic_year: 1 });
 topicSchema.plugin(any);
 
 const Topic = mongoose.model("lessonplan_topic", topicSchema);

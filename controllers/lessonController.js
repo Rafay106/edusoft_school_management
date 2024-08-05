@@ -2,15 +2,14 @@ const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
 const Class = require("../models/academics/classModel");
-
 const Lesson = require("../models/lesson_plan/lessonModel");
 const Section = require("../models/academics/sectionModel");
 const Subject = require("../models/academics/subjectModel");
 const Topic = require("../models/lesson_plan/topicModel");
-const Staff = require("../models/hr/staffModels");
+const Staff = require("../models/hr/staffModel");
 const LessonPlan = require("../models/lesson_plan/lessonplanModel");
 
-//// @desc    get lessons
+// @desc    get lessons
 // @route   GET /api/lesson/
 // @access  Private
 
@@ -26,7 +25,7 @@ const getLessons = asyncHandler(async (req, res) => {
     const fields = ["class ", "section"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
   const results = await UC.paginatedQuery(
     Lesson,
@@ -44,6 +43,7 @@ const getLessons = asyncHandler(async (req, res) => {
 
   res.status(200).json(results);
 });
+
 // @desc    Get a lesson
 // @route   GET /api/lesson/:id
 // @access  Private
@@ -90,25 +90,9 @@ const addLesson = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("subject", req.body.subject));
   }
 
-  if (!req.body.section) {
-    res.status(400);
-    throw new Error(C.getFieldIsReq("section"));
-  }
-
-  const section = await Section.findOne({
-    name: req.body.section.toUpperCase(),
-  })
-    .select("_id")
-    .lean();
-
-  if (!section) {
-    res.status(400);
-    throw new Error(C.getResourse404Id("section", req.body.section));
-  }
   const lesson = await Lesson.create({
     class: c._id,
     subject: subject._id,
-    section: section._id,
     name: req.body.name,
     school: req.school,
     academic_year: req.ayear,
@@ -165,7 +149,7 @@ const getTopics = asyncHandler(async (req, res) => {
   //   const fields = ["class", "subject", "lesson", "topic"];
 
   //   const searchQuery = UC.createSearchQuery(fields, search);
-  //   query["$or"] = searchQuery["$or"];
+  //   query["$or"] = searchQuery;
   // }
   // const results = await UC.paginatedQuery(Topic, query, {}, page, limit, sort);
 
@@ -181,14 +165,7 @@ const getTopics = asyncHandler(async (req, res) => {
   const query = {};
 
   if (search) {
-    const fields = [
-      "class",
-      "subject",
-      "section",
-      "lesson",
-      "topics.title",
-      "topics.content",
-    ];
+    const fields = ["topics.title", "topics.content"];
 
     const searchQuery = {
       $or: fields.map((field) => ({
@@ -196,12 +173,12 @@ const getTopics = asyncHandler(async (req, res) => {
       })),
     };
 
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   try {
     const results = await Topic.find(query)
-      .populate("class subject section lesson school")
+      .populate("lesson")
       .skip((page - 1) * limit)
       .limit(limit)
       .sort(sort);
@@ -237,11 +214,11 @@ const getTopic = asyncHandler(async (req, res) => {
 // @route   POST /api/lesson/topic
 // @access  Private
 const addTopic = asyncHandler(async (req, res) => {
-  const c = await UC.validateClassByName(req.body.class);
+  const c = await UC.validateClassByName(req.body.class, req.ayear);
 
-  const section = await UC.validateSectionByName(req.body.section);
+  const section = await UC.validateSectionByName(req.body.section, req.ayear);
 
-  const subject = await UC.validateSubjectByName(req.body.subject);
+  const subject = await UC.validateSubjectByName(req.body.subject, req.ayear);
 
   if (!req.body.lesson) {
     res.status(400);
@@ -271,6 +248,7 @@ const addTopic = asyncHandler(async (req, res) => {
 
   res.status(201).json({ msg: topic._id });
 });
+
 // @desc    update a topic
 // @route   PATCH /api/lesson/topic
 // @access  Private
@@ -288,6 +266,7 @@ const updateTopic = asyncHandler(async (req, res) => {
 
   res.status(200).json(updatedTopic);
 });
+
 // @desc    delete a topic
 // @route   DELETE /api/lesson/topic
 // @access  Private
@@ -340,7 +319,6 @@ const getTopicOverview = asyncHandler(async (req, res) => {
 // @access  Private
 
 const addLessonPlan = asyncHandler(async (req, res) => {
-  const ayear = await UC.getCurrentAcademicYear(req.school);
   const file = req.file ? req.file.filename : " ";
 
   const t = await Staff.find({ _id: req.body.teacher }).select("_id").lean();
@@ -350,7 +328,13 @@ const addLessonPlan = asyncHandler(async (req, res) => {
     throw new Error(C.getResourse404Id("teacher", req.body.teacher));
   }
 
-  const lesson = await UC.validateLessons(req.body.lesson);
+  const lesson = await UC.validateLessonByName(req.body.lesson);
+
+  const topics = [];
+  for (const t of req.body.topics) {
+    const lessonTopic = await Topic.findOne({ "topics.title": t.topic });
+  }
+
   const lessonPlan = await LessonPlan.create({
     teacher: t._id,
     class_routine: req.body.class_routine,
@@ -359,8 +343,8 @@ const addLessonPlan = asyncHandler(async (req, res) => {
     url: req.body.url,
     file,
     note: req.body.note,
+    academic_year: req.ayear,
     school: req.school,
-    academic_year: ayear,
   });
   res.status(200).json({ msg: lessonPlan._id });
 });

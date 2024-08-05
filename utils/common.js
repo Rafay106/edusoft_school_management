@@ -1,15 +1,16 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const crypto = require("node:crypto");
+const assert = require("node:assert");
 const xlsx = require("xlsx");
 
 const C = require("../constants");
+const Role = require("../models/system/roleModel");
+const RolePrivilege = require("../models/system/rolePrivilegeModel");
 const School = require("../models/system/schoolModel");
+const Shift = require("../models/hr/shiftModel");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/studentInfo/studentModel");
-const { isUsernameValid } = require("./validators");
-
 const User = require("../models/system/userModel");
 const FeeTerm = require("../models/fees/feeTermModel");
 const Class = require("../models/academics/classModel");
@@ -19,20 +20,60 @@ const BusStop = require("../models/transport/busStopModel");
 const BusStaff = require("../models/transport/busStaffModel");
 const Section = require("../models/academics/sectionModel");
 const Subject = require("../models/academics/subjectModel");
+const Staff = require("../models/hr/staffModel");
 const SubWard = require("../models/studentInfo/subwardTypeModel");
+const Lesson = require("../models/lesson_plan/lessonModel");
+const Device = require("../models/system/deviceModel");
+const Department = require("../models/hr/departmentModel");
+const Designation = require("../models/hr/designationModel");
+const Bank = require("../models/account/bankModel");
+const Homework = require("../models/tution/homeworksModel");
+const { isEmailValid } = require("./validators");
+const Chart = require("../models/account/chartModel");
+const FeeType = require("../models/fees/feeTypeModel");
 
 const createSearchQuery = (fields, value) => {
-  const query = { $or: [] };
-
-  const regex = new RegExp(value, "i");
+  const orArr = [];
 
   for (const field of fields) {
-    query.$or.push({
-      ["$expr"]: { $regexMatch: { input: { $toString: `$${field}` }, regex } },
+    orArr.push({
+      [field]: { $regex: value, $options: "i" },
     });
   }
 
-  return query;
+  return orArr;
+};
+
+const paginatedArrayQuery = (
+  array,
+  page,
+  limit,
+  sortFn = false,
+  queryFn = false,
+  selectFn = false
+) => {
+  const filteredArray = queryFn ? array.filter(queryFn) : array;
+
+  const total = filteredArray.length;
+  const pages = Math.ceil(total / limit) || 1;
+  if (page > pages) return false;
+
+  const startIdx = (page - 1) * limit;
+
+  let paginatedResults = filteredArray.slice(startIdx, startIdx + limit);
+
+  if (selectFn) paginatedResults = paginatedResults.map(selectFn);
+
+  if (sortFn) paginatedResults = paginatedResults.sort(sortFn);
+
+  const results = {
+    total,
+    pages,
+    page,
+    result: paginatedResults,
+  };
+
+  return results;
 };
 
 const paginatedQuery = async (
@@ -48,7 +89,6 @@ const paginatedQuery = async (
   const pages = Math.ceil(total / limit) || 1;
   if (page > pages) return false;
 
-
   const startIdx = (page - 1) * limit;
   const results = { total, pages, page, result: [] };
 
@@ -59,6 +99,33 @@ const paginatedQuery = async (
     .populate(populate[0], populate[1])
     .sort(sort)
     .lean();
+
+  return results;
+};
+
+const paginatedQueryProPlus = async (
+  Model,
+  query,
+  select,
+  page,
+  limit,
+  sort,
+  populateConfigs = []
+) => {
+  const total = await Model.countDocuments(query);
+  const pages = Math.ceil(total / limit) || 1;
+  if (page > pages) return false;
+
+  const startIdx = (page - 1) * limit;
+  const results = { total, pages, page, result: [] };
+
+  let mongoQuery = Model.find(query).select(select).skip(startIdx).limit(limit);
+
+  populateConfigs.forEach((config) => {
+    mongoQuery = mongoQuery.populate(config);
+  });
+
+  results.result = await mongoQuery.sort(sort).lean();
 
   return results;
 };
@@ -84,9 +151,95 @@ const jsonToExcel = (filePath, data) => {
   return true;
 };
 
+const getRoleId = async (title) => {
+  assert(title !== undefined, C.getFieldIsReq("title"));
+
+  const role = await Role.findOne({ title }).select("title").lean();
+
+  if (!role) return false;
+
+  return role._id;
+};
+
+const getRolePrivilegeId = async (role) => {
+  assert(role !== undefined, C.getFieldIsReq("role"));
+
+  const privilege = await RolePrivilege.findOne({ role }).select("role").lean();
+
+  if (!privilege) return false;
+
+  return privilege._id;
+};
+
+// ************************
+// BANK FUNCTIONS START
+// ************************
+
+const getBankFromName = async (name, select = "_id") => {
+  const bank = await Bank.findOne({ name: name.toUpperCase() })
+    .select(select)
+    .lean();
+
+  if (!bank) throw new Error(C.getResourse404Id("Bank", name));
+
+  return bank;
+};
+
+// ************************
+// BANK FUNCTIONS END
+// ************************
+
 // ************************
 // USER FUNCTIONS START
 // ************************
+
+const isSuperAdmin = (user) => {
+  assert(user !== undefined, C.getFieldIsReq("user"));
+  assert(user.role !== undefined, C.getFieldMissing("user.role"));
+  assert(user.role.title !== undefined, C.getFieldMissing("user.role.title"));
+
+  return user.role.title === C.SUPERADMIN;
+};
+
+const isAdmin = (user) => {
+  assert(user !== undefined, C.getFieldIsReq("user"));
+  assert(user.role !== undefined, C.getFieldMissing("user.role"));
+  assert(user.role.title !== undefined, C.getFieldMissing("user.role.title"));
+
+  return user.role.title === C.ADMIN;
+};
+
+const isAdmins = (user) => {
+  assert(user !== undefined, C.getFieldIsReq("user"));
+  assert(user.role !== undefined, C.getFieldMissing("user.role"));
+  assert(user.role.title !== undefined, C.getFieldMissing("user.role.title"));
+
+  return [C.SUPERADMIN, C.ADMIN].includes(user.role.title);
+};
+
+const isSchool = (user) => {
+  assert(user !== undefined, C.getFieldIsReq("user"));
+  assert(user.role !== undefined, C.getFieldMissing("user.role"));
+  assert(user.role.title !== undefined, C.getFieldMissing("user.role.title"));
+
+  return [C.SCHOOL].includes(user.role.title);
+};
+
+const isParent = (user) => {
+  assert(user !== undefined, C.getFieldIsReq("user"));
+  assert(user.role !== undefined, C.getFieldMissing("user.role"));
+  assert(user.role.title !== undefined, C.getFieldMissing("user.role.title"));
+
+  return [C.PARENT].includes(user.role.title);
+};
+
+const isTeacher = (user) => {
+  assert(user !== undefined, C.getFieldIsReq("user"));
+  assert(user.role !== undefined, C.getFieldMissing("user.role"));
+  assert(user.role.title !== undefined, C.getFieldMissing("user.role.title"));
+
+  return [C.TEACHER].includes(user.role.title);
+};
 
 const getUsernameFromEmail = (email) => {
   const username = require("unique-username-generator").generateFromEmail(
@@ -100,32 +253,30 @@ const getUsernameFromEmail = (email) => {
   return username;
 };
 
-const managerExists = async (_id) => await User.any({ _id, type: C.MANAGER });
-
 const schoolAccExists = async (_id) => await User.any({ _id, type: C.SCHOOL });
 
 const getUserContactInfo = async (usertypes, ids = []) => {
   usertypes = usertypes.map((ele) => ele.toLowerCase());
 
   const result = [];
-  const query = {};
-
-  if (ids.length > 0) query._id = ids;
 
   for (const ut of usertypes) {
+    const query = {};
+    if (ids.length > 0) query._id = { $in: ids };
+
     if (ut == C.STUDENT) {
       const students = await Student.find(query).select("email phone").lean();
 
       result.push(...students);
+    } else {
+      const roleId = await getRoleId(ut);
+      if (!roleId) return result;
+      query.role = roleId;
+
+      const users = await User.find(query).select("email phone").lean();
+
+      result.push(...users);
     }
-
-    query.type = ut;
-
-    console.log(query);
-    const users = await User.find(query).select("email phone").lean();
-    console.log(users);
-
-    result.push(...users);
   }
 
   return result;
@@ -138,22 +289,6 @@ const getUserContactInfo = async (usertypes, ids = []) => {
 // ************************
 // SCHOOL FUNCTIONS START
 // ************************
-
-const getCurrentAcademicYear = (school) => {
-  if (!school) {
-    const err = new Error("school is undefined!");
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  if (!school.current_academic_year) {
-    const err = new Error(C.CUR_AYEAR_NOT_SET);
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  return school.current_academic_year;
-};
 
 const getLibraryVariables = async (schoolId) => {
   const school = await School.findById(schoolId).select("library").lean();
@@ -210,142 +345,6 @@ const addMultipleSchools = async (userId, fileData) => {
 // ************************
 // STUDENT FUNCTIONS START
 // ************************
-
-// const addMultipleStudents = async (fileData, school) => {
-//   const students = [];
-
-//   const errors = [];
-//   const admNoObj = {};
-//   const rfidObj = {};
-
-//   for (let i = 0; i < fileData.length; i++) {
-//     const row = fileData[i];
-
-//     if (!row.fname) errors.push(C.getFieldIsReqAtIdx("fname", i));
-//     if (!row.lname) errors.push(C.getFieldIsReqAtIdx("lname", i));
-
-//     const name = {
-//       f: row.fname,
-//       m: row.mname,
-//       l: row.lname,
-//     };
-
-//     if (!row.phone) errors.push(C.getFieldIsReqAtIdx("phone", i));
-//     if (!row.email) errors.push(C.getFieldIsReqAtIdx("email", i));
-
-//     if (!row.admissionNo) errors.push(C.getFieldIsReqAtIdx("admissionNo", i));
-//     // Store counts to check for duplication
-//     const admNo = row.admissionNo.toUpperCase();
-//     if (!admNoObj[admNo]) admNoObj[admNo] = 1;
-//     else admNoObj[admNo] += 1;
-
-//     if (!row.rfid) errors.push(C.getFieldIsReqAtIdx("rfid", i));
-//     // Store counts to check for duplication
-//     const rfid = row.rfid.toUpperCase();
-//     if (!rfidObj[rfid]) rfidObj[rfid] = 1;
-//     else rfidObj[rfid] += 1;
-
-//     if (!row.doa) errors.push(C.getFieldIsReqAtIdx("doa", i));
-//     if (isNaN(new Date(row.doa))) {
-//       errors.push(C.getFieldIsInvalidAtIdx("doa", i));
-//     }
-
-//     row.doa = new Date(row.doa + "T00:00:00Z");
-
-//     if (!row.dob) errors.push(C.getFieldIsReqAtIdx("dob", i));
-//     if (isNaN(new Date(row.dob))) {
-//       errors.push(C.getFieldIsInvalidAtIdx("dob", i));
-//     }
-
-//     row.dob = new Date(row.dob + "T00:00:00Z");
-
-//     if (!row.gender) errors.push(C.getFieldIsReqAtIdx("gender", i));
-//     if (!["m", "f", "o"].includes(row.gender)) {
-//       errors.push(C.getValueNotSupAtIdx(row.gender, i));
-//     }
-
-//     if (!row.school) errors.push(C.getFieldIsReqAtIdx("school", i));
-
-//     const school = await School.findOne({
-//       _id: row.school,
-//       createdBy: userId,
-//     })
-//       .select("_id")
-//       .lean();
-
-//     if (!school) errors.push(C.getResourse404Id("school", row.school));
-
-//     if (!row.bus) errors.push(C.getFieldIsReqAtIdx("bus", i));
-
-//     const bus = await Bus.findOne({
-//       _id: row.bus,
-//       createdBy: userId,
-//     })
-//       .select("_id")
-//       .lean();
-
-//     if (!bus) errors.push(C.getResourse404Id("bus", row.bus));
-
-//     if (!row.address) errors.push(C.getFieldIsReqAtIdx("address", i));
-//     if (!row.lat) errors.push(C.getFieldIsReqAtIdx("lat", i));
-//     if (!row.lon) errors.push(C.getFieldIsReqAtIdx("lon", i));
-//     if (!row.radius) errors.push(C.getFieldIsReqAtIdx("radius", i));
-
-//     const pickupLocation = {
-//       address: row.address,
-//       lat: row.lat,
-//       lon: row.lon,
-//       radius: row.radius,
-//     };
-
-//     const manager = [C.SUPERADMIN, C.ADMIN].includes(userType)
-//       ? row.manager
-//       : userId;
-
-//     if (!manager) errors.push(C.getFieldIsReqAtIdx("manager", i));
-
-//     students.push({
-//       name,
-//       phone: row.phone,
-//       email: row.email,
-//       rfid: row.rfid,
-//       admissionNo: row.admissionNo,
-//       doa: row.doa,
-//       dob: row.dob,
-//       gender: row.gender,
-//       school: row.school,
-//       bus: row.bus,
-//       pickupLocations: [pickupLocation],
-//       manager,
-//       createdBy: userId,
-//     });
-//   }
-
-//   for (const key of Object.keys(admNoObj)) {
-//     if (admNoObj[key] > 1) {
-//       errors.push(`Duplicate Values: admissionNo [${key}]`);
-//     }
-//   }
-
-//   for (const key of Object.keys(rfidObj)) {
-//     if (rfidObj[key] > 1) {
-//       errors.push(`Duplicate Values: admissionNo [${key}]`);
-//     }
-//   }
-
-//   if (errors.length > 0) {
-//     return {
-//       status: 400,
-//       errors,
-//     };
-//   }
-
-//   const result = await Student.create(students);
-
-//   return {
-//     msg: `${result.length} students successfully added.`,
-//   };
-// };
 
 const addMultipleStudents = async (fileData, school, ayear) => {
   const CLASSES = await Class.find().lean();
@@ -533,7 +532,7 @@ const addMultipleStudents = async (fileData, school, ayear) => {
     if (await Student.any({ admission_no: stuData.admission_no })) {
       const update = await Student.updateOne(
         { admission_no: stuData.admission_no },
-        { $set: stuData }
+        { $set: { ...stuData, rfid: undefined } }
       );
 
       results.push({ admission_no: stuData.admission_no, msg: update });
@@ -546,6 +545,656 @@ const addMultipleStudents = async (fileData, school, ayear) => {
   return results;
 };
 
+const addMultipleStudentsDPS = async (fileData, school, ayear) => {
+  const CLASSES = await Class.find().lean();
+  const SECTIONS = await Section.find().lean();
+  const STREAMS = await Stream.find().lean();
+  const BOARDINGTYPES = await BoardingType.find().lean();
+  const SUBWARDS = await SubWard.find().lean();
+  const BUSSES = await Bus.find().lean();
+  const BUSSTOPS = await BusStop.find().lean();
+
+  const naStream = STREAMS.find((s) => s.name === "NA");
+  const naBoarding = BOARDINGTYPES.find((s) => s.name === "NA");
+  const naSubward = SUBWARDS.find((s) => s.name === "NA");
+
+  const students = [];
+  const errors = [];
+
+  let i = 1;
+  for (const row of fileData) {
+    if (!row["Adm. No."]) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row["Student Name"]) errors.push(C.getFieldIsReqAtIdx("name", i));
+    if (!row["Class"]) errors.push(C.getFieldIsReqAtIdx("class", i));
+    if (!row["Section"]) errors.push(C.getFieldIsReqAtIdx("section", i));
+    if (!row["Admission Time Class"])
+      errors.push(C.getFieldIsReqAtIdx("admission_time_class", i));
+    if (!row["Adm. Date"]) errors.push(C.getFieldIsReqAtIdx("doa", i));
+    if (!row["Student Status"])
+      errors.push(C.getFieldIsReqAtIdx("student_status", i));
+    // if (!row["Communication Mobile No"]) errors.push(C.getFieldIsReqAtIdx("phone", i));
+    if (!row["Date of Birth"]) errors.push(C.getFieldIsReqAtIdx("dob", i));
+
+    if (students.find((ele) => ele.admission_no === row["Adm. No."])) {
+      errors.push(`Duplicate admissionNo [${row["Adm. No."]}] at row: ${i}`);
+    }
+
+    row["Adm. Date"] = excelDateToJSDate(row["Adm. Date"]);
+    row["Date of Birth"] = excelDateToJSDate(row["Date of Birth"]);
+
+    row["Communication Mobile No"] = String(row["Communication Mobile No"]);
+
+    if (row["Communication Mobile No"].length !== 10) {
+      row["Communication Mobile No"] = "9123123123";
+      // errors.push(`phone number shoud be of 10 digits at row: ${i}`);
+    }
+
+    const section = SECTIONS.find((s) => s.name === row["Section"]);
+
+    let stream;
+    if (row["Stream"]) {
+      stream = STREAMS.find((s) => s.name === row["Stream"]);
+      if (!stream) errors.push(`stream not found at row: ${i}`);
+    } else stream = naStream;
+
+    let cStream = stream ? stream._id : naStream._id;
+    const class_ = CLASSES.find((C) => {
+      if (C.name === row["Class"] && C.stream.equals(cStream)) return true;
+      else return false;
+    });
+
+    const atclass = CLASSES.find((c) => c.name === row["Admission Time Class"]);
+
+    const boardingType =
+      BOARDINGTYPES.find((bt) => bt.name === row["Boarding Type"]) ||
+      naBoarding;
+
+    const subward =
+      SUBWARDS.find((sw) => sw.name === row["Sub Ward"]) || naSubward;
+
+    const bus_pick = BUSSES.find((b) => b.name === row["Bus Name"]);
+    if (row["Bus Name"] && !bus_pick) {
+      errors.push(`bus_pick not found at row: ${i}`);
+    }
+
+    const bus_drop = BUSSES.find((b) => b.name === row["Bus Name"]);
+    if (row["Bus Name"] && !bus_drop) {
+      errors.push(`bus_drop not found at row: ${i}`);
+    }
+
+    const busStop = BUSSTOPS.find((bs) => bs.name === row["Bus Stop"]);
+    if (row["Bus Stop"] && !busStop) {
+      errors.push(`stop not found at row: ${i}`);
+    }
+
+    const email = row["Std MailId"];
+
+    if (!isEmailValid(email)) {
+      errors.push(`Email is invalid at row: ${i}`);
+    }
+
+    const student = {
+      admission_no: row["Adm. No."],
+      admission_serial: row["Admission Serial No."],
+      student_id: row["Student Id"],
+      roll_no: row["Roll No."],
+      name: row["Student Name"],
+      class: class_?._id,
+      section: section?._id,
+      stream: stream?._id,
+      admission_time_class: atclass?._id,
+      gender: !row["Gender"] ? "na" : row["Gender"] === "MALE" ? "m" : "f",
+      house: row["House"],
+      blood_group: row["Blood Group"] == "NONE" ? "na" : row["Blood Group"],
+      staff_child: row["Staff Child"],
+      doa: row["Adm. Date"],
+      student_status: row["Student Status"] === "New" ? "n" : "o",
+      student_left: row["Student Left"] === "Yes",
+      phone: row["Communication Mobile No"]
+        ? row["Communication Mobile No"]
+        : "9123123123",
+      father_details: {
+        name: row["Father's Name"],
+        phone: row["Father's MobileNo"],
+        designation: row["Father's Designation"],
+        office_address: row["Father's Office Address"],
+        job_title: row["Father's Job Title"],
+        adhaar: row["Father Aadhar"],
+      },
+      mother_details: {
+        name: row["Mother's Name"],
+        phone: row["Mother's MobileNo"],
+        job_title: row["Mother's Job Title"],
+        adhaar: row["Mother Aadhar"],
+      },
+      dob: row["Date of Birth"],
+      age: row["AgeInYear"],
+      address: {
+        permanent: row["Permanent Address"],
+        correspondence: row["Correspondence Address"],
+      },
+      religion: row["Religion"],
+      cast:
+        row["Student Category"] === "GENERAL" ? "GEN" : row["Student Category"],
+      boarding_type: boardingType?._id,
+      sub_ward: subward?._id,
+      student_club: row["Student Club"],
+      student_work_exp: row["Student WorkEx"],
+      language_2nd: row["2nd Language"],
+      language_3rd: row["3rd Language"],
+      exam_subjects: {
+        one: row.exam_sub1,
+        two: row.exam_sub2,
+        three: row.exam_sub3,
+        four: row.exam_sub4,
+        five: row.exam_sub5,
+        six: row.exam_sub6,
+        seven: row.exam_sub7,
+        eigth: row.exam_sub8,
+        nine: row.exam_sub9,
+        ten: row.exam_sub10,
+        eleven: row["Exam 6th Subject"],
+      },
+      ews_applicable: row["EWS Applicable"] === "Yes",
+      bank_details: {
+        name: row["Bank Name"],
+        account_type: row["Account Type"],
+        account_holder: row["Account Holder"],
+        account_no: row["Account No"],
+        ifsc: row["IFSC Code"],
+      },
+      relation_with_student: row["Relation With Student"],
+      class_teacher: row["Class Teacher"],
+      bus_pick: bus_pick ? bus_pick._id : undefined,
+      bus_drop: bus_drop ? bus_drop._id : undefined,
+      bus_stop: busStop ? busStop._id : undefined,
+      student_adhaar: row["Std Aadharno"],
+      sibling: row["Sibling"] === "Yes",
+      single_girl_child: row["Single Girl Child"] === "Yes",
+      handicapped: row["Handicapped"] === "Yes",
+      email,
+      photo: row["Adm. No."]?.replace("/", "") + ".jpg",
+      rfid: crypto.randomBytes(10).toString("hex"),
+      academic_year: ayear,
+      school: school._id,
+    };
+
+    students.push(student);
+
+    i++;
+  }
+
+  if (errors.length > 0) return errors;
+
+  const results = { total_updated: 0, total_inserted: 0 };
+
+  for (const stuData of students) {
+    if (await Student.any({ admission_no: stuData.admission_no })) {
+      const update = await Student.updateOne(
+        { admission_no: stuData.admission_no },
+        { $set: stuData }
+      );
+
+      results.total_updated++;
+    } else {
+      const student = await Student.create(stuData);
+      results.total_inserted++;
+    }
+  }
+
+  return results;
+};
+
+const addMultipleStudentsAcharyakulam = async (fileData, school, ayear) => {
+  const classes = await Class.find().lean();
+  const sections = await Section.find().lean();
+  const streams = await Stream.find().lean();
+  const boardingTypes = await BoardingType.find().lean();
+  const subwards = await SubWard.find().lean();
+
+  const classNA = classes.find((c) => c.name === "NA");
+  const sectionNA = sections.find((s) => s.name === "NA");
+  const boardingTypeNA = boardingTypes.find((bt) => bt.name === "NA");
+  const subwardNA = subwards.find((sw) => sw.name === "NA");
+
+  const students = [];
+  const errors = [];
+
+  let i = 2;
+  for (const row of fileData) {
+    let isError = false;
+
+    const admission_no = String(row["Admission No"]);
+    const rfid = row["RFID No"];
+    const doaRaw = row["Adm. Date"] || 0;
+    const stuName = row["Student Name"];
+    const gender = row["Gender"];
+    const fName = row["Father Name"];
+    const mName = row["Mother Name"];
+    const phone = row["Mobile No."]
+      ? row["Mobile No."].toString().replace("+91", "").replaceAll(" ", "")
+      : "9123123123";
+    const stuAdhaar = row["Aadhaar Card No."];
+    const dobRaw = row["Date of Birth"] || 0;
+    const wardType = row["NEW ADM 2024-25"];
+    const religion = row["Religion"];
+    const blood = row["Blood Group"];
+    const house = row["House"];
+    const rollNo = row["Roll No"];
+    const emailId = row["Email ID"];
+    const addressRaw = row["Address"];
+    const admClass = row["Adm. Class"];
+
+    if (!admission_no) errors.push(`Admission No not found at row: ${i}`);
+
+    let class_ = classes.find((c) => c.name === row["Class"]);
+    if (!class_) {
+      errors.push(`Class not found: ${row["Class"]} at row: ${i}`);
+      isError = true;
+    }
+
+    let section = sections.find((s) => s.name === row["Sec"]);
+    if (!section) {
+      errors.push(`Sec not found: ${row["Sec"]} at row: ${i}`);
+      isError = true;
+    }
+
+    const stream = streams.find((s) => s.name === "NA");
+
+    let atclass = classes.find((c) => c.name === admClass);
+    if (!atclass) {
+      atclass = classes.find((c) => c.name === "NA");
+      isError = true;
+    }
+
+    const doa = excelDateToJSDate(doaRaw);
+    if (isNaN(doa)) {
+      errors.push(`Invalid Adm. Date: ${doaRaw} at row: ${i}`);
+      isError = true;
+    }
+
+    const dob = excelDateToJSDate(dobRaw);
+    if (isNaN(dob)) {
+      errors.push(`Invalid Adm. Date: ${dobRaw} at row: ${i}`);
+      isError = true;
+    }
+
+    let address = addressRaw;
+
+    if (!address.toLowerCase().includes("ranchi")) {
+      address = address + ", RANCHI";
+    }
+
+    const email = !emailId ? `${admission_no}@email.com` : emailId;
+
+    if (!isEmailValid(email)) {
+      errors.push(`Invalid email: ${email} at row: ${i}`);
+      isError = true;
+    }
+
+    if (isError) continue;
+
+    const student = {
+      admission_no: admission_no,
+      roll_no: rollNo,
+      name: stuName,
+      class: class_._id,
+      section: section._id,
+      stream: stream._id,
+      admission_time_class: atclass._id,
+      gender: !gender ? "na" : gender === "MALE" ? "m" : "f",
+      house,
+      blood_group: blood,
+      doa,
+      student_status: wardType === "NEW ADM 2024-25" ? "n" : "o",
+      phone,
+      father_details: { name: fName },
+      mother_details: { name: mName },
+      dob,
+      age: new Date().getFullYear() - dob.getFullYear(),
+      address: {
+        permanent: address,
+        correspondence: address,
+      },
+      religion: religion,
+      cast: "NA",
+      boarding_type: boardingTypeNA._id,
+      sub_ward: subwardNA._id,
+      student_adhaar: stuAdhaar,
+      sibling: wardType === "SIBLING",
+      email,
+      photo: admission_no.replace("/", "") + ".jpg",
+      academic_year: ayear,
+      school: school._id,
+    };
+
+    if (rfid) {
+      if (rfid === "TC") student.active = false;
+      else student.rfid = rfid;
+    }
+
+    students.push(student);
+
+    i++;
+  }
+
+  if (errors.length) return { total: errors.length, msg: errors };
+
+  let updateCount = 0;
+  let insertCount = 0;
+
+  for (const stuData of students) {
+    if (await Student.any({ admission_no: stuData.admission_no })) {
+      const update = await Student.updateOne(
+        { admission_no: stuData.admission_no },
+        { $set: stuData }
+      );
+
+      updateCount++;
+    } else {
+      if (!stuData.rfid) stuData.rfid = crypto.randomBytes(10).toString("hex");
+
+      const student = await Student.create(stuData);
+
+      insertCount++;
+    }
+  }
+
+  return { total: updateCount + insertCount, updateCount, insertCount };
+};
+
+const addMultipleStudentsGDGoenka = async (fileData, school, ayear) => {
+  const classes = await Class.find().lean();
+  const sections = await Section.find().lean();
+  const streams = await Stream.find().lean();
+  const boardingTypes = await BoardingType.find().lean();
+  const subwards = await SubWard.find().lean();
+
+  const naClass = classes.find((ele) => ele.name === "NA");
+  const ASection = sections.find((ele) => ele.name === "A");
+  const naStream = streams.find((ele) => ele.name === "NA");
+  const naBoarding = boardingTypes.find((bt) => bt.name === "NA");
+  const naSubward = subwards.find((sw) => sw.name === "NA");
+
+  const students = [];
+  const errors = [];
+
+  let i = 2;
+  for (const row of fileData) {
+    const admission_no = row["Admission No."];
+    const className = row["Class"];
+    const sectionName = row["SECTION"];
+    const stuFName = row["Student F Name(*)"]?.trim();
+    const stuMName = row["Student Middle Name"]?.trim();
+    const stuLName = row["Student Last Name"]?.trim();
+    const stuName = stuMName
+      ? `${stuFName} ${stuMName} ${stuLName}`
+      : `${stuFName} ${stuLName}`;
+
+    const email = row["Email Id"]
+      ? row["Email Id"]
+      : admission_no.replace("/", "_") + "@email.com";
+
+    const genderRaw = row["Gender"];
+    const mobile = row["Mobile"]
+      ? row["Mobile"].toString().replace("+91", "").replaceAll(" ", "")
+      : "0123456789";
+    const dobRaw = row["Date of Birth(dd-MM-YYYY)"];
+    const cast = row["Category"];
+    const doaRaw = row["Date of Admission(dd-MM-YYYY)"];
+    let address = row["Address"];
+    const city = row["City"];
+    const state = row["State"];
+    const country = row["Country"];
+    const pincode = row["Pincode"];
+    const stuAdhaar = row["Student Adhaar No"];
+    const fatherSalutation = row["Father Salutation"];
+    const fatherName = row["Father Name"];
+    const fatherPhone = row["Father Ph No."];
+    const fatherOfficeName = row["Father Office Name"];
+    const fatherOfficeAddress = row["Father Office Address"];
+    const fatherAdhaar = row["Father Adhaar Card No"];
+    const fatherDesignation = row["Father Profession"];
+    const motherSalutation = row["Mother Salutation"];
+    const motherName = row["Mother Name"];
+    const motherPhone = row["Mother Phone No."];
+    const motherAdhaar = row["Mother Adhaar Card No"];
+    const motherDesignation = row["Mother Profession"];
+    const bloodGroup = row["Blood Group"];
+    const religion = row["religion"];
+
+    if (!admission_no) {
+      errors.push(`Admission No. not found at row: ${i}`);
+    }
+
+    const class_ = classes.find((c) => c.name === className?.toUpperCase());
+    // if (!class_) errors.push(`Class: ${className} not found at row: ${i}`);
+
+    const section = sections.find((s) => s.name === sectionName?.toUpperCase());
+    // if (!section) errors.push(`Section: ${sectionName} not found at row: ${i}`);
+
+    if (!isEmailValid(email)) {
+      errors.push(`Invalid email: ${email} at row: ${i}`);
+    }
+
+    const doa = !doaRaw
+      ? new Date(0)
+      : typeof doaRaw === "number"
+      ? new Date(excelDateToJSDate(doaRaw))
+      : isNaN(new Date(doaRaw))
+      ? new Date(0)
+      : new Date(doaRaw);
+
+    if (isNaN(doa)) {
+      errors.push(`Date of Admission: ${doaRaw} is invalid at row: ${i}`);
+    }
+
+    const dob = !dobRaw
+      ? new Date(0)
+      : typeof dobRaw === "number"
+      ? new Date(excelDateToJSDate(dobRaw))
+      : isNaN(new Date(dobRaw))
+      ? new Date(0)
+      : new Date(dobRaw);
+
+    if (isNaN(dob)) {
+      errors.push(`Date of Birth: ${dobRaw} is invalid at row: ${i}`);
+    }
+
+    if (address && city && pincode) {
+      if (!address.toLowerCase().includes(city.toLowerCase())) {
+        address = `${address}, ${city}`;
+      }
+
+      if (!address.toLowerCase().includes(pincode)) {
+        address = `${address} ${pincode}`;
+      }
+    }
+
+    let gender = "na";
+    if (genderRaw === "MALE") gender = "m";
+    else if (genderRaw === "FEMALE") gender = "f";
+
+    const studentStatus = admission_no.includes("2024-25") ? "n" : "o";
+
+    const photoName =
+      admission_no.length === 17
+        ? parseInt(admission_no.slice(5, 9))
+        : parseInt(admission_no.slice(6, 10));
+
+    const student = {
+      admission_no,
+      name: stuName,
+      class: !class_ ? naClass._id : class_._id,
+      section: !section ? ASection._id : section._id,
+      stream: naStream._id,
+      gender,
+      blood_group: bloodGroup,
+      doa,
+      student_status: studentStatus,
+      phone: mobile,
+      father_details: {
+        name: fatherName,
+        phone: fatherPhone,
+        designation: fatherDesignation,
+        office_address: !fatherOfficeAddress
+          ? ""
+          : fatherOfficeAddress.includes(fatherOfficeName)
+          ? fatherOfficeAddress
+          : `${fatherOfficeName}, ${fatherOfficeAddress}`,
+        job_title: "",
+        adhaar: fatherAdhaar,
+      },
+      mother_details: {
+        name: motherName,
+        phone: motherPhone,
+        job_title: motherDesignation,
+        adhaar: motherAdhaar,
+      },
+      dob,
+      age: row.age,
+      address: {
+        permanent: address,
+        correspondence: address,
+      },
+      religion,
+      cast: !cast ? "NA" : cast.toUpperCase() === "GENERAL" ? "GEN" : cast,
+      boarding_type: naBoarding._id,
+      sub_ward: naSubward._id,
+      student_adhaar: stuAdhaar,
+      email,
+      photo: String(photoName) + ".jpg",
+      academic_year: ayear,
+      school: school._id,
+    };
+
+    if (row["RFID"]) student.rfid = row["RFID"];
+
+    students.push(student);
+
+    i++;
+  }
+
+  if (errors.length) {
+    return { total: errors.length, msg: errors };
+  }
+
+  let updateCount = 0;
+  let insertCount = 0;
+
+  // return { total: students.length, msg: students };
+
+  for (const stuData of students) {
+    if (await Student.any({ admission_no: stuData.admission_no })) {
+      const update = await Student.updateOne(
+        { admission_no: stuData.admission_no },
+        { $set: stuData }
+      );
+
+      updateCount++;
+    } else {
+      if (!stuData.rfid) stuData.rfid = crypto.randomBytes(10).toString("hex");
+
+      const student = await Student.create(stuData);
+
+      insertCount++;
+    }
+  }
+
+  return { total: updateCount + insertCount, updateCount, insertCount };
+};
+
+const addMultipleStudentsTenderHeart = async (fileData, school, ayear) => {
+  const classes = await Class.find().lean();
+  const sections = await Section.find().lean();
+  const streams = await Stream.find().lean();
+  const boardingTypes = await BoardingType.find().lean();
+  const subwards = await SubWard.find().lean();
+
+  const naStream = streams.find((ele) => ele.name === "NA");
+  const naBoarding = boardingTypes.find((bt) => bt.name === "NA");
+  const naSubward = subwards.find((sw) => sw.name === "NA");
+
+  const students = [];
+  const errors = [];
+
+  let i = 2;
+  for (const row of fileData) {
+    const admission_no = String(row["Admission no."]);
+    const className = row["Class-Section"].split("-")[0];
+    const secName = row["Class-Section"].split("-")[1];
+    const stuName = row["Name"].trim().replaceAll("  ", " ");
+    const email = admission_no.replace("/", "_") + "@email.com";
+
+    if (!admission_no) {
+      errors.push(`Admission No. not found at row: ${i}`);
+    }
+
+    const class_ = classes.find((c) => c.name === className?.toUpperCase());
+    if (!class_) errors.push(`Class not found: ${className} at row: ${i}`);
+
+    const section = sections.find((s) => s.name === secName?.toUpperCase());
+    if (!section) errors.push(`Section not found: ${secName} at row: ${i}`);
+
+    if (!isEmailValid(email)) {
+      errors.push(`Invalid email: ${email} at row: ${i}`);
+    }
+
+    const student = {
+      admission_no,
+      name: stuName,
+      class: class_?._id,
+      section: section?._id,
+      stream: naStream._id,
+      gender: "na",
+      doa: 0,
+      student_status: "o",
+      phone: "NA",
+      dob: 0,
+      cast: "NA",
+      boarding_type: naBoarding._id,
+      sub_ward: naSubward._id,
+      email,
+      photo: `${admission_no}.jpg`,
+      rfid: row["RFID"],
+      academic_year: ayear,
+      school: school._id,
+    };
+
+    students.push(student);
+
+    i++;
+  }
+
+  if (errors.length) {
+    return { total: errors.length, msg: errors };
+  }
+
+  let updateCount = 0;
+  let insertCount = 0;
+
+  // return { total: students.length, msg: students };
+
+  for (const stuData of students) {
+    if (await Student.any({ admission_no: stuData.admission_no })) {
+      const update = await Student.updateOne(
+        { admission_no: stuData.admission_no },
+        { $set: stuData }
+      );
+
+      updateCount++;
+    } else {
+      if (!stuData.rfid) stuData.rfid = crypto.randomBytes(10).toString("hex");
+
+      const student = await Student.create(stuData);
+
+      insertCount++;
+    }
+  }
+
+  return { updatedCount, insertCount };
+};
+
 const getStudentAddress = (address) => {
   if (!address) return "NA";
   let res = address.house + ", ";
@@ -554,6 +1203,74 @@ const getStudentAddress = (address) => {
   res += address.pincode;
 
   return res;
+};
+
+const getClassesNSectionsIdsFromNames = async (classSectionNames, ayear) => {
+  if (!classSectionNames || !classSectionNames.length) {
+    throwCustomValidationErr(C.getFieldIsReq("class_section_names"));
+  }
+
+  const classNames = [];
+  const sectionNames = [];
+
+  for (const name of classSectionNames) {
+    // class-name , section-stream-name
+    const [cName, ssName] = name.split("-");
+
+    const splitIdx =
+      ssName.indexOf(" ") === -1 ? ssName.length : ssName.indexOf(" ");
+
+    const sectionName = ssName.slice(0, splitIdx);
+    const streamName = ssName.slice(splitIdx);
+
+    const classAndStream = `${cName}${streamName}`;
+    if (!classNames.includes(classAndStream)) classNames.push(classAndStream);
+    if (!sectionNames.includes(sectionName)) sectionNames.push(sectionName);
+  }
+
+  const classIds = await validateClassesFromName(classNames, ayear);
+  const secIds = await validateSectionsFromName(sectionNames, ayear);
+
+  return [classIds, secIds];
+};
+
+const getClassNSectionIdFromName = async (classSectionName, ayear) => {
+  if (!classSectionName || !classSectionName.length) {
+    throwCustomValidationErr(C.getFieldIsReq("class_section_name"));
+  }
+
+  // class-name , section-stream-name
+  const [cName, ssName] = classSectionName.split("-");
+
+  const splitIdx =
+    ssName.indexOf(" ") === -1 ? ssName.length : ssName.indexOf(" ");
+
+  const sectionName = ssName.slice(0, splitIdx);
+  const streamName = ssName.slice(splitIdx);
+
+  const classAndStream = `${cName}${streamName}`;
+
+  const classId = await validateClassByName(classAndStream, ayear);
+  const secId = await validateSectionByName(sectionName, ayear);
+
+  return [classId, secId];
+};
+
+const getStudentClassTitle = (student) => {
+  const className = student.class.name;
+  const streamName = student.stream.name;
+
+  return streamName === "NA" ? `${className}` : `${className} (${streamName})`;
+};
+
+const getStudentClassSectionTitle = (student) => {
+  const className = student.class.name;
+  const sectionName = student.section.name;
+  const streamName = student.stream.name;
+
+  return streamName === "NA"
+    ? `${className} - ${sectionName}`
+    : `${className} - ${sectionName} (${streamName})`;
 };
 
 // ************************
@@ -580,7 +1297,7 @@ const addMultipleBusStaffs = async (data, school) => {
       errors.push(`Duplicate Values: phone_primary [${row.phone_primary}]`);
     }
 
-    const doj = new Date(row.doj + "T00:00:00Z");
+    const doj = excelDateToJSDate(row.doj);
 
     if (isNaN(doj)) errors.push(C.getFieldIsInvalidAtIdx("doj", i));
 
@@ -716,7 +1433,7 @@ const getBusIcon = (device) => {
   const dt_tracker = new Date(device.dt_tracker);
   const diff = new Date().getTime() - dt_tracker.getTime();
   const speed = parseFloat(device.speed);
-  const ignition = device.params.io239 === "1";
+  const ignition = device.params?.io239 === "1";
 
   if (diff > timeout) {
     return `${process.env.DOMAIN}/images/bus_offline.png`;
@@ -732,11 +1449,9 @@ const getBusIcon = (device) => {
 const getBusDevice = async (bus) => {
   if (!bus.temp_device || !bus.temp_device.enabled) return bus.device;
 
-  const tempBus = await Bus.findOne({ "device.imei": bus.temp_device.imei })
-    .select("device")
-    .lean();
+  const device = await Device.findOne({ imei: bus.temp_device.imei }).lean();
 
-  return tempBus ? tempBus.device : bus.device;
+  return device ? device.device : bus.device;
 };
 
 const addMultipleBuses = async (data, school) => {
@@ -761,16 +1476,16 @@ const addMultipleBuses = async (data, school) => {
     if (!row.no_plate) errors.push(C.getFieldIsReqAtIdx("no_plate", i));
     if (!row.model) errors.push(C.getFieldIsReqAtIdx("model", i));
     if (!row.imei) errors.push(C.getFieldIsReqAtIdx("imei", i));
-    if (!row.stops) errors.push(C.getFieldIsReqAtIdx("stops", i));
+    // if (!row.stops) errors.push(C.getFieldIsReqAtIdx("stops", i));
     if (!row.driver) errors.push(C.getFieldIsReqAtIdx("driver", i));
     if (!row.conductor) errors.push(C.getFieldIsReqAtIdx("conductor", i));
 
-    const name = String(row.name).toUpperCase();
-    const no_plate = String(row.no_plate).toUpperCase();
-    const model = String(row.model).toUpperCase();
-    const busStops = row.stops.split(";");
-    const driverName = row.driver.toUpperCase();
-    const conductorName = row.conductor.toUpperCase();
+    const name = String(row.name)?.toUpperCase();
+    const no_plate = String(row.no_plate)?.toUpperCase();
+    const model = String(row.model)?.toUpperCase();
+    const busStops = row.stops?.split(";") || [];
+    const driverName = row.driver?.toUpperCase();
+    const conductorName = row.conductor?.toUpperCase();
 
     if (buses.find((b) => b.name === name)) {
       errors.push(`Duplicate Values: name [${row.name}]`);
@@ -781,7 +1496,7 @@ const addMultipleBuses = async (data, school) => {
     }
 
     if (busStops.length === 0) {
-      errors.push(C.getFieldIsReqAtIdx("stops", i));
+      // errors.push(C.getFieldIsReqAtIdx("stops", i));
     }
 
     const stops = [];
@@ -810,7 +1525,7 @@ const addMultipleBuses = async (data, school) => {
       name,
       no_plate,
       model,
-      device: { imei: row.imei },
+      device: row.imei,
       stops,
       driver: driver._id,
       conductor: conductor._id,
@@ -824,15 +1539,23 @@ const addMultipleBuses = async (data, school) => {
 
   const result = [];
   for (const bus of buses) {
+    const device = await Device.findOne({ imei: bus.device });
+    if (!device) {
+      const newDevice = await Device.create({ imei: bus.device, type: C.BUS });
+      bus.device = newDevice._id;
+    } else bus.device = device._id;
+
     if (await Bus.any({ name: bus.name })) {
       const update = await Bus.updateOne(
         { name: bus.name },
         {
           $set: {
-            address: bus.address,
-            fare: bus.fare,
-            lat: parseFloat(bus.lat).toFixed(6),
-            lon: parseFloat(bus.lon).toFixed(6),
+            no_plate: bus.no_plate,
+            model: bus.model,
+            device: bus.device,
+            stops: bus.stops,
+            driver: bus.driver,
+            conductor: bus.conductor,
           },
         }
       );
@@ -853,100 +1576,65 @@ const addMultipleBuses = async (data, school) => {
 // ************************
 
 // ************************
+// STAFF TIME CALCULATION FUNCTION STARTS
+// ************************
+
+const calculateOverTime = (shiftData) => {
+  const clockInTime = shiftData.clock_in_time;
+  const clockOutTime = shiftData.clock_out_time;
+
+  const [clockInHours, clockInMinutes] = clockInTime.split(":").map(Number);
+  const [clockOutHours, clockOutMinutes] = clockOutTime.split(":").map(Number);
+
+  const totalClockInMinutes = clockInHours * 60 + clockInMinutes;
+  const totalClockOutMinutes = clockOutHours * 60 + clockOutMinutes;
+
+  const shiftDurationMinutes = totalClockOutMinutes - totalClockInMinutes;
+  const standardShiftDuration = (clockOutTime - clockInTime) * 60;
+
+  const overTimeMinutes = shiftDurationMinutes - standardShiftDuration;
+  return overTimeMinutes > 0 ? overTimeMinutes : 0;
+};
+
+// ************************
 // VALIDATION FUNCTIONS START
 // ************************
 
-const validateAndSetDate = (date, fieldName) => {
-  const err = new Error();
-  err.name = C.CUSTOMVALIDATION;
-
-  if (!date) {
-    err.message = C.getFieldIsReq(fieldName);
-    throw err;
-  }
+const validateDate = (date, fieldName) => {
+  if (!date) throwCustomValidationErr(C.getFieldIsReq(fieldName));
 
   const date_ = new Date(date);
 
-  if (isNaN(date_)) {
-    err.message = fieldName + " is invalid!";
-    throw err;
-  }
+  if (isNaN(date_)) throwCustomValidationErr(C.getFieldIsInvalid(fieldName));
+
+  return date_;
+};
+
+const validateAndSetDate = (date, fieldName) => {
+  if (!date) throwCustomValidationErr(C.getFieldIsReq(fieldName));
+
+  const date_ = new Date(date);
+
+  if (isNaN(date_)) throwCustomValidationErr(C.getFieldIsInvalid(fieldName));
 
   date_.setUTCHours(0, 0, 0, 0);
 
   return date_;
 };
 
-const validateManagerAndSchool = async (user, manager, school) => {
-  if (C.isSchool(user.type)) {
-    school = user.school;
-    manager = user.manager;
-  } else if (C.isManager(user.type)) manager = user._id;
-
-  if (!manager) {
-    const err = new Error(C.getFieldIsReq("manager"));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  if (!(await managerExists(manager))) {
-    const err = new Error(C.getResourse404Id("manager", manager));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  if (!school) {
-    const err = new Error(C.getFieldIsReq("school"));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  if (!(await School.any({ _id: school, manager }))) {
-    const err = new Error(C.getResourse404Id("school", school));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  return [manager, school];
-};
-
-const validateManager = async (user, manager) => {
-  if (C.isManager(user.type)) manager = user._id;
-
-  if (!manager) {
-    const err = new Error(C.getFieldIsReq("manager"));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  if (!(await managerExists(manager))) {
-    const err = new Error(C.getResourse404Id("manager", manager));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
-
-  return manager;
-};
-
 const validateSchool = async (user, school) => {
-  if (C.isSchool(user.type)) school = user.school;
+  if (isSchool(user)) school = user.school._id;
 
-  if (!school) {
-    const err = new Error(C.getFieldIsReq("school"));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
-  }
+  if (!school) throwCustomValidationErr(C.getFieldIsReq("school"));
 
   if (!(await School.any({ _id: school }))) {
-    const err = new Error(C.getResourse404Id("school", school));
-    err.name = C.CUSTOMVALIDATION;
-    throw err;
+    throwCustomValidationErr(C.getResourse404Id("school", school));
   }
 
   return school;
 };
 
-const validateFeeTerms = async (feeTerms, academic_year) => {
+const validateFeeTermsFromName = async (feeTerms, academic_year) => {
   if (!feeTerms || feeTerms.length === 0) {
     throwCustomValidationErr(C.getFieldIsReq("fee_terms"));
   }
@@ -969,53 +1657,51 @@ const validateFeeTerms = async (feeTerms, academic_year) => {
   return result;
 };
 
-const validateClasses = async (classes, academic_year) => {
+const validateClassesFromName = async (classes, academic_year) => {
   if (!classes || classes.length === 0) {
     throwCustomValidationErr(C.getFieldIsReq("classes"));
   }
 
   const result = [];
 
-  for (const name of classes) {
-    const query = { name: name.toUpperCase(), academic_year };
-    // if name contains stream
+  for (let name of classes) {
+    name = name.toUpperCase();
+    const idx = name.indexOf(" ");
 
-    if (name.includes(" ")) {
-      const nameArr = name.toUpperCase().split(" ");
+    const nameArr =
+      idx !== -1 ? [name.slice(0, idx), name.slice(idx + 1)] : [name];
+
+    const query = { name: nameArr[0], academic_year };
+
+    // if name contains stream
+    if (nameArr[1]) {
       const stream = await Stream.findOne({ name: nameArr[1] })
         .select("_id")
         .lean();
 
-      query.name = nameArr[0];
+      if (!stream) {
+        throwCustomValidationErr(C.getResourse404Id("class", name));
+      }
+
       query.stream = stream._id;
     }
 
-    const c = await Class.findOne(query).select("_id").lean();
+    const c = await Class.findOne(query)
+      .select("stream")
+      .populate("stream", "name")
+      .lean();
 
-    if (!c) {
+    if (!c || (c.stream.name !== "NA" && c.stream.name !== nameArr[1])) {
       throwCustomValidationErr(C.getResourse404Id("classes", name));
     }
 
-  const result = [];
-
-  for (const name of teachers) {
-    const teacher = await Staff.findOne({ name: name.toUpperCase() })
-      .select("_id")
-      .lean();
-
-    if (!teacher) {
-      const e = new Error(C.getResourse404Id("teacher", name));
-      e.name = teacher.CUSTOMVALIDATION;
-      throw e;
-    }
-
-    result.push(teacher._id);
+    result.push(c._id);
   }
 
   return result;
 };
 
-const validateSections = async (sections, academic_year) => {
+const validateSectionsFromName = async (sections, academic_year) => {
   if (!sections || sections.length === 0) {
     throwCustomValidationErr(C.getFieldIsReq("sections"));
   }
@@ -1035,7 +1721,7 @@ const validateSections = async (sections, academic_year) => {
   return result;
 };
 
-const validateStreams = async (streams, academic_year) => {
+const validateStreamsFromName = async (streams, academic_year) => {
   if (!streams || streams.length === 0) streams = ["NA"];
 
   if (!streams.map((e) => e.toUpperCase()).includes("NA")) streams.push("NA");
@@ -1054,7 +1740,7 @@ const validateStreams = async (streams, academic_year) => {
   return result;
 };
 
-const validateBoardingTypes = async (boardingTypes) => {
+const validateBoardingTypesFromName = async (boardingTypes) => {
   if (!boardingTypes || boardingTypes.length === 0) {
     throwCustomValidationErr(C.getFieldIsReq("boarding_types"));
   }
@@ -1098,19 +1784,77 @@ const validateBusStops = async (stops) => {
   return result;
 };
 
-const validateClassByName = async (className, academic_year) => {
-  if (!className) {
-    throwCustomValidationErr(C.getFieldIsReq("class"));
+const validateBusesFromName = async (names) => {
+  if (!names || names.length === 0) {
+    throwCustomValidationErr(C.getFieldIsReq("bus_names"));
   }
 
-  const c = await Class.findOne({
-    name: className.toUpperCase(),
+  const result = [];
+
+  for (const name of names) {
+    const bus = await Bus.findOne({ name: name.toUpperCase() })
+      .select("_id")
+      .lean();
+
+    if (!bus) {
+      throwCustomValidationErr(C.getResourse404Id("bus_names", name));
+    }
+
+    result.push(bus._id);
+  }
+
+  return result;
+};
+
+const validateStudentByAdmissionNo = async (admission_no, academic_year) => {
+  if (!admission_no) {
+    throwCustomValidationErr(C.getFieldIsReq("admission_no"));
+  }
+
+  const student = await Student.findOne({
+    admission_no: admission_no.toUpperCase(),
     academic_year,
   })
     .select("_id")
     .lean();
 
-  if (!c) throwCustomValidationErr(C.getResourse404Id("class", className));
+  if (!student)
+    throwCustomValidationErr(C.getResourse404Id("admission_no", admission_no));
+
+  return student._id;
+};
+
+const validateClassByName = async (name, academic_year) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("class_name"));
+  }
+
+  name = name.toUpperCase();
+  const idx = name.indexOf(" ");
+  const nameArr =
+    idx !== -1 ? [name.slice(0, idx), name.slice(idx + 1)] : [name];
+  const query = { name: nameArr[0], academic_year };
+
+  if (nameArr[1]) {
+    const stream = await Stream.findOne({ name: nameArr[1] })
+      .select("_id")
+      .lean();
+
+    if (!stream) {
+      throwCustomValidationErr(C.getResourse404Id("class_name", name));
+    }
+
+    query.stream = stream._id;
+  }
+
+  const c = await Class.findOne(query)
+    .select("stream")
+    .populate("stream", "name")
+    .lean();
+
+  if (!c || (c.stream.name !== "NA" && c.stream.name !== nameArr[1])) {
+    throwCustomValidationErr(C.getResourse404Id("class", name));
+  }
 
   return c._id;
 };
@@ -1133,6 +1877,23 @@ const validateSectionByName = async (sectionName, academic_year) => {
   return section._id;
 };
 
+const validateStreamByName = async (name, academic_year) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("stream"));
+  }
+
+  const stream = await Stream.findOne({
+    name: name.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!stream) throwCustomValidationErr(C.getResourse404Id("stream", name));
+
+  return stream._id;
+};
+
 const validateSubjectByName = async (subjectName, academic_year) => {
   if (!subjectName) {
     throwCustomValidationErr(C.getFieldIsReq("subject"));
@@ -1151,10 +1912,264 @@ const validateSubjectByName = async (subjectName, academic_year) => {
   return subject._id;
 };
 
+const validateLessonByName = async (lessonName, academic_year) => {
+  if (!lessonName) {
+    throwCustomValidationErr(C.getFieldIsReq("lesson"));
+  }
+
+  const lesson = await Lesson.findOne({
+    name: lessonName.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!lesson)
+    throwCustomValidationErr(C.getResourse404Id("lesson", lessonName));
+
+  return lesson._id;
+};
+
+const validateStudentById = async (studentId, academic_year) => {
+  if (!studentId) {
+    throwCustomValidationErr(C.getFieldIsReq("studentId"));
+  }
+
+  const student = await Student.findOne({
+    _id: studentId,
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!student)
+    throwCustomValidationErr(C.getResourse404Id("student", studentId));
+
+  return student._id;
+};
+
+const validateHomeworkById = async (homeworkId, academic_year) => {
+  if (!homeworkId) {
+    throwCustomValidationErr(C.getFieldIsReq("homeworkId"));
+  }
+
+  const homework = await Homework.findOne({
+    _id: homeworkId,
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!homework)
+    throwCustomValidationErr(C.getResourse404Id("homework", homeworkId));
+
+  return homework._id;
+};
+
+const validateBoardingTypeByName = async (name) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("boarding_type"));
+  }
+
+  const bt = await BoardingType.findOne({ name: name.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!bt) throwCustomValidationErr(C.getResourse404Id("boarding_type", name));
+
+  return bt._id;
+};
+
+const validateSubwardByName = async (name) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("subward"));
+  }
+
+  const subward = await SubWard.findOne({ name: name.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!subward) throwCustomValidationErr(C.getResourse404Id("subward", name));
+
+  return subward._id;
+};
+
+const validateFeeTermByName = async (name, academic_year) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("fee_term"));
+  }
+
+  const ft = await FeeTerm.findOne({
+    name: name.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!ft) throwCustomValidationErr(C.getResourse404Id("fee_term", name));
+
+  return ft._id;
+};
+
+const validateFeeTypeByName = async (
+  name,
+  academic_year,
+  field = "fee_type"
+) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq(field));
+  }
+
+  const ft = await FeeType.findOne({
+    name: name.toUpperCase(),
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!ft) throwCustomValidationErr(C.getResourse404Id(field, name));
+
+  return ft._id;
+};
+
+const validateBusByName = async (name, field = "bus") => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq(field));
+  }
+
+  const bus = await Bus.findOne({ name: name.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!bus) throwCustomValidationErr(C.getResourse404Id(field, name));
+
+  return bus._id;
+};
+
+const validateBusStopByName = async (name, field = "bus_stop") => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq(field));
+  }
+
+  const busStop = await BusStop.findOne({ name: name.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!busStop) throwCustomValidationErr(C.getResourse404Id(field, name));
+
+  return busStop._id;
+};
+
+const validateDepartmentByName = async (name) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("department"));
+  }
+
+  const dept = await Department.findOne({ name: name.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!dept) throwCustomValidationErr(C.getResourse404Id("department", name));
+
+  return dept._id;
+};
+
+const validateDesignationByName = async (title) => {
+  if (!title) {
+    throwCustomValidationErr(C.getFieldIsReq("designation"));
+  }
+
+  const deg = await Designation.findOne({ title: title.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!deg) throwCustomValidationErr(C.getResourse404Id("designation", title));
+
+  return deg._id;
+};
+
+const validateBankByName = async (name) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("bank"));
+  }
+
+  const bank = await Bank.findOne({ bank_name: name.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!bank) throwCustomValidationErr(C.getResourse404Id("bank", name));
+
+  return bank._id;
+};
+
+const validateChartByName = async (head) => {
+  if (!head) {
+    throwCustomValidationErr(C.getFieldIsReq("chart"));
+  }
+
+  const chart = await Chart.findOne({ head: head.toUpperCase() })
+    .select("_id")
+    .lean();
+
+  if (!chart) throwCustomValidationErr(C.getResourse404Id("chart", head));
+
+  return chart._id;
+};
+
 const throwCustomValidationErr = (msg) => {
   const e = new Error(msg);
   e.name = C.CUSTOMVALIDATION;
   throw e;
+};
+
+const validateStaffById = async (staffId) => {
+  if (!staffId) {
+    throwCustomValidationErr(C.getFieldIsReq("staff"));
+  }
+
+  const st = await Staff.findOne({ _id: staffId }).select("_id").lean();
+
+  if (!st) throwCustomValidationErr(C.getResourse404Id("staff", staffId));
+
+  return st._id;
+};
+
+const validateShiftByName = async (name, type) => {
+  if (!name) {
+    throwCustomValidationErr(C.getFieldIsReq("name"));
+  }
+
+  if (!type) {
+    throwCustomValidationErr(C.getFieldIsReq("type"));
+  }
+
+  const sh = await Shift.findOne({
+    name: name.toUpperCase(),
+    type: type.toUpperCase(),
+  })
+    .select("_id")
+    .lean();
+
+  if (!sh) throwCustomValidationErr(C.getResourse404Id("shift", name));
+
+  return sh._id;
+};
+
+const validateUserById = async (userId, academic_year) => {
+  if (!userId) {
+    throwCustomValidationErr(C.getFieldIsReq("userId"));
+  }
+
+  const user = await User.findOne({
+    _id: userId,
+    academic_year,
+  })
+    .select("_id")
+    .lean();
+
+  if (!user) throwCustomValidationErr(C.getResourse404Id("user", userId));
+
+  return user._id;
 };
 
 // ************************
@@ -1167,14 +2182,6 @@ const throwCustomValidationErr = (msg) => {
 
 const getYMD = (dt = new Date()) => {
   const now = new Date(dt);
-
-  if (now.getTime() === 0) return "NA";
-
-  const Y = String(now.getUTCFullYear()).padStart(2, "0");
-  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(now.getUTCDate()).padStart(2, "0");
-
-  return Y + M + D;
 
   if (now.getTime() === 0) return "NA";
 
@@ -1212,32 +2219,6 @@ const getDDMMYYYYwithTime = (dt = new Date()) => {
   const postFix = h_ > 11 ? "PM" : "AM";
 
   return `${D}-${M}-${Y} ${h}:${m}:${s} ${postFix}`;
-  const now = new Date(dt.toISOString().replace("Z", "-05:30"));
-
-  if (now.getTime() === 0) return "NA";
-
-  const Y = String(now.getUTCFullYear()).padStart(2, "0");
-  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(now.getUTCDate()).padStart(2, "0");
-
-  return `${D}-${M}-${Y}`;
-};
-
-const getDDMMYYYYwithTime = (dt = new Date()) => {
-  const now = new Date(dt.toISOString().replace("Z", "-05:30"));
-
-  if (now.getTime() === 0) return "NA";
-
-  const Y = String(now.getUTCFullYear()).padStart(2, "0");
-  const M = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(now.getUTCDate()).padStart(2, "0");
-  const h_ = now.getUTCHours();
-  const h = String(h_ > 12 ? h_ - 12 : h_).padStart(2, "0");
-  const m = String(now.getUTCMinutes()).padStart(2, "0");
-  const s = String(now.getUTCSeconds()).padStart(2, "0");
-  const postFix = h_ > 11 ? "PM" : "AM";
-
-  return `${D}-${M}-${Y} ${h}:${m}:${s} ${postFix}`;
 };
 
 const daysBetween = (startDate, endDate) => {
@@ -1249,8 +2230,209 @@ const daysBetween = (startDate, endDate) => {
   return diffDays;
 };
 
+/**
+ * Converts a UTC 0 date to UTC +05:30.
+ * Eg: 2024-01-02T03:04:05Z => 2024-01-02T08:34:05Z
+ * @param {String|Date} date - valid javascript date string in utc 0 or Date object
+ * @returns ISO String of date with +05:30 adjusted
+ */
+const convUTCTo0530 = (date) => {
+  const currDt = new Date(date);
+
+  if (isNaN(currDt)) return "NA";
+
+  const dt = new Date(currDt.toISOString().replace("Z", "-05:30"));
+
+  return dt.toISOString();
+};
+
+/**
+ * Formats a date string into "DD MMM YYYY HH:MM:SS AM/PM" format.
+ * Eg: 2024-01-02T03:04:05Z => 02 Jan 2024 03:04:05 AM
+ *
+ * @param {string|Date} dateTime - The date and time to format. This can be a date string or a Date object.
+ * @returns {string} The formatted date string. Returns "NA" if the date is invalid.
+ */
+const formatDateTimeToAMPM = (dateTime) => {
+  const dt = new Date(dateTime);
+
+  if (dt.getTime() === 0) return "NA";
+
+  const Y = String(dt.getUTCFullYear()).padStart(2, "0");
+  // const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const M = new Date(dateTime).toLocaleString("default", {
+    month: "short",
+  });
+  const D = String(dt.getUTCDate()).padStart(2, "0");
+  const h_ = dt.getUTCHours();
+  const h = String(h_ > 12 ? h_ - 12 : h_).padStart(2, "0");
+  const m = String(dt.getUTCMinutes()).padStart(2, "0");
+  const s = String(dt.getUTCSeconds()).padStart(2, "0");
+  const postFix = h_ > 11 ? "PM" : "AM";
+
+  return `${D}-${M}-${Y.slice(2, 4)} ${h}:${m}:${s} ${postFix}`;
+};
+
+/**
+ * Formats a date string into "DD MMM YYYY HH:MM:SS AM/PM" format.
+ * Eg: 2024-01-02T03:04:05Z => 02 Jan 2024
+ *
+ * @param {string|Date} dateTime - The date and time to format. This can be a date string or a Date object.
+ * @returns {string} The formatted date string. Returns "NA" if the date is invalid.
+ */
+const formatDate = (dateTime) => {
+  const dt = new Date(dateTime);
+
+  if (dt.getTime() === 0) return "NA";
+
+  const Y = String(dt.getUTCFullYear()).padStart(2, "0");
+  const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const D = String(dt.getUTCDate()).padStart(2, "0");
+
+  const monthName = new Date(dateTime).toLocaleString("default", {
+    month: "short",
+  });
+
+  return `${D} ${monthName} ${Y}`;
+};
+
+/**
+ * Converts and Formats a date string into "DD MMM YYYY" format.
+ * Eg: 2024-01-02T03:04:05Z => 02 Jan 2024 08:34:05 AM
+ *
+ * @param {string|Date} dateTime - The date and time to format. This can be a date string or a Date object.
+ * @returns {string} The formatted date and time string. Returns "NA" if the date is invalid.
+ */
+const convAndFormatDT = (dateTime) => {
+  return formatDateTimeToAMPM(convUTCTo0530(dateTime));
+};
+
+/**
+ * Converts and Formats a date string into "DD MMM YYYY" format.
+ * Eg: 2024-01-02T03:04:05Z => 02 Jan 2024 08:34:05 AM
+ *
+ * @param {string|Date} dateTime - The date and time to format. This can be a date string or a Date object.
+ * @returns {string} The formatted date string. Returns "NA" if the date is invalid.
+ */
+const convAndFormatDate = (dateTime) => {
+  return formatDate(convUTCTo0530(dateTime));
+};
+
+/**
+ *
+ * @param {Integer|String} excelDate - Number of days from 1900-01-01 or a valid Date string
+ * @returns adjusted JavaScript Date with Excel's 1900 leap year-bug
+ */
+const excelDateToJSDate = (excelDate) => {
+  if (typeof excelDate === "string") {
+    const date = new Date(excelDate);
+
+    return date;
+  }
+
+  // Unix epoch starts on 1970-01-01, and Excel epoch starts on 1900-01-01
+  const excelEpochStart = new Date(Date.UTC(1900, 0, 1));
+  const dateOffset = excelDate - 2; // Adjust for Excel's 1900 leap year bug
+  const jsDate = new Date(excelEpochStart.getTime() + dateOffset * 86400000); // Convert days to milliseconds
+  return jsDate;
+};
+
+const getDatesArrayFromDateRange = (start, end) => {
+  const dates = [];
+
+  let dt = new Date(start);
+
+  while (dt < end) {
+    dates.push(new Date(dt));
+    dt = new Date(dt.setUTCDate(dt.getUTCDate() + 1));
+  }
+
+  return dates;
+};
+
+const getMonthAndYear = (date = new Date()) => {
+  const year = date.getUTCFullYear();
+
+  if (date.getUTCMonth() === 0) return `JAN ${year}`;
+  else if (date.getUTCMonth() === 1) return `FEB ${year}`;
+  else if (date.getUTCMonth() === 2) return `MAR ${year}`;
+  else if (date.getUTCMonth() === 3) return `APR ${year}`;
+  else if (date.getUTCMonth() === 4) return `MAY ${year}`;
+  else if (date.getUTCMonth() === 5) return `JUN ${year}`;
+  else if (date.getUTCMonth() === 6) return `JUL ${year}`;
+  else if (date.getUTCMonth() === 7) return `AUG ${year}`;
+  else if (date.getUTCMonth() === 8) return `SEP ${year}`;
+  else if (date.getUTCMonth() === 9) return `OCT ${year}`;
+  else if (date.getUTCMonth() === 10) return `NOV ${year}`;
+  else if (date.getUTCMonth() === 11) return `DEC ${year}`;
+};
+
+const getDifferenceBetweenHours = (endtime, starttime) => {
+  // Parse starttime
+  let [startHours, startMinutes] = starttime.split(":").map(Number);
+
+  // Parse endtime
+  let [endHours, endMinutes] = endtime.split(":").map(Number);
+
+  // Convert both times to minutes since midnight
+  let startTotalMinutes = startHours * 60 + startMinutes;
+  let endTotalMinutes = endHours * 60 + endMinutes;
+
+  // Calculate the difference in minutes
+  let differenceMinutes;
+  if (endTotalMinutes === startTotalMinutes) {
+    // Handle case where starttime and endtime are the same
+    differenceMinutes = 24 * 60;
+  } else if (endTotalMinutes > startTotalMinutes) {
+    differenceMinutes = endTotalMinutes - startTotalMinutes;
+  } else {
+    differenceMinutes = 24 * 60 - startTotalMinutes + endTotalMinutes;
+  }
+
+  // Convert difference back to hours and minutes
+  let differenceHours = Math.floor(differenceMinutes / 60);
+  let remainingMinutes = differenceMinutes % 60;
+
+  // Format the result as HH:MM
+  let formattedHours = String(differenceHours).padStart(2, "0");
+  let formattedMinutes = String(remainingMinutes).padStart(2, "0");
+
+  return `${formattedHours}:${formattedMinutes}`;
+};
+
+const convertHHMMToMinutes = (time) => {
+  const [hours, minutes] = time.split(":").map(Number);
+
+  let totalMinutes = hours * 60 + minutes;
+
+  return totalMinutes;
+};
+
+const getMonthsBetweenDates = (fromDate, toDate) => {
+  const from = new Date(fromDate);
+  const to = new Date(toDate);
+
+  if (from.getTime() > to.getTime()) return 0;
+
+  const fromYear = from.getFullYear();
+  const fromMonth = from.getMonth();
+  const toYear = to.getFullYear();
+  const toMonth = to.getMonth();
+
+  const yearDifference = toYear - fromYear;
+  const monthDifference = toMonth - fromMonth;
+
+  const totalMonths = yearDifference * 12 + monthDifference;
+
+  return totalMonths;
+};
+
 // ************************
 // DATE FUNCTIONS END
+// ************************
+
+// ************************
+// MATHS FUNCTIONS START
 // ************************
 
 const deg2rad = (deg) => {
@@ -1330,30 +2512,35 @@ const isPointInPolygon = (vertices, lat, lng) => {
         oddNodes = !oddNodes;
       }
     }
+
     j = i;
   }
 
   return oddNodes;
 };
 
+// ************************
+// MATHS FUNCTIONS END
+// ************************
+
+// ************************
+// MISC FUNCTIONS START
+// ************************
+
 const getAppRootDir = (currentDir) => {
   while (!fs.existsSync(path.join(currentDir, "package.json"))) {
     currentDir = path.join(currentDir, "..");
   }
+
   return currentDir;
 };
 
 const writeLog = (name, data) => {
-  const now = new Date();
-  const date = new Date().getUTCDate();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0"); // months from 1-12
-  const year = now.getUTCFullYear();
-
   const logDir = path.join(getAppRootDir(__dirname), "logs", name);
 
   if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
 
-  const logFile = path.join(logDir, `${name}_${year}-${month}-${date}.log`);
+  const logFile = path.join(logDir, `${name}_${getYMD()}.log`);
 
   let str = `[${new Date().toISOString().replace("T", " ").split(".")[0]}] `;
 
@@ -1366,70 +2553,49 @@ const writeLog = (name, data) => {
   }
 };
 
-const convUTCTo0530 = (date) => {
-  let hours = 5,
-    minutes = 30;
-
-  const currDt = new Date(date);
-  const currHours = currDt.getUTCHours();
-  const currMin = currDt.getUTCMinutes();
-  const currSec = currDt.getUTCSeconds();
-  const currMSec = currDt.getUTCMilliseconds();
-
-  const dt = new Date(
-    currDt.setUTCHours(currHours + hours, currMin + minutes, currSec, currMSec)
-  );
-
-  const dtStr = dt.toISOString();
-
-  hours = String(hours).padStart(2, "0");
-  minutes = String(minutes).padStart(2, "0");
-
-  return dtStr.replace("Z", `+${hours}:${minutes}`);
+const replaceEmailSymbols = (email) => {
+  return email.replace(/[!#$%&'*+/=?^_`{|}~.-]/g, "_");
 };
 
-const formatDateToAMPM = (dateTime) => {
-  const dt = new Date(dateTime);
-
-  if (dt.getTime() === 0) return "NA";
-
-  const Y = String(dt.getUTCFullYear()).padStart(2, "0");
-  const M = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const D = String(dt.getUTCDate()).padStart(2, "0");
-  const h_ = dt.getUTCHours();
-  const h = String(h_ > 12 ? h_ - 12 : h_).padStart(2, "0");
-  const m = String(dt.getUTCMinutes()).padStart(2, "0");
-  const s = String(dt.getUTCSeconds()).padStart(2, "0");
-  const postFix = h_ > 11 ? "PM" : "AM";
-
-  return `${D}-${M}-${Y.slice(2, 4)} ${h}:${m}:${s} ${postFix}`;
-};
-
-const excelDateToJSDate = (excelDate) => {
-  // Unix epoch starts on 1970-01-01, and Excel epoch starts on 1900-01-01
-  const excelEpochStart = new Date(Date.UTC(1900, 0, 1));
-  const dateOffset = excelDate - 2; // Adjust for Excel's 1900 leap year bug
-  const jsDate = new Date(excelEpochStart.getTime() + dateOffset * 86400000); // Convert days to milliseconds
-  return jsDate;
-};
+// ************************
+// MISC FUNCTIONS END
+// ************************
 
 module.exports = {
   createSearchQuery,
+  paginatedArrayQuery,
   paginatedQuery,
+  paginatedQueryProPlus,
   excelToJson,
   jsonToExcel,
+  getRoleId,
+  getRolePrivilegeId,
 
+  getBankFromName,
+
+  isSuperAdmin,
+  isAdmin,
+  isAdmins,
+  isSchool,
+  isParent,
+  isTeacher,
   getUsernameFromEmail,
-  managerExists,
   schoolAccExists,
   getUserContactInfo,
 
-  getCurrentAcademicYear,
   getLibraryVariables,
   addMultipleSchools,
 
   addMultipleStudents,
+  addMultipleStudentsDPS,
+  addMultipleStudentsAcharyakulam,
+  addMultipleStudentsGDGoenka,
+  addMultipleStudentsTenderHeart,
   getStudentAddress,
+  getClassesNSectionsIdsFromNames,
+  getClassNSectionIdFromName,
+  getStudentClassTitle,
+  getStudentClassSectionTitle,
 
   addMultipleBusStaffs,
 
@@ -1439,25 +2605,54 @@ module.exports = {
   getBusDevice,
   addMultipleBuses,
 
+  validateDate,
   validateAndSetDate,
-  validateManagerAndSchool,
-  validateManager,
   validateSchool,
-  validateFeeTerms,
-  validateClasses,
-  validateSections,
-  validateStreams,
-  validateBoardingTypes,
-  validateBusStops,
+  validateFeeTermsFromName,
+  validateClassesFromName,
   validateClassByName,
+  validateSectionsFromName,
+  validateStreamsFromName,
+  validateBoardingTypesFromName,
+  validateBusStops,
+  validateBusesFromName,
+  validateStudentByAdmissionNo,
   validateSectionByName,
+  validateStreamByName,
+  validateStaffById,
   validateSubjectByName,
+  validateLessonByName,
+  validateBoardingTypeByName,
+  validateSubwardByName,
+  validateFeeTermByName,
+  validateFeeTypeByName,
+  validateBusByName,
+  validateBusStopByName,
+  validateDepartmentByName,
+  validateDesignationByName,
+  validateBankByName,
+  validateChartByName,
+  validateShiftByName,
+  validateStudentById,
+  validateHomeworkById,
+  validateUserById,
+  throwCustomValidationErr,
 
   getYMD,
   getDDMMYYYY,
   getDDMMYYYYwithTime,
-  getDDMMYYYYwithTime,
   daysBetween,
+  convUTCTo0530,
+  formatDateTimeToAMPM,
+  formatDate,
+  convAndFormatDT,
+  convAndFormatDate,
+  excelDateToJSDate,
+  getDatesArrayFromDateRange,
+  getMonthAndYear,
+  getDifferenceBetweenHours,
+  convertHHMMToMinutes,
+  getMonthsBetweenDates,
 
   getAngle,
   getLenBtwPointsInKm,
@@ -1466,8 +2661,7 @@ module.exports = {
 
   getAppRootDir,
   writeLog,
+  replaceEmailSymbols,
 
-  convUTCTo0530,
-  formatDateToAMPM,
-  excelDateToJSDate,
+  calculateOverTime,
 };
