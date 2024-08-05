@@ -47,11 +47,7 @@ const bookSchema = new mongoose.Schema(
       ref: "users",
       required: [true, C.FIELD_IS_REQ],
     },
-    academic_year: {
-      type: ObjectId,
-      required: [true, C.FIELD_IS_REQ],
-      ref: "academic_years",
-    },
+    
   },
   {
     timestamps: true, // Move timestamps option outside the field definitions

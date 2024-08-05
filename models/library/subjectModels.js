@@ -12,6 +12,14 @@ const subjectSchema = new mongoose.Schema({
   academic_year: { type: ObjectId, required, ref: "academic_years" },
   school: { type: ObjectId, required, ref: "schools" },
 });
+subjectSchema.pre("updateOne",async function(next){
+  this.setOptions({runValidators:true});
+  next();
+})
+subjectSchema.pre("updateMany",async function(next){
+   this.setOptions({runValidators:true});
+   next();
+})
 
 subjectSchema.index({ name: 1, category: 1, school: 1 }, { unique: true });
 subjectSchema.plugin(any);

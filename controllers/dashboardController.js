@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
 const Student = require("../models/studentInfo/studentModel");
-const StuBusAtt = require("../models/attendance/stuBusAttModel");
+const StuBusAtt = require("../models/attendance/studentBusAttendanceModel");
 const Bus = require("../models/transport/busModel");
 
 // @desc    School Dashbaord

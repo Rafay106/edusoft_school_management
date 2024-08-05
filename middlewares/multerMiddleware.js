@@ -69,11 +69,14 @@ const photoUpload = (filePath, fileSize = maxSize) => {
         if (!fs.existsSync(filePath)) {
           fs.mkdirSync(filePath, { recursive: true });
         }
+
         cb(null, filePath);
       },
       filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
-        cb(null, `${req.user._id}_${Date.now()}${ext}`);
+        const admNo = req.body.adm_no;
+        const name = admNo ? admNo.replaceAll("/", "_") : Date.now().toString();
+        cb(null, name + ext);
       },
     }),
     limits: { fileSize },
@@ -81,6 +84,7 @@ const photoUpload = (filePath, fileSize = maxSize) => {
       if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
         return cb(new Error("Only jpg, jpeg, or png files are allowed"));
       }
+
       cb(null, true);
     },
   });
@@ -106,6 +110,7 @@ const uploadExcel = (filePath) => {
         if (!file.originalname.match(/\.(xlsx|xls|csv)$/)) {
           return cb(new Error("Only xlsx/xls/csv files are supported!"));
         }
+
         cb(null, true);
       },
     }),

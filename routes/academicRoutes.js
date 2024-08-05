@@ -17,13 +17,13 @@ academicYearRouter
 // 2. Section Routes
 const sectionRouter = express.Router();
 
-sectionRouter
-  .route("/")
-  .get(AC.getSections)
-  .post(AC.addSection)
-  .delete(AC.deleteSection);
+sectionRouter.route("/").get(AC.getSections).post(AC.addSection);
 
-sectionRouter.route("/:id").get(AC.getSection).patch(AC.updateSection);
+sectionRouter
+  .route("/:id")
+  .get(AC.getSection)
+  .patch(AC.updateSection)
+  .delete(AC.deleteSection);
 
 // 3. Stream Routes
 const streamRouter = express.Router();
@@ -63,6 +63,28 @@ const classroutineRouter = express.Router();
 classroutineRouter.route("/").post(AC.addClassRoutine).get(AC.getClassRoutine);
 classroutineRouter.route("/:id").delete(AC.deleteClassRoutine);
 
+//  7 class_teacher_assign
+const classTeacherAssignRouter = express.Router();
+classTeacherAssignRouter
+  .route("/")
+  .post(AC.addClassTeacherAssign)
+  .get(AC.getClassTeachersAssign);
+classTeacherAssignRouter
+  .route("/:id")
+  .get(AC.getClassTeacherAssign)
+  .patch(AC.updateClassTeacherAssign)
+  .delete(AC.deleteClassTeacherAssign);
+
+const assignSubjectRouter = express.Router();
+assignSubjectRouter
+  .route("/")
+  .post(AC.addAssignSubject)
+  .get(AC.getAssignSubjects);
+assignSubjectRouter
+  .route("/:id")
+  .get(AC.getAssignSubject)
+  .patch(AC.updateAssignSubject)
+  .delete(AC.deleteAssignSubject);
 
 academicRouter.use("/academic-year", academicYearRouter);
 academicRouter.use("/section", sectionRouter);
@@ -70,5 +92,7 @@ academicRouter.use("/stream", streamRouter);
 academicRouter.use("/class", classRouter);
 academicRouter.use("/subject", subjectRouter);
 academicRouter.use("/class-routine", classroutineRouter);
+academicRouter.use("/class-teacher-assign", classTeacherAssignRouter);
+academicRouter.use("/assign-subject", assignSubjectRouter);
 
 module.exports = academicRouter;

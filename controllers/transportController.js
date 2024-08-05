@@ -6,8 +6,12 @@ const UC = require("../utils/common");
 const BusStaff = require("../models/transport/busStaffModel");
 const BusStop = require("../models/transport/busStopModel");
 const Bus = require("../models/transport/busModel");
-const User = require("../models/system/userModel");
 const Student = require("../models/studentInfo/studentModel");
+const Class = require("../models/academics/classModel");
+const Section = require("../models/academics/sectionModel");
+const Device = require("../models/system/deviceModel");
+const BusAssignment = require("../models/transport/busAssignModel");
+const AcademicYear = require("../models/academics/academicYearModel");
 
 /** 1. BusStaff */
 
@@ -25,7 +29,7 @@ const getBusStaffs = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["name"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   console.log(query);
@@ -200,6 +204,8 @@ const bulkOpsBusStaff = asyncHandler(async (req, res) => {
     const fileData = UC.excelToJson(req.file.path);
     fs.unlinkSync(req.file.path);
 
+    // return res.json(fileData);
+
     const result = await UC.addMultipleBusStaffs(fileData, req.school);
 
     return res.status(200).json({ total: result.length, msg: result });
@@ -265,7 +271,7 @@ const getBusStops = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["name", "address"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
@@ -450,17 +456,17 @@ const getBuses = asyncHandler(async (req, res) => {
   if (search) {
     const fields = ["name"];
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(
     Bus,
     query,
-    "name device.imei driver conductor",
+    "name device driver conductor",
     page,
     limit,
     sort,
-    ["driver conductor", "name"]
+    ["device driver conductor", "imei name"]
   );
 
   if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
@@ -474,7 +480,7 @@ const getBuses = asyncHandler(async (req, res) => {
 const getBus = asyncHandler(async (req, res) => {
   const query = { _id: req.params.id };
 
-  const bus = await Bus.findOne(query).lean();
+  const bus = await Bus.findOne(query).populate("device").lean();
 
   if (!bus) {
     res.status(404);
@@ -488,6 +494,20 @@ const getBus = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus
 // @access  Private
 const addBus = asyncHandler(async (req, res) => {
+  const imei = req.body.imei;
+
+  if (!imei) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("imei"));
+  }
+
+  const device = await Device.findOne({ imei }).select("_id").lean();
+
+  if (!device) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("imei", imei));
+  }
+
   const stops = await UC.validateBusStops(req.body.stops);
 
   if (!req.body.driver) {
@@ -526,7 +546,7 @@ const addBus = asyncHandler(async (req, res) => {
     no_plate: req.body.no_plate,
     model: req.body.model,
     year_made: req.body.year_made,
-    device: req.body.device,
+    device: device._id,
     stops,
     driver,
     conductor,
@@ -570,14 +590,14 @@ const updateBus = asyncHandler(async (req, res) => {
   }
 
   if (driver) {
-    if (!(await BusStaff.any({ ...query, _id: driver, type: "d" }))) {
+    if (!(await BusStaff.any({ _id: driver, type: "d" }))) {
       res.status(400);
       throw new Error(C.getResourse404Id("driver", driver));
     }
   }
 
   if (conductor) {
-    if (!(await BusStaff.any({ ...query, _id: conductor, type: "c" }))) {
+    if (!(await BusStaff.any({ _id: conductor, type: "c" }))) {
       res.status(400);
       throw new Error(C.getResourse404Id("conductor", conductor));
     }
@@ -596,7 +616,6 @@ const updateBus = asyncHandler(async (req, res) => {
       no_plate: req.body.no_plate,
       model: req.body.model,
       year_made: req.body.year_made,
-      "device.name": req.body.device?.name,
       driver,
       conductor,
     },
@@ -653,6 +672,8 @@ const bulkOpsBus = asyncHandler(async (req, res) => {
 
     const fileData = UC.excelToJson(req.file.path);
     fs.unlinkSync(req.file.path);
+
+    // return res.json(fileData);
 
     const result = await UC.addMultipleBuses(fileData, req.school);
 
@@ -773,11 +794,21 @@ const unsetAlternateBus = asyncHandler(async (req, res) => {
 // @route   POST /api/transport/bus/track
 // @access  Private
 const trackBus = asyncHandler(async (req, res) => {
-  const query = { _id: req.body.bus_ids };
+  const query = {};
+
+  const busNames = req.body.bus_names;
+  if (busNames && busNames.length > 0) {
+    const busIds = await UC.validateBusesFromName(busNames);
+
+    query._id = busIds;
+  }
 
   const result = [];
 
-  const buses = await Bus.find(query).select("name temp_device device").lean();
+  const buses = await Bus.find(query)
+    .select("name temp_device device")
+    .populate("device")
+    .lean();
 
   for (const bus of buses) {
     const device = await UC.getBusDevice(bus);
@@ -864,7 +895,8 @@ const switchBus = asyncHandler(async (req, res) => {
   }
 
   const tempBus = await Bus.findOne({ name: req.body.temp_bus.toUpperCase() })
-    .select("device.imei")
+    .select("device")
+    .populate("device", "imei")
     .lean();
 
   if (!tempBus) {
@@ -883,6 +915,1102 @@ const switchBus = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json(result);
+});
+
+// @desc    Switch bus device
+// @route   GET /api/transport/bus/reset
+// @access  Private
+const resetAllBus = asyncHandler(async (req, res) => {
+  const tempBus = await Bus.updateMany(
+    { "temp_device.enabled": true },
+    { $set: { "temp_device.enabled": false } }
+  );
+
+  res.status(200).json(tempBus);
+});
+
+/** 4. BusAssignment */
+
+// @desc    Get all bus-assigned
+// @route   GET /api/transport/bus-assign
+// @access  Private
+const getBusAssigns = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "-createdAt";
+
+  const query = {};
+  const stuQuery = {
+    academic_year: req.ayear,
+    // bus_pick: { $type: "objectId" },
+    // bus_drop: { $type: "objectId" },
+    // bus_stop: { $type: "objectId" },
+  };
+
+  if (req.query.adm_no) {
+    stuQuery.admission_no = req.query.adm_no.toUpperCase();
+  }
+
+  if (req.query.class_name) {
+    const [classIds, secIds] = await UC.getClassesNSectionsIdsFromNames(
+      req.query.class_name.split(","),
+      req.ayear
+    );
+
+    stuQuery.class = classIds;
+    stuQuery.section = secIds;
+  }
+
+  if (req.query.bus) {
+    const busId = await UC.validateBusByName(req.query.bus, "bus");
+
+    stuQuery.$or = [{ bus_pick: busId }, { bus_drop: budId }];
+  }
+
+  const students = await Student.find(stuQuery).select("_id").lean();
+
+  query.student = students.map((ele) => ele._id);
+
+  const populateConfigs = [
+    {
+      path: "student",
+      select: "admission_no name roll_no",
+      populate: { path: "class section", select: "name" },
+    },
+    {
+      path: "list.bus_stop list.bus_pick list.bus_drop",
+      select: "name",
+    },
+  ];
+
+  const results = await UC.paginatedQueryProPlus(
+    BusAssignment,
+    query,
+    "",
+    page,
+    limit,
+    sort,
+    populateConfigs
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get a busAssign
+// @route   GET /api/transport/bus-assign/:id
+// @access  Private
+const getBusAssign = asyncHandler(async (req, res) => {
+  const query = { _id: req.params.id };
+
+  const busAssign = await BusAssignment.findOne(query)
+    .populate(
+      "student list.bus_stop list.bus_pick list.bus_drop academic_year",
+      "name title"
+    )
+    .lean();
+
+  if (!busAssign) {
+    res.status(404);
+    throw new Error(C.getResourse404Id("BusAssignment", req.params.id));
+  }
+
+  busAssign.list.sort((a, b) => {
+    if (a.date > b.date) return 1;
+    if (a.date < b.date) return -1;
+    return 0;
+  });
+
+  res.status(200).json(busAssign);
+});
+
+// @desc    Assign bus to student
+// @route   POST /api/transport/assign-bus-to-student
+// @access  Private
+const assignBusToStudent = asyncHandler(async (req, res) => {
+  if (!req.body.adm_no) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("adm_no"));
+  }
+
+  const admNo = req.body.adm_no.toUpperCase();
+
+  const busStopId = await UC.validateBusStopByName(req.body.bus_stop);
+  const busPickId = await UC.validateBusByName(req.body.bus_pick, "bus_pick");
+  const busDropId = await UC.validateBusByName(req.body.bus_drop, "bus_drop");
+  const doj = UC.validateAndSetDate(req.body.doj, "doj");
+  const date = new Date(doj.setUTCDate(1));
+
+  const academicYear = await AcademicYear.findById(req.ayear).lean();
+
+  if (
+    date.getTime() < academicYear.starting_date.getTime() ||
+    date.getTime() > academicYear.ending_date.getTime()
+  ) {
+    res.status(400);
+
+    const startdt = academicYear.starting_date.toISOString();
+    const enddt = academicYear.ending_date.toISOString();
+
+    throw new Error(
+      `doj out of range of current academic year: ${startdt} - ${enddt}`
+    );
+  }
+
+  const student = await Student.findOne({ admission_no: admNo })
+    .select("_id")
+    .lean();
+
+  if (!student) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("Student", req.body.adm_no));
+  }
+
+  const busAssign = await BusAssignment.findOne({
+    student: student._id,
+    academic_year: req.ayear,
+  }).lean();
+
+  let result;
+
+  const list = [];
+  const sortFunc = (a, b) => {
+    if (a.month > b.month) return 1;
+    if (a.month < b.month) return -1;
+    return 0;
+  };
+
+  const month = date.getUTCMonth();
+  const startMonth = academicYear.starting_date.getUTCMonth();
+
+  const equation = (12 - (month - startMonth)) % 12;
+
+  const limit = equation === 0 ? 12 : equation;
+
+  for (let i = 0; i < limit; i++) {
+    const monthToSet = month + i;
+    const monthDate = new Date(
+      new Date(new Date().setUTCHours(0, 0, 0, 0)).setUTCDate(1)
+    );
+
+    const data = {
+      date: req.body.doj,
+      month: new Date(monthDate.setUTCMonth(monthToSet)),
+      status: C.ASSIGNED,
+      bus_stop: busStopId,
+      bus_pick: busPickId,
+      bus_drop: busDropId,
+      assigned_by: req.user._id,
+    };
+
+    list.push(data);
+  }
+
+  list.sort(sortFunc);
+
+  if (!busAssign) {
+    const newBusAssign = await BusAssignment.create({
+      student: student._id,
+      list,
+      academic_year: req.ayear,
+    });
+
+    result = { msg: newBusAssign._id };
+  } else {
+    const updatedList = [];
+
+    for (const assignData of busAssign.list) {
+      const newData = list.find(
+        (ele) => ele.month.getTime() === assignData.month.getTime()
+      );
+
+      if (newData) updatedList.push(newData);
+      else updatedList.push(assignData);
+    }
+
+    const update = await BusAssignment.updateOne(
+      { student: student._id, academic_year: req.ayear },
+      { $set: { list: updatedList.sort(sortFunc) } }
+    );
+
+    result = update;
+  }
+
+  await Student.updateOne(
+    { _id: student._id },
+    {
+      $set: {
+        bus_stop: busStopId,
+        bus_pick: busPickId,
+        bus_drop: busDropId,
+      },
+    }
+  );
+
+  res.status(200).json(result);
+});
+
+// @desc    Bulk assign bus to student
+// @route   POST /api/transport/assign-bus-to-student/bulk
+// @access  Private
+const bulkAssignBus = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("file"));
+  }
+
+  const fileData = UC.excelToJson(req.file.path);
+  fs.unlinkSync(req.file.path);
+
+  const academicYear = await AcademicYear.findById(req.ayear).lean();
+
+  const busAssignData = [];
+  const errors = [];
+
+  let i = 2;
+  for (const row of fileData) {
+    const admission_no = row["ADM.NO"];
+    const bus_stop = row["BUS STOPPAGE"];
+    const bus_pick = String(row["BUS PICK"]);
+    const bus_drop = String(row["BUS DROP"]);
+
+    if (!admission_no) errors.push(C.getFieldIsReq("ADM.NO"));
+    if (!bus_stop) errors.push(C.getFieldIsReq("BUS STOPPAGE"));
+    if (!bus_pick) errors.push(C.getFieldIsReq("BUS PICK"));
+    if (!bus_drop) errors.push(C.getFieldIsReq("BUS DROP"));
+    if (!row["DOJ"]) errors.push(C.getFieldIsReq("DOJ"));
+
+    const student = await Student.findOne({ admission_no })
+      .select("_id")
+      .lean();
+
+    const stopName = bus_stop.trim().toUpperCase();
+
+    const busStop = await BusStop.findOne({
+      $or: [{ name: stopName }, { name: { $regex: stopName, $options: "i" } }],
+    })
+      .select("_id")
+      .lean();
+    const busPick = await Bus.findOne({ name: bus_pick.trim().toUpperCase() })
+      .select("_id")
+      .lean();
+    const busDrop = await Bus.findOne({ name: bus_drop.trim().toUpperCase() })
+      .select("_id")
+      .lean();
+
+    let isError = false;
+    if (!student) {
+      errors.push(`Student not found: '${admission_no}' at row: ${i}`);
+      isError = true;
+    }
+
+    if (!busStop) {
+      errors.push(
+        `BUS STOPPAGE: '${bus_stop}' not found at row: ${i} of student: ${admission_no}`
+      );
+      isError = true;
+    }
+
+    if (!busPick) {
+      errors.push(
+        `Bus not found: '${bus_pick}' at row: ${i} of student: ${admission_no}`
+      );
+      isError = true;
+    }
+
+    if (!busDrop) {
+      errors.push(
+        `Bus not found: '${bus_drop}' at row: ${i} of student: ${admission_no}`
+      );
+      isError = true;
+    }
+
+    const doj = UC.excelDateToJSDate(row["DOJ"]);
+
+    if (isNaN(doj)) {
+      errors.push(
+        `Invalid DOJ: '${row["DOJ"]}' at row: ${i} of student: ${admission_no}`
+      );
+      isError = true;
+    }
+
+    i++;
+    if (isError) continue;
+
+    busAssignData.push({
+      student: student,
+      bus_stop: busStop,
+      bus_pick: busPick,
+      bus_drop: busDrop,
+      doj,
+    });
+  }
+
+  // if (errors.length) {
+  //   res.status(400);
+  //   return res.json({ total: errors.length, msg: errors });
+  // }
+
+  const results = [];
+  let createCount = 0;
+  let updateCount = 0;
+
+  for (const data of busAssignData) {
+    const student = data.student;
+    const busStop = data.bus_stop;
+    const busPick = data.bus_pick;
+    const busDrop = data.bus_drop;
+
+    const busAssign = await BusAssignment.findOne({
+      student: student._id,
+      academic_year: req.ayear,
+    }).lean();
+
+    const list = [];
+    const sortFunc = (a, b) => {
+      if (a.month > b.month) return 1;
+      if (a.month < b.month) return -1;
+      return 0;
+    };
+
+    const doj = data.doj;
+    const date = new Date(new Date(doj.setUTCHours(0, 0, 0, 0)).setUTCDate(1));
+
+    if (
+      date.getTime() < academicYear.starting_date.getTime() ||
+      date.getTime() > academicYear.ending_date.getTime()
+    ) {
+      res.status(400);
+
+      const startdt = academicYear.starting_date.toISOString();
+      const enddt = academicYear.ending_date.toISOString();
+
+      throw new Error(
+        `DOJ out of range of current academic year: ${startdt} - ${enddt}`
+      );
+    }
+
+    const month = date.getUTCMonth();
+    const startMonth = academicYear.starting_date.getUTCMonth();
+
+    const equation = (12 - (month - startMonth)) % 12;
+
+    const limit = equation === 0 ? 12 : equation;
+
+    for (let i = 0; i < limit; i++) {
+      const monthToSet = month + i;
+      const monthDate = new Date(
+        new Date(new Date().setUTCHours(0, 0, 0, 0)).setUTCDate(1)
+      );
+
+      const listItem = {
+        date: doj,
+        month: new Date(monthDate.setUTCMonth(monthToSet)),
+        status: C.ASSIGNED,
+        bus_stop: busStop._id,
+        bus_pick: busPick._id,
+        bus_drop: busDrop._id,
+        assigned_by: req.user._id,
+      };
+
+      list.push(listItem);
+    }
+
+    list.sort(sortFunc);
+
+    if (!busAssign) {
+      await BusAssignment.create({
+        student: student._id,
+        list,
+        academic_year: req.ayear,
+      });
+
+      createCount++;
+    } else {
+      const updatedList = [];
+
+      for (const assignData of busAssign.list) {
+        const newData = list.find(
+          (ele) => ele.month.getTime() === assignData.month.getTime()
+        );
+
+        if (newData) updatedList.push(newData);
+        else updatedList.push(assignData);
+      }
+
+      await BusAssignment.updateOne(
+        { student: student._id, academic_year: req.ayear },
+        { $set: { list: updatedList.sort(sortFunc) } }
+      );
+
+      updateCount++;
+    }
+
+    await Student.updateOne(
+      { _id: student._id },
+      {
+        $set: {
+          bus_stop: busStop._id,
+          bus_pick: busPick._id,
+          bus_drop: busDrop._id,
+        },
+      }
+    );
+
+    results.push({
+      admno: student.admission_no,
+      busStop,
+      busPick,
+      busDrop,
+      doj,
+    });
+  }
+
+  res.json({
+    createCount,
+    updateCount,
+    errorCount: errors.length,
+    errors: errors.sort(),
+  });
+});
+
+// @desc    Unassign bus to student
+// @route   POST /api/transport/unassign-bus-to-student
+// @access  Private
+const unassignBusToStudent = asyncHandler(async (req, res) => {
+  if (!req.body.adm_no) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("adm_no"));
+  }
+
+  const admNo = req.body.adm_no.toUpperCase();
+  const dor = UC.validateDate(req.body.dor, "dor");
+
+  const date = new Date(dor.setUTCDate(1));
+
+  const academicYear = await AcademicYear.findById(req.ayear).lean();
+
+  if (
+    date.getTime() < academicYear.starting_date.getTime() ||
+    date.getTime() > academicYear.ending_date.getTime()
+  ) {
+    res.status(400);
+
+    const startdt = academicYear.starting_date.toISOString();
+    const enddt = academicYear.ending_date.toISOString();
+
+    throw new Error(
+      `dor out of range of current academic year: ${startdt} - ${enddt}`
+    );
+  }
+
+  const student = await Student.findOne({ admission_no: admNo })
+    .select("_id")
+    .lean();
+
+  if (!student) {
+    res.status(400);
+    throw new Error(C.getResourse404Id("Student", req.body.adm_no));
+  }
+
+  const busAssign = await BusAssignment.findOne({
+    student: student._id,
+    academic_year: req.ayear,
+  }).lean();
+
+  if (!busAssign) {
+    res.status(400);
+    throw new Error(`Student (${admNo}) has never been assigned bus before.`);
+  }
+
+  const list = [];
+  const sortFunc = (a, b) => {
+    if (a.month > b.month) return 1;
+    if (a.month < b.month) return -1;
+    return 0;
+  };
+
+  const now = new Date();
+  const month =
+    date.getUTCMonth() <= now.getUTCMonth()
+      ? now.getUTCMonth() + 1
+      : date.getUTCMonth();
+
+  const startMonth = academicYear.starting_date.getUTCMonth();
+
+  const equation = (12 - (month - startMonth)) % 12;
+
+  const limit = equation === 0 ? 12 : equation;
+
+  for (let i = 0; i < limit; i++) {
+    const monthToSet = month + i;
+    const monthDate = new Date(
+      new Date(new Date().setUTCHours(0, 0, 0, 0)).setUTCDate(1)
+    );
+    const data = {
+      date: new Date(req.body.dor),
+      month: new Date(monthDate.setUTCMonth(monthToSet)),
+      status: C.UNASSIGNED,
+      released_by: req.user._id,
+    };
+
+    // const currStatus = busAssign.list.find(
+    //   (ele) =>
+    //     ele.month.getTime() === data.month.getTime() &&
+    //     ele.status === C.ASSIGNED
+    // );
+
+    // if (currStatus && now.getUTCMonth() >= data.month.getUTCMonth()) {
+    //   data.month.setUTCMonth(data.month.getUTCMonth() + 1);
+    // }
+
+    list.push(data);
+  }
+
+  const updatedList = [];
+
+  for (const assignData of busAssign.list) {
+    const newData = list.find(
+      (ele) => ele.month.getTime() === assignData.month.getTime()
+    );
+
+    if (newData) updatedList.push(newData);
+    else updatedList.push(assignData);
+  }
+
+  const update = await BusAssignment.updateOne(
+    { student: student._id, academic_year: req.ayear },
+    { $set: { list: updatedList.sort(sortFunc) } }
+  );
+
+  const studentToUpdate = await Student.findById({ _id: student._id }).select(
+    "bus_stop bus_pick bus_drop"
+  );
+
+  studentToUpdate.set("bus_stop", undefined, { strict: false });
+  studentToUpdate.set("bus_pick", undefined, { strict: false });
+  studentToUpdate.set("bus_drop", undefined, { strict: false });
+
+  await studentToUpdate.save();
+
+  res.status(200).json(update);
+});
+
+// @desc    Bulk unassign bus to student
+// @route   POST /api/transport/unassign-bus-to-student/bulk
+// @access  Private
+const bulkUnassignBus = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("file"));
+  }
+
+  const fileData = UC.excelToJson(req.file.path);
+  fs.unlinkSync(req.file.path);
+
+  const academicYear = await AcademicYear.findById(req.ayear).lean();
+
+  const results = [];
+  let updateCount = 0;
+
+  let i = 2;
+  for (const row of fileData) {
+    if (!row["admission_no"]) {
+      res.status(400);
+      throw new Error("Column is required: admission_no");
+    }
+
+    if (!row["date_of_release"]) {
+      res.status(400);
+      throw new Error("Column is required: date_of_release");
+    }
+
+    const admission_no = row["admission_no"];
+    const dor = UC.excelDateToJSDate(row["date_of_release"]);
+
+    const date = new Date(dor.setUTCDate(1));
+
+    const student = await Student.findOne({ admission_no })
+      .select("_id")
+      .lean();
+
+    if (!student) {
+      res.status(400);
+      throw new Error(`Student not found: ${admission_no} at row: ${i}`);
+    }
+
+    const busAssign = await BusAssignment.findOne({
+      student: student._id,
+      academic_year: req.ayear,
+    }).lean();
+
+    if (!busAssign) {
+      res.status(400);
+      throw new Error(
+        `Student (${admission_no}) has never been assigned bus before.`
+      );
+    }
+
+    const list = [];
+    const sortFunc = (a, b) => {
+      if (a.month > b.month) return 1;
+      if (a.month < b.month) return -1;
+      return 0;
+    };
+
+    const month =
+      date.getUTCMonth() <= now.getUTCMonth()
+        ? now.getUTCMonth() + 1
+        : date.getUTCMonth();
+
+    const startMonth = academicYear.starting_date.getUTCMonth();
+
+    const equation = (12 - (month - startMonth)) % 12;
+
+    const limit = equation === 0 ? 12 : equation;
+
+    const now = new Date();
+    for (let i = 0; i < limit; i++) {
+      const monthToSet = month + i;
+      const monthDate = new Date(
+        new Date(new Date().setUTCHours(0, 0, 0, 0)).setUTCDate(1)
+      );
+      const data = {
+        date: dor,
+        month: new Date(monthDate.setUTCMonth(monthToSet)),
+        status: C.UNASSIGNED,
+        released_by: req.user._id,
+      };
+
+      const currStatus = busAssign.list.find(
+        (ele) =>
+          ele.month.getTime() === data.month.getTime() &&
+          ele.status === C.ASSIGNED
+      );
+
+      if (
+        currStatus &&
+        now.getUTCFullYear() >= data.month.getUTCFullYear() &&
+        now.getUTCMonth() >= data.month.getUTCMonth()
+      ) {
+        continue;
+      }
+
+      list.push(data);
+    }
+
+    const updatedList = [];
+
+    for (const assignData of busAssign.list) {
+      const newData = list.find(
+        (ele) => ele.month.getTime() === assignData.month.getTime()
+      );
+
+      if (newData) updatedList.push(newData);
+      else updatedList.push(assignData);
+    }
+
+    const update = await BusAssignment.updateOne(
+      { student: student._id, academic_year: req.ayear },
+      { $set: { list: updatedList.sort(sortFunc) } }
+    );
+
+    const studentToUpdate = await Student.findById({ _id: student._id }).select(
+      "bus_stop bus_pick bus_drop"
+    );
+
+    studentToUpdate.set("bus_stop", undefined, { strict: false });
+    studentToUpdate.set("bus_pick", undefined, { strict: false });
+    studentToUpdate.set("bus_drop", undefined, { strict: false });
+
+    await studentToUpdate.save();
+
+    results.push(update);
+    updateCount++;
+
+    i++;
+  }
+
+  return res.json({ updateCount, results });
+});
+
+/** 4. Reports */
+
+// @desc    Get reprot on student bus assignments
+// @route   GET /api/transport/reports/bus-assign
+// @access  Private
+const reportBusAssign = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "admission_no";
+  const sortOrd = req.query.sort_order || "asc";
+
+  const query = {};
+  const stuQuery = {
+    academic_year: req.ayear,
+    bus_pick: { $type: "objectId" },
+    bus_drop: { $type: "objectId" },
+    bus_stop: { $type: "objectId" },
+  };
+
+  if (req.query.adm_no) {
+    stuQuery.admission_no = req.query.adm_no.toUpperCase();
+  }
+
+  if (req.query.class_name) {
+    const [classIds, secIds] = await UC.getClassesNSectionsIdsFromNames(
+      req.query.class_name.split(","),
+      req.ayear
+    );
+
+    stuQuery.class = classIds;
+    stuQuery.section = secIds;
+  }
+
+  const students = await Student.find(stuQuery).select("_id").lean();
+
+  query.student = students.map((ele) => ele._id);
+
+  if (req.query.bus_stop) {
+    const busStopId = await UC.validateBusStopByName(
+      req.query.bus_stop,
+      "bus_stop"
+    );
+
+    query["list.bus_stop"] = busStopId;
+  }
+
+  if (req.query.bus) {
+    const busId = await UC.validateBusByName(req.query.bus, "bus");
+
+    query.$or = [{ "list.bus_pick": busId }, { "list.bus_drop": busId }];
+  }
+
+  if (req.query.from) {
+    const from = UC.validateAndSetDate(req.query.from, "from");
+
+    query.list = { $gte: { date: from } };
+  }
+
+  if (req.query.to) {
+    const to = UC.validateAndSetDate(req.query.to, "to");
+
+    if (query.list) query.list.$lte = { date: to };
+    else query.list = { $lte: { date: to } };
+  }
+
+  const busAssignments = await BusAssignment.find(query)
+    .populate({
+      path: "student",
+      select: "admission_no name roll_no phone",
+      populate: { path: "class section stream", select: "name" },
+    })
+    .populate({
+      path: "list.bus_pick list.bus_drop list.released_by",
+      select: "name",
+    })
+    .populate({
+      path: "list.bus_stop",
+      select: "name monthly_charges",
+    })
+    .lean();
+
+  const report = [];
+  for (const data of busAssignments) {
+    const student = data.student;
+    const streamName = student.stream.name;
+    const className = student.class.name;
+
+    const reportData = {
+      admission_no: student.admission_no,
+      student_name: student.name,
+      class: className + (streamName === "NA" ? "" : ` ${streamName}`),
+      section: student.section.name,
+      roll_no: student.roll_no,
+      phone_number: student.phone,
+    };
+
+    let lastData = {};
+    for (const assign of data.list) {
+      if (assign.status !== C.ASSIGNED) continue;
+
+      const currData = {
+        date_of_joining: UC.formatDate(assign.date),
+        bus_stop: assign.bus_stop.name,
+        bus_pick: assign.bus_pick.name,
+        bus_drop: assign.bus_drop.name,
+        bus_charges: assign.bus_stop.monthly_charges,
+        assigned_by: assign.assigned_by.name,
+      };
+
+      const isStatusSame = lastData?.status === currData.status;
+      const isDateSame = lastData?.date_of_joining === currData.date_of_joining;
+      const isBusStopSame = lastData?.bus_stop === currData.bus_stop;
+      const isBusPickSame = lastData?.bus_pick === currData.bus_pick;
+      const isBusDropSame = lastData?.bus_drop === currData.bus_drop;
+      const isAssignedBySame = lastData?.assigned_by === currData.assigned_by;
+      const isAllSame =
+        isStatusSame &&
+        isDateSame &&
+        isBusStopSame &&
+        isBusPickSame &&
+        isBusDropSame &&
+        isAssignedBySame;
+
+      // console.log("isStatusSame :>> ", isStatusSame);
+      // console.log("isDateSame :>> ", isDateSame);
+      // console.log("isBusStopSame :>> ", isBusStopSame);
+      // console.log("isBusPickSame :>> ", isBusPickSame);
+      // console.log("isBusDropSame :>> ", isBusDropSame);
+      // console.log("isAssignedBySame :>> ", isAssignedBySame);
+      // console.log("isAllSame :>> ", isAllSame);
+
+      if (!isAllSame) {
+        report.push({
+          ...reportData,
+          ...currData,
+        });
+      }
+
+      lastData = { ...currData };
+    }
+  }
+
+  const total = report.length;
+  const pages = Math.ceil(total / limit) || 1;
+  if (page > pages) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  const startIdx = (page - 1) * limit;
+  const results = { total, pages, page, result: [] };
+
+  results.result = report
+    .sort((a, b) => {
+      if (sortOrd === "desc") {
+        if (a[sort] < b[sort]) return 1;
+        if (a[sort] > b[sort]) return -1;
+        return 0;
+      } else {
+        if (a[sort] > b[sort]) return 1;
+        if (a[sort] < b[sort]) return -1;
+        return 0;
+      }
+    })
+    .slice(startIdx, startIdx + limit);
+
+  res.status(200).json(results);
+});
+
+// @desc    Get reprot on student bus un-assignments
+// @route   GET /api/transport/reports/bus-unassign
+// @access  Private
+const reportBusUnassign = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "admission_no";
+  const sortOrd = req.query.sort_order || "asc";
+
+  const query = {};
+  const stuQuery = {
+    academic_year: req.ayear,
+    // bus_pick: { $type: "objectId" },
+    // bus_drop: { $type: "objectId" },
+    // bus_stop: { $type: "objectId" },
+  };
+
+  if (req.query.adm_no) {
+    stuQuery.admission_no = req.query.adm_no.toUpperCase();
+  }
+
+  if (req.query.class_name) {
+    const [classIds, secIds] = await UC.getClassesNSectionsIdsFromNames(
+      req.query.class_name.split(","),
+      req.ayear
+    );
+
+    stuQuery.class = classIds;
+    stuQuery.section = secIds;
+  }
+
+  const students = await Student.find(stuQuery).select("_id").lean();
+
+  query.student = students.map((ele) => ele._id);
+
+  if (req.query.bus_stop) {
+    const busStopId = await UC.validateBusStopByName(
+      req.query.bus_stop,
+      "bus_stop"
+    );
+
+    query["list.bus_stop"] = busStopId;
+  }
+
+  if (req.query.bus) {
+    const busId = await UC.validateBusByName(req.query.bus, "bus");
+
+    query.$or = [{ "list.bus_pick": busId }, { "list.bus_drop": busId }];
+  }
+
+  if (req.query.from) {
+    const from = UC.validateAndSetDate(req.query.from, "from");
+
+    query.list = { $gte: { date: from } };
+  }
+
+  if (req.query.to) {
+    const to = UC.validateAndSetDate(req.query.to, "to");
+
+    if (query.list) query.list.$lte = { date: to };
+    else query.list = { $lte: { date: to } };
+  }
+
+  const busAssignments = await BusAssignment.find(query)
+    .populate({
+      path: "student",
+      select: "admission_no name roll_no phone",
+      populate: { path: "class section stream", select: "name" },
+    })
+    .populate({
+      path: "list.released_by",
+      select: "name",
+    })
+    .lean();
+
+  const report = [];
+  for (const data of busAssignments) {
+    const student = data.student;
+    const streamName = student.stream.name;
+    const className = student.class.name;
+
+    const reportData = {
+      admission_no: student.admission_no,
+      student_name: student.name,
+      class: className + (streamName === "NA" ? "" : ` ${streamName}`),
+      section: student.section.name,
+      roll_no: student.roll_no,
+      phone_number: student.phone,
+    };
+
+    let lastData = {};
+    for (const unassign of data.list) {
+      if (unassign.status !== C.UNASSIGNED) continue;
+
+      const currData = {
+        date_of_release: UC.formatDate(unassign.date),
+        released_by: unassign.released_by.name,
+      };
+
+      const isStatusSame = lastData?.status === currData.status;
+      const isDateSame = lastData?.date_of_release === currData.date_of_release;
+      const isReleasedBySame = lastData?.released_by === currData.released_by;
+
+      const isAllSame = isStatusSame && isDateSame && isReleasedBySame;
+
+      if (!isAllSame) {
+        report.push({
+          ...reportData,
+          ...currData,
+        });
+      }
+
+      lastData = { ...currData };
+    }
+  }
+
+  const total = report.length;
+  const pages = Math.ceil(total / limit) || 1;
+  if (page > pages) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  const startIdx = (page - 1) * limit;
+  const results = { total, pages, page, result: [] };
+
+  results.result = report
+    .sort((a, b) => {
+      if (sortOrd === "desc") {
+        if (a[sort] < b[sort]) return 1;
+        if (a[sort] > b[sort]) return -1;
+        return 0;
+      } else {
+        if (a[sort] > b[sort]) return 1;
+        if (a[sort] < b[sort]) return -1;
+        return 0;
+      }
+    })
+    .slice(startIdx, startIdx + limit);
+
+  res.status(200).json(results);
+});
+
+// @desc    For DPS: Import transport details from excel
+// @route   GET /api/transport/import-transport-details
+// @access  Private
+const importStudentTransportDetails = asyncHandler(async (req, res) => {
+  const fileData = UC.excelToJson(req.file.path);
+  fs.unlinkSync(path.join(req.file.path));
+
+  const CLASSES = await Class.find().select("name").lean();
+  const SECTIONS = await Section.find().select("name").lean();
+  const BUSES = await Bus.find().select("name").lean();
+  const STOPS = await BusStop.find().lean();
+
+  const errors = [];
+  const students = [];
+
+  let i = 1;
+  for (const row of fileData) {
+    const c = CLASSES.find((e) => e.name === row["Class"]);
+    const section = SECTIONS.find((e) => e.name === row["Section"]);
+    const busp = BUSES.find((e) => e.name === row["Pick Bus"]);
+    const busd = BUSES.find((e) => e.name === row["Drop Bus"]);
+    const busStop = STOPS.find((e) => e.name === row["Stop"]);
+
+    if (!row["Adm.No"])
+      errors.push(`Adm.No: ${row["Adm.No"]} not found at row: ${i}`);
+    if (!c) errors.push(`Class: ${row["Class"]} not found at row: ${i}`);
+    if (!section)
+      errors.push(`Section: ${row["Section"]} not found at row: ${i}`);
+    if (!busp)
+      errors.push(`Pick Bus: ${row["Pick Bus"]} not found at row: ${i}`);
+    if (!busd)
+      errors.push(`Drop Bus: ${row["Drop Bus"]} not found at row: ${i}`);
+    if (!busStop) errors.push(`Stop: ${row["Stop"]} not found at row: ${i}`);
+
+    students.push({
+      admission_no: row["Adm.No"],
+      roll_no: row["Roll No."],
+      name: row["Student Name"],
+      class: c?._id,
+      section: section?._id,
+      phone: row["Phone Number"],
+      bus_pick: busp?._id,
+      bus_drop: busd?._id,
+      bus_stop: busStop?._id,
+    });
+
+    i++;
+  }
+
+  for (const st of students) {
+    if (!(await Student.any({ admission_no: st.admission_no }))) {
+      errors.push(`Student: ${st.admission_no} is not added!`);
+    }
+  }
+
+  if (errors.length) {
+    return res.status(400).json(errors);
+  }
+
+  const result = [];
+  for (const st of students) {
+    const update = await Student.updateOne(
+      { admission_no: st.admission_no },
+      { $set: st }
+    );
+
+    result.push(update);
+  }
+
+  res.json({ total: result.length, msg: result });
 });
 
 module.exports = {
@@ -911,4 +2039,17 @@ module.exports = {
   trackBus,
   getBusStatus,
   switchBus,
+  resetAllBus,
+
+  getBusAssigns,
+  getBusAssign,
+  assignBusToStudent,
+  bulkAssignBus,
+  unassignBusToStudent,
+  bulkUnassignBus,
+
+  reportBusAssign,
+  reportBusUnassign,
+
+  importStudentTransportDetails,
 };

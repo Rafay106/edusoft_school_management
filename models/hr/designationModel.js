@@ -13,6 +13,7 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+schema.index({ title: 1 }, { unique: true });
 schema.plugin(any);
 
 const Designation = mongoose.model("hr_designations", schema);

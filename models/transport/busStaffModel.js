@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const C = require("../../constants");
+const { isEmailValid } = require("../../utils/validators");
 const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
@@ -14,7 +15,13 @@ const schema = new mongoose.Schema(
     },
     name: { type: String, required, uppercase: true },
     doj: { type: Date, required },
-    email: { type: String, default: "" },
+    email: {
+      type: String,
+      default: "",
+      validate: { validator: isEmailValid, message: C.FIELD_IS_INVALID },
+      lowercase: true,
+      trim: true,
+    },
     phone: {
       primary: { type: String, required },
       secondary: { type: String, default: "" },
@@ -29,6 +36,15 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
+schema.index(
+  { email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      email: { $exists: true, $gt: "" },
+    },
+  }
+);
 schema.index({ "phone.primary": 1 }, { unique: true });
 schema.index(
   { "phone.secondary": 1 },

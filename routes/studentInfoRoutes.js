@@ -8,25 +8,23 @@ const router = express.Router();
 // 1. BoardingType Routes
 const boardingTypeRouter = express.Router();
 
-boardingTypeRouter
-  .route("/")
-  .get(C.getBoardingTypes)
-  .post(C.addBoardingType)
-  .delete(C.deleteBoardingType);
+boardingTypeRouter.route("/").get(C.getBoardingTypes).post(C.addBoardingType);
 boardingTypeRouter
   .route("/:id")
   .get(C.getBoardingType)
-  .patch(C.updateBoardingType);
+  .patch(C.updateBoardingType)
+  .delete(C.deleteBoardingType);
 
 // 2. SubWard Routes
 const subwardRouter = express.Router();
 
+subwardRouter.route("/").get(C.getSubWards).post(C.addSubWard);
+
 subwardRouter
-  .route("/")
-  .get(C.getSubWards)
-  .post(C.addSubWard)
+  .route("/:id")
+  .get(C.getSubWard)
+  .patch(C.updateSubWard)
   .delete(C.deleteSubWard);
-subwardRouter.route("/:id").get(C.getSubWard).patch(C.updateSubWard);
 
 // 3. Student Routes
 const studentRouter = express.Router();
@@ -36,30 +34,43 @@ studentRouter
   .get(C.getStudents)
   .post(photoUpload(uploadPaths.student).single("photo"), C.addStudent);
 studentRouter.post(
+  "/upload-photo",
+  photoUpload(uploadPaths.student).single("photo"),
+  (req, res) =>
+    res.json({
+      file: req.file,
+      url: `${process.env.DOMAIN}/uploads/student/${
+        req.file?.filename || Date.now()
+      }`,
+    })
+);
+studentRouter.post(
   "/bulk",
   uploadExcel(uploadPaths.bulk_import).single("file"),
   C.bulkOpsStudent
 );
-studentRouter
-  .route("/:id")
-  .get(C.getStudent)
-  .patch(photoUpload(uploadPaths.student).single("photo"), C.updateStudent)
-  .delete(C.deleteStudent);
+studentRouter.route("/:id").get(C.getStudent).delete(C.deleteStudent);
 
-// 3. Student Bus Attendance Routes
-const stuBusAttRouter = express.Router();
+// 3. Student attendance Routes
+const attendanceRouter = express.Router();
 
-stuBusAttRouter.post("/", C.getStudentAttendance);
+// attendanceRouter.post("/bus", C.getBusAttendance_old);
+attendanceRouter.post("/bus", C.getBusAttendanceWithAbsent);
+attendanceRouter.post("/bus-stats", C.getBusAttendanceStats);
+// attendanceRouter.post("/class", C.getClassAttendance_old);
+attendanceRouter.post("/class", C.getClassAttendanceWithAbsent);
+attendanceRouter.post("/class-stats", C.getClassAttendanceStats);
+attendanceRouter.post("/today", C.getStudentAttendanceToday);
 
-// 4. Student Attendance Notification Routes
-const stuAttNotiRouter = express.Router();
+// 4. Student Notification Routes
+const studentNotificationRouter = express.Router();
 
-stuAttNotiRouter.post("/", C.getStuAttNotification);
+studentNotificationRouter.post("/", C.getStudentNotification);
 
 router.use("/boarding-type", boardingTypeRouter);
 router.use("/sub-ward", subwardRouter);
 router.use("/student", studentRouter);
-router.use("/attendance", stuBusAttRouter);
-router.use("/attendance-notification", C.getStuAttNotification);
+router.use("/attendance", attendanceRouter);
+router.use("/student-notification", studentNotificationRouter);
 
 module.exports = router;

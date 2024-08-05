@@ -25,38 +25,20 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
       .populate("class section bus_pick bus_stop academic_year", "name title")
       .lean();
   } else {
-    if (!req.body.class) {
-      res.status(400);
-      throw new Error(C.getFieldIsReq("class"));
-    }
+    const classId = await UC.validateClassByName(
+      req.body.class_name,
+      req.ayear
+    );
+    const sectionId = await UC.validateSectionByName(
+      req.body.section,
+      req.ayear
+    );
 
-    const class_ = await Class.findOne({ name: req.body.class.toUpperCase() })
-      .select("_id")
-      .lean();
-
-    if (!class_) {
-      res.status(400);
-      throw new Error(C.getResourse404("class"));
-    }
-
-    if (!req.body.section) {
-      res.status(400);
-      throw new Error(C.getFieldIsReq("section"));
-    }
-
-    const section = await Section.findOne({
-      name: req.body.section.toUpperCase(),
-    })
-      .select("_id")
-      .lean();
-
-    if (!section) {
-      res.status(400);
-      throw new Error(C.getResourse404("section"));
-    }
-
-    students = await Student.find({ class: class_._id, section: section._id })
-      .populate("class section bus_pick bus_stop academic_year", "name title")
+    students = await Student.find({ class: classId, section: sectionId })
+      .populate(
+        "class section stream bus_pick bus_stop academic_year",
+        "name title"
+      )
       .sort("roll_no")
       .lean();
   }
@@ -66,7 +48,10 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
     throw new Error(`Student(s) not found!`);
   }
 
-  const classAndSection = `${students[0].class.name}-${students[0].section.name}`;
+  const className = students[0].class.name;
+  const sectionName = students[0].section.name;
+
+  const classAndSection = `${className}-${sectionName}`;
   const now = new Date();
   const YMD = UC.getYMD();
 
@@ -99,7 +84,7 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 
   await IdCardGenerated.create({ file: pdfName, school: req.school._id });
 
-  res.status(200).json({ msg: `${DOMAIN}/id_cards/${pdfName}`, students });
+  res.status(200).json({ msg: `${DOMAIN}/id_cards/${pdfName}` });
   // res.download(pdfFile, pdfName, (err) => {
   //   if (err) throw err;
   // });
@@ -111,13 +96,18 @@ const genStudentIdCard = asyncHandler(async (req, res) => {
 const genStudentIdCardAll = asyncHandler(async (req, res) => {
   const students = await Student.find()
     .populate("class section bus_pick bus_stop academic_year", "name title")
-    .sort("class.name section.name")
     .lean();
 
   if (students.length === 0) {
     res.status(404);
     throw new Error(`Student(s) not found!`);
   }
+
+  students.sort((a, b) => {
+    const strA = `${a.class.name}${a.section.name}`;
+    const strB = `${b.class.name}${b.section.name}`;
+    return strA.localCompare(strB);
+  });
 
   const classAndSection = `${students[0].class.name}-${students[0].section.name}`;
   const now = new Date();
@@ -233,11 +223,11 @@ const generateStudentIdCard = async (student, template) => {
     .replace("{{roll_no}}", student.roll_no || "")
     .replace("{{blood-logo}}", `data:image/jpeg;base64,${bloodLogo}`)
     .replace("{{blood}}", bloodGroup)
-    .replace("{{address}}", student.address.permanent || "")
+    .replace("{{address}}", student.address.correspondence || "")
     .replace("{{bus-stop}}", student.bus_stop?.name || "")
     .replace("{{phone}}", student.phone || "")
     .replace("{{bus-name}}", student.bus_pick?.name || "")
-    .replace("{{pedestrian}}", `data:image/jpeg;base64,${pedestrian}`)
+    .replace("{{pedestrian}}", `data:image/jpeg;base64,${pedestrian}`);
 
   const args = {
     executablePath: "/usr/bin/chromium-browser",
@@ -371,6 +361,7 @@ const genBarcode = async (
         reject(reject);
         return;
       }
+
       resolve(imgBase64);
     });
   });
@@ -393,7 +384,7 @@ const getGeneratedIdCards = asyncHandler(async (req, res) => {
     const fields = ["year", "title"];
 
     const searchQuery = UC.createSearchQuery(fields, search);
-    query["$or"] = searchQuery["$or"];
+    query["$or"] = searchQuery;
   }
 
   const results = await UC.paginatedQuery(

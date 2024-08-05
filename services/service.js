@@ -3,13 +3,15 @@ const path = require("node:path");
 const { spawnSync } = require("child_process");
 const ftp = require("basic-ftp");
 const { default: axios } = require("axios");
+const C = require("../constants");
 const UC = require("../utils/common");
-const getDeviceHistoryModel = require("../models/transport/deviceHistoryModel");
+const getDeviceHistoryModel = require("../models/system/deviceHistoryModel");
 const { insert_db_loc } = require("./insert");
 const { sendEmail, sendEmailQueue } = require("../tools/email");
 const { sendPushNotification } = require("../tools/push");
 const { sendWhatsapp } = require("../tools/whatsapp_aisensy");
 const mongoose = require("mongoose");
+const SystemInfo = require("../models/system/systemInfoModel");
 const Bus = require("../models/transport/busModel");
 const Student = require("../models/studentInfo/studentModel");
 const School = require("../models/system/schoolModel");
@@ -38,20 +40,45 @@ const serviceDbBackup = async () => {
 
   if (backupEmails.length === 0) return false;
 
+  // check when last time sent
+  const sysInfo = await SystemInfo.findOne({ key: C.DB_BACKUP_TIME_LAST });
+
+  if (sysInfo) {
+    const now = new Date();
+
+    // Backup time last
+    const btLast = new Date(sysInfo.value);
+
+    // If backup is done today then don't backup again
+    if (
+      btLast.getFullYear() === now.getFullYear() &&
+      btLast.getMonth() === now.getMonth() &&
+      btLast.getDate() === now.getDate()
+    )
+      return false;
+  } else {
+    await SystemInfo.create({
+      key: C.DB_BACKUP_TIME_LAST,
+      value: new Date().toISOString(),
+    });
+  }
+
   const backupFolder = path.join("backup");
   if (!fs.existsSync(backupFolder)) fs.mkdirSync(backupFolder);
 
   const FILE_NAME = `db_${UC.getYMD()}.gz`;
 
-  const collections = (await mongoose.connection.listCollections()).map(
-    (ele) => ele.name
-  );
-
-  const collectionsToBackup = collections
-    .filter((ele) => !/device_\d+/.test(ele))
+  const collections = (await mongoose.connection.listCollections())
+    .map((ele) => ele.name)
     .sort();
 
-  const collectionCmds = collectionsToBackup.map((c) => `--collection=${c}`);
+  const collectionsToExclude = collections
+    .filter((ele) => /device_\d+/.test(ele) || /queue_[a-z]/.test(ele))
+    .sort();
+
+  const collectionCmds = collectionsToExclude.map(
+    (c) => `--excludeCollection=${c}`
+  );
 
   // Run the mongodump command
   const result = spawnSync("mongodump", [
@@ -85,8 +112,8 @@ const serviceDbBackup = async () => {
     const templatePath = path.join("templates", "db-backup-email-failure.html");
     const html = fs
       .readFileSync(templatePath, "utf8")
-      .replace("{{company}}", NAME)
-      .replace("{{year}}", new Date().getFullYear());
+      .replaceAll("{{company}}", NAME)
+      .replaceAll("{{year}}", new Date().getFullYear());
 
     await sendEmailQueue(
       backupEmails,
@@ -99,6 +126,11 @@ const serviceDbBackup = async () => {
   }
 
   UC.writeLog("DB_BACKUP", "Database backup is successful ✅.\n");
+
+  await SystemInfo.updateOne(
+    { key: C.DB_BACKUP_TIME_LAST },
+    { $set: { value: new Date().toISOString() } }
+  );
 
   // Send file to ftp
   let isUploadedToFTP = false;
@@ -132,8 +164,8 @@ const serviceDbBackup = async () => {
   const templatePath = path.join("templates", "db-backup-email-success.html");
   const html = fs
     .readFileSync(templatePath, "utf8")
-    .replace("{{company}}", NAME)
-    .replace("{{year}}", new Date().getFullYear());
+    .replaceAll("{{company}}", NAME)
+    .replaceAll("{{year}}", new Date().getFullYear());
 
   await sendEmailQueue(
     backupEmails,
@@ -169,6 +201,13 @@ const serviceResetAlternateBus = async () => {
   await Bus.updateMany(
     { "alternate.enabled": true },
     { $set: { "alternate.enabled": false } }
+  );
+};
+
+const serviceResetTempBusDevice = async () => {
+  await Bus.updateMany(
+    { "temp_device.enabled": true },
+    { $set: { "temp_device.enabled": false } }
   );
 };
 
@@ -343,8 +382,9 @@ module.exports = {
   serviceDbBackup,
   serviceClearHistory,
   serviceResetAlternateBus,
+  serviceResetTempBusDevice,
   serviceResetCurrAcademicYear,
-  serviceInsertData,
+  // serviceInsertData,
   serviceCalculateOverdueAndApplyFine,
   serviceEmailQueue,
   servicePushQueue,

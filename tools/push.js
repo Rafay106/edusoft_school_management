@@ -1,10 +1,13 @@
 const OneSignal = require("onesignal-node");
 const PushQ = require("../models/queues/pushQueueModel");
 const { addJobToPushQueue } = require("./bullmq/queues");
+const C = require("../constants");
 const UC = require("../utils/common");
 const { default: axios } = require("axios");
+const User = require("../models/system/userModel");
+const PushNotification = require("../models/system/pushNotificationModel");
 
-const sendPushQueue = async (receivers, title, msg, media, sound) => {
+const sendPushQueue = async (receivers, type, title, msg, media, sound) => {
   const data = {
     title,
     msg,
@@ -16,6 +19,22 @@ const sendPushQueue = async (receivers, title, msg, media, sound) => {
   const pushQ = await PushQ.create(data);
 
   await addJobToPushQueue(pushQ._id.toString(), data);
+
+  for (const r of receivers) {
+    if (await User.any({ _id: r })) {
+      const pn = await PushNotification.create({
+        type,
+        msg,
+        media: media?.app,
+        user: r,
+      });
+    } else {
+      UC.writeLog(
+        "push_notification",
+        `Error: recevier not found in User. ${r}, ${type}, ${title}, ${msg}`
+      );
+    }
+  }
 
   return receivers.length;
 };
@@ -65,7 +84,7 @@ const sendPushNotification = async (receivers, title, msg, media, sound) => {
     include_external_user_ids: receivers,
     contents: { en: msg },
     headings: { en: title },
-    name: 'INTERNAL_CAMPAIGN_NAME'
+    name: "INTERNAL_CAMPAIGN_NAME",
   };
 
   if (media && media.app !== "") notification.big_picture = media.app;
@@ -75,20 +94,16 @@ const sendPushNotification = async (receivers, title, msg, media, sound) => {
   if (sound && sound.ios !== "") notification.ios_sound = sound.ios;
 
   try {
-
     const response = await axios.post(
       "https://onesignal.com/api/v1/notifications",
       notification,
       {
         headers: {
           "Content-Type": "application/json",
-          Authorization:
-            `Basic ${process.env.ONESIGNAL_API_KEY}`,
+          Authorization: `Basic ${process.env.ONESIGNAL_API_KEY}`,
         },
       }
     );
-
-    console.log(response);
 
     UC.writeLog("send_push", `Response: ${JSON.stringify(response.data)}`);
 

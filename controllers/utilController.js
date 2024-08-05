@@ -1,3 +1,5 @@
+const fs = require("node:fs");
+const path = require("node:path");
 const asyncHandler = require("express-async-handler");
 const C = require("../constants");
 const UC = require("../utils/common");
@@ -20,6 +22,22 @@ const LibrarySubject = require("../models/library/subjectModels");
 const LibraryCategory = require("../models/library/categoryModel");
 const Subject = require("../models/academics/subjectModel");
 const User = require("../models/system/userModel");
+const Role = require("../models/system/roleModel");
+const Bank = require("../models/account/bankModel");
+const Chart = require("../models/account/chartModel");
+
+// @desc    Get roles list
+// @route   GET /api/util/role-list
+// @access  Private
+const getRoleList = asyncHandler(async (req, res) => {
+  const query = {};
+
+  if (UC.isSchool(req.user)) query.access = "user";
+
+  const roles = await Role.find(query).select("title").sort("title").lean();
+
+  res.status(200).json(roles);
+});
 
 // @desc    Get usertype list with count
 // @route   GET /api/util/usertype-list-with-count
@@ -35,13 +53,16 @@ const getUsertypeListWithCount = asyncHandler(async (req, res) => {
     C.TEACHER,
   ];
 
-  if (C.isSuperAdmin(req.user.type)) {
+  if (UC.isSuperAdmin(req.user)) {
+    console.log("superadmin");
     usertypes.push(C.SUPERADMIN, C.ADMIN, C.SCHOOL);
-  } else if (C.isAdmin(req.user.type)) {
+  } else if (UC.isAdmin(req.user)) {
     usertypes.push(C.SCHOOL);
   }
 
   const result = [];
+
+  const ROLES = await Role.find().select("title").lean();
 
   for (const ut of usertypes.sort()) {
     if (ut === C.STUDENT) {
@@ -50,9 +71,10 @@ const getUsertypeListWithCount = asyncHandler(async (req, res) => {
         users: await Student.countDocuments(),
       });
     } else {
+      const role = ROLES.find((ele) => ele.title === ut);
       result.push({
         usertype: ut,
-        users: await User.countDocuments({ type: ut }),
+        users: await User.countDocuments({ role }),
       });
     }
   }
@@ -64,6 +86,10 @@ const getUsertypeListWithCount = asyncHandler(async (req, res) => {
 // @route   GET /api/util/user-list
 // @access  Private
 const getUserList = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+
   let usertype = req.query.usertype;
   const search = req.query.search;
 
@@ -72,9 +98,9 @@ const getUserList = asyncHandler(async (req, res) => {
     throw new Error(C.getFieldIsReq("usertype"));
   }
 
-  if (C.isAdmin(req.user.type)) {
+  if (UC.isAdmin(req.user)) {
     if ([C.SUPERADMIN, C.ADMIN].includes(usertype)) usertype = "";
-  } else if (C.isSchool(req.user.type)) {
+  } else if (UC.isSchool(req.user)) {
     if ([C.SUPERADMIN, C.ADMIN, C.SCHOOL].includes(usertype)) usertype = "";
   }
 
@@ -87,20 +113,73 @@ const getUserList = asyncHandler(async (req, res) => {
     ];
   }
 
-  const result = [];
   if (usertype === C.STUDENT) {
-    const students = await Student.find(query).select("name").lean();
+    const results = await UC.paginatedQuery(
+      Student,
+      query,
+      "name",
+      page,
+      limit,
+      sort
+    );
 
-    result.push(...students);
-  } else {
-    query.type = usertype;
+    if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
 
-    const users = await User.find(query).select("name").lean();
-
-    result.push(...users);
+    return res.status(200).json(results);
   }
 
-  res.status(200).json({ total: result.length, result });
+  const roleId = await UC.getRoleId(usertype);
+
+  if (roleId) query.role = roleId;
+
+  const results = await UC.paginatedQuery(
+    User,
+    query,
+    "name",
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
+});
+
+// @desc    Get parent and employees list
+// @route   GET /api/util/parent-employee-list
+// @access  Private
+const getParentAndEmployeeList = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.rows) || 10;
+  const sort = req.query.sort || "name";
+  const search = req.query.search;
+
+  const includeRoles = await Role.find({ access: "user" }).select("_id").lean();
+
+  const query = { role: includeRoles.map((ele) => ele._id) };
+
+  if (search) {
+    const fields = ["name"];
+
+    const searchQuery = UC.createSearchQuery(fields, search);
+    query["$or"] = searchQuery;
+  }
+
+  const select = "name";
+
+  const results = await UC.paginatedQuery(
+    User,
+    query,
+    select,
+    page,
+    limit,
+    sort
+  );
+
+  if (!results) return res.status(200).json({ msg: C.PAGE_LIMIT_REACHED });
+
+  res.status(200).json(results);
 });
 
 // @desc    Get boarding-type list
@@ -230,6 +309,8 @@ const getBusList = asyncHandler(async (req, res) => {
   res.status(200).json(buses);
 });
 
+// Academics
+
 // @desc    Get academic year
 // @route   GET /api/util/academic-year-list
 // @access  Private
@@ -295,6 +376,31 @@ const getClassList = asyncHandler(async (req, res) => {
   res.status(200).json(uniqueClasses);
 });
 
+// @desc    Get classes with section
+// @route   GET /api/util/class-with-section-list
+// @access  Private
+const getClassWithSectionList = asyncHandler(async (req, res) => {
+  const classes = await Class.find({ academic_year: req.ayear })
+    .select("name sections stream")
+    .populate("sections stream", "name")
+    .sort("name")
+    .lean();
+
+  const uniqueClasses = ["total"];
+  for (const c of classes) {
+    for (const s of c.sections) {
+      const name =
+        c.stream.name === "NA"
+          ? `${c.name}-${s.name}`
+          : `${c.name}-${s.name}` + " " + c.stream.name;
+
+      uniqueClasses.push(name);
+    }
+  }
+
+  res.status(200).json(uniqueClasses);
+});
+
 // @desc    Get subjects
 // @route   GET /api/util/subject-list
 // @access  Private
@@ -306,6 +412,8 @@ const getSubjectList = asyncHandler(async (req, res) => {
 
   res.status(200).json(subject);
 });
+
+// Fee
 
 // @desc    Get fee-groups
 // @route   GET /api/util/fee-group-list
@@ -342,6 +450,8 @@ const getFeeTermList = asyncHandler(async (req, res) => {
 
   res.status(200).json(terms);
 });
+
+// HR
 
 // @desc    Get designations
 // @route   GET /api/util/designation-list
@@ -391,9 +501,69 @@ const getLibrarySubjectList = asyncHandler(async (req, res) => {
   res.status(200).json(subjects);
 });
 
+// Account
+
+// @desc    Get banks
+// @route   GET /api/util/bank-list
+// @access  Private
+const getBankList = asyncHandler(async (req, res) => {
+  const banks = await Bank.find().select("bank_name").sort("bank_name").lean();
+
+  res.status(200).json(banks);
+});
+
+// @desc    Get account charts
+// @route   GET /api/util/chart-list
+// @access  Private
+const getChartList = asyncHandler(async (req, res) => {
+  const charts = await Chart.find().select("head").sort("head").lean();
+
+  res.status(200).json(charts);
+});
+
+// @desc    Create a excel file from json data
+// @route   GET /api/util/excel-from-json
+// @access  Private
+const getExcelFromJson = asyncHandler(async (req, res) => {
+  const select = req.body.select || [];
+  const jsonData = req.body.data;
+
+  if (!jsonData) {
+    res.status(400);
+    throw new Error(C.getFieldIsReq("data"));
+  }
+
+  const excelData = [];
+
+  for (const item of jsonData) {
+    let data = {};
+
+    if (select.length) {
+      for (const key of select) {
+        data[key] = item[key];
+      }
+    } else data = item;
+
+    excelData.push(data);
+  }
+
+  const fileName = `${new Date().getTime()}.xlsx`;
+
+  const folderPath = path.join("data", "excels");
+  if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+
+  const filePath = path.join(folderPath, fileName);
+
+  UC.jsonToExcel(filePath, excelData);
+
+  res.status(200).json({ file: `${process.env.DOMAIN}/excels/${fileName}` });
+});
+
 module.exports = {
+  getRoleList,
   getUsertypeListWithCount,
   getUserList,
+  getParentAndEmployeeList,
   getBoardingTypeList,
   getSubwardList,
   getDriverList,
@@ -405,6 +575,7 @@ module.exports = {
   getSectionListOfClass,
   getStreamList,
   getClassList,
+  getClassWithSectionList,
   getSubjectList,
   getFeeGroupList,
   getFeeTypeList,
@@ -413,4 +584,8 @@ module.exports = {
   getDepartmentList,
   getLibraryCategoryList,
   getLibrarySubjectList,
+  getBankList,
+  getChartList,
+
+  getExcelFromJson,
 };

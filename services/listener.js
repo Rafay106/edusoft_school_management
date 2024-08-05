@@ -19,6 +19,24 @@ const listenDeviceData = asyncHandler(async (req, res) => {
 
     // console.timeEnd("listener");
   }
+
+  // forward to dpsranchi
+  // try {
+  //   const response = await axios.post(
+  //     "https://dpsranchi.edusoft.in/api/listener",
+  //     data,
+  //     { headers: { "Content-Type": "application/json" } }
+  //   );
+
+  //   writeLog(
+  //     "dpsranchi_listener",
+  //     JSON.stringify({ status: response.status, data: response.data })
+  //   );
+  // } catch (error) {
+  //   writeLog("errors", "listener.listenDeviceData - " + JSON.stringify(error));
+  // }
+  // forward to dpsranchi
+
   res.status(200).json({ success: true });
 });
 

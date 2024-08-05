@@ -12,9 +12,6 @@ const workerEmailQueue = async (connection) => {
   const worker = new Worker(
     C.EMAIL_QUEUE,
     async (job) => {
-      console.log(job.id);
-      console.log(job.data);
-
       const result = await sendEmail(
         job.data.to,
         job.data.subject,
@@ -38,8 +35,6 @@ const workerWhatsappQueue = async (connection) => {
   const worker = new Worker(
     C.WHATSAPP_QUEUE,
     async (job) => {
-      console.log(job);
-
       const result = await sendWhatsapp(
         job.data.campaignName,
         job.data.destinations,

@@ -6,40 +6,6 @@ const { any } = require("../../plugins/schemaPlugins");
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 const required = [true, C.FIELD_IS_REQ];
 
-const deviceSchema = new mongoose.Schema(
-  {
-    imei: {
-      type: String,
-      required,
-      validate: { validator: isIMEIValid, message: "Invalid imei!" },
-      uppercase: true,
-    },
-    // name: { type: String, required },
-    protocol: { type: String, default: "" },
-    net_protocol: { type: String, default: "" },
-    ip: { type: String, default: "" },
-    port: { type: String, default: "" },
-    dt_server: { type: Date, default: 0 },
-    dt_tracker: { type: Date, default: 0 },
-    lat: { type: Number, default: 0 },
-    lon: { type: Number, default: 0 },
-    speed: { type: Number, default: 0 },
-    altitude: { type: Number, default: 0 },
-    angle: { type: Number, default: 0 },
-    params: { type: Object, default: {} },
-    loc_valid: { type: Boolean, default: false },
-    vehicle_status: {
-      last_stop: { type: Date, default: 0 },
-      last_idle: { type: Date, default: 0 },
-      last_move: { type: Date, default: 0 },
-      is_stopped: { type: Boolean, default: false },
-      is_idle: { type: Boolean, default: false },
-      is_moving: { type: Boolean, default: false },
-    },
-  },
-  { minimize: false }
-);
-
 const stopSchema = new mongoose.Schema(
   {
     number: { type: Number, required },
@@ -58,16 +24,16 @@ const schema = new mongoose.Schema(
       value: { type: String, default: "none" },
       dt: { type: Date, default: 0 },
     },
-    alternate: {
-      enabled: { type: Boolean, default: false },
-      bus: { type: ObjectId, ref: "transport_buses" },
-    },
+    // alternate: {
+    //   enabled: { type: Boolean, default: false },
+    //   bus: { type: ObjectId, ref: "transport_buses" },
+    // },
     temp_device: {
       enabled: { type: Boolean, default: false },
       imei: { type: String, default: "" },
       bus: { type: ObjectId, ref: "transport_buses" },
     },
-    device: deviceSchema,
+    device: { type: ObjectId, required, ref: "system_devices" },
     stops: [{ type: ObjectId, ref: "transport_bus_stops" }],
     driver: { type: ObjectId, required, ref: "transport_bus_staffs" },
     conductor: { type: ObjectId, required, ref: "transport_bus_staffs" },
@@ -76,8 +42,8 @@ const schema = new mongoose.Schema(
   { timestamps: true, minimize: false, versionKey: false }
 );
 
-schema.index({ name: 1, school: 1 }, { unique: true });
-schema.index({ "device.imei": 1 }, { unique: true });
+schema.index({ name: 1 }, { unique: true });
+schema.index({ device: 1 }, { unique: true });
 
 schema.pre("updateOne", function (next) {
   const data = this.getUpdate().$set;

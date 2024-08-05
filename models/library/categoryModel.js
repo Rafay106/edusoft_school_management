@@ -8,7 +8,7 @@ const required = [true, C.FIELD_IS_REQ];
 const categorySchema = new mongoose.Schema(
   {
     title: { type: String, required, uppercase: true },
-    academic_year: { type: ObjectId, required, ref: "academic_years" },
+    // academic_year: { type: ObjectId, required, ref: "academic_years" },
     school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }

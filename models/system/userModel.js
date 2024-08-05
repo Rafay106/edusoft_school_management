@@ -8,13 +8,6 @@ const { any } = require("../../plugins/schemaPlugins");
 
 const ObjectId = mongoose.SchemaTypes.ObjectId;
 const required = [true, C.FIELD_IS_REQ];
-const getFieldIsInvalid = (field) => (props) =>
-  `${field}: ${props.value} is invalid!`;
-
-const privilegesSchema = new mongoose.Schema(
-  require("./templatePrivilegeModel").privileges,
-  { _id: false }
-);
 
 const schema = new mongoose.Schema(
   {
@@ -22,10 +15,7 @@ const schema = new mongoose.Schema(
     email: {
       type: String,
       default: "",
-      validate: {
-        validator: isEmailValid,
-        message: getFieldIsInvalid("email"),
-      },
+      validate: { validator: isEmailValid, message: C.FIELD_IS_INVALID },
       lowercase: true,
       trim: true,
     },
@@ -33,35 +23,13 @@ const schema = new mongoose.Schema(
     username: {
       type: String,
       default: "",
-      validate: {
-        validator: isUsernameValid,
-        message: getFieldIsInvalid("username"),
-      },
+      validate: { validator: isUsernameValid, message: C.FIELD_IS_INVALID },
       trim: true,
     },
     password: { type: String, required },
     phone: { type: String, required },
     phone_verified: { type: Boolean, default: false },
-    type: {
-      type: String,
-      required,
-      enum: {
-        values: [
-          C.SUPERADMIN,
-          C.ADMIN,
-          C.SCHOOL,
-          C.TEACHER,
-          C.PARENT,
-          C.STUDENT,
-          C.ACCOUNTANT,
-          C.BUS_STAFF,
-          C.LIBRARIAN,
-          C.RECEPTIONIST,
-        ],
-        message: C.VALUE_NOT_SUP,
-      },
-    },
-    privileges: { type: privilegesSchema, required },
+    role: { type: ObjectId, required, ref: "system_roles" },
     api_key: { type: String, default: "" },
     school: { type: ObjectId, ref: "schools" },
     current_academic_year: { type: ObjectId, ref: "academic_years" },

@@ -13,7 +13,7 @@ const schema = new mongoose.Schema(
   { timestamps: true, versionKey: false }
 );
 
-schema.index({ name: 1, school: 1 });
+schema.index({ name: 1, school: 1 }, { unique: true });
 schema.plugin(any);
 
 const BoardingType = mongoose.model("boarding_types", schema);

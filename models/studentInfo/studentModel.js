@@ -20,6 +20,7 @@ const addressSchema = new mongoose.Schema(
 
 const schema = new mongoose.Schema(
   {
+    active: { type: Boolean, default: true },
     admission_no: { type: String, required, uppercase: true },
     admission_serial: { type: String, default: "" },
     student_id: { type: String, default: "" },
@@ -68,7 +69,7 @@ const schema = new mongoose.Schema(
     religion: { type: String, default: "", uppercase: true },
     cast: {
       type: String,
-      default: "NA",
+      required,
       uppercase: true,
       enum: {
         values: ["GEN", "OBC", "ST", "SC", "MECON", "OTHERS", "NA"],
@@ -103,6 +104,7 @@ const schema = new mongoose.Schema(
     },
     relation_with_student: { type: String, default: "", uppercase: true },
     class_teacher: { type: String, default: "", uppercase: true },
+    current_bus: { type: ObjectId, ref: "transport_buses" },
     bus_pick: { type: ObjectId, ref: "transport_buses" },
     bus_drop: { type: ObjectId, ref: "transport_buses" },
     bus_stop: { type: ObjectId, ref: "transport_bus_stops" },
@@ -112,16 +114,16 @@ const schema = new mongoose.Schema(
     handicapped: { type: Boolean, default: false },
     email: {
       type: String,
-      required,
+      default: "",
       validate: { validator: isEmailValid, message: C.FIELD_IS_INVALID },
       lowercase: true,
       trim: true,
     },
     photo: { type: String, default: "" },
-    age: { type: Number, default: 0 },
     height: { type: Number, default: 0 },
     weight: { type: Number, default: 0 },
     rfid: { type: String, required, uppercase: true },
+    rfid_verified: { type: Boolean, default: false },
     academic_year: { type: ObjectId, required, ref: "academic_years" },
     parent: { type: ObjectId, ref: "users" },
     school: { type: ObjectId, required, ref: "schools" },

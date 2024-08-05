@@ -17,15 +17,11 @@ const schema = new mongoose.Schema(
     start_month: { type: Number, required },
     late_fee_days: { type: Number, required },
     academic_year: { type: ObjectId, required, ref: "academic_years" },
-    school: { type: ObjectId, required, ref: "schools" },
   },
   { timestamps: true, versionKey: false }
 );
 
-schema.index(
-  { term_type: 1, year: 1, start_month: 1, academic_year: 1, school: 1 },
-  { unique: true }
-);
+schema.index({ name: 1, academic_year: 1 }, { unique: true });
 
 schema.plugin(any);
 
