@@ -21,6 +21,14 @@ jobs:
         with:
           node-version: "18"
 
+      - name: Check working directory
+        run: pwd
+        working-directory: /var/www/edusoft_school_management
+
+      - name: Check user
+        run: whoami
+        working-directory: /var/www/edusoft_school_management
+
       - name: Install dependencies
         run: npm install
         working-directory: /var/www/edusoft_school_management
