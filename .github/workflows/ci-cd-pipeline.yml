@@ -22,9 +22,7 @@ jobs:
         working-directory: /var/www/edusoft_school_management
 
       - name: Pull lateset code
-        run: 
-          su rafay_test
-          git pull origin main
+        run: git pull origin main
         working-directory: /var/www/edusoft_school_management
 
       - name: Install dependencies
