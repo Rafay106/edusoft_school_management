@@ -13,6 +13,9 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: Change user
+        run: su rafay_test
+        
       - name: Check working directory
         run: pwd
         working-directory: /var/www/edusoft_school_management
