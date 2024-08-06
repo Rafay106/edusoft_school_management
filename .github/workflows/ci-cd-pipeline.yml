@@ -17,7 +17,7 @@ jobs:
         run: pwd
         working-directory: /var/www/edusoft_school_management
 
-      - name: Check current user
+      - name: Check user
         run: whoami
         working-directory: /var/www/edusoft_school_management
 
