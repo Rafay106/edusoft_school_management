@@ -12,10 +12,7 @@ jobs:
   deploy:
     runs-on: self-hosted
 
-    steps:
-      - name: Change user
-        run: su rafay_test
-        
+    steps:        
       - name: Check working directory
         run: pwd
         working-directory: /var/www/edusoft_school_management
@@ -25,7 +22,9 @@ jobs:
         working-directory: /var/www/edusoft_school_management
 
       - name: Pull lateset code
-        run: su rafay_test && git pull origin main
+        run: 
+          su rafay_test
+          git pull origin main
         working-directory: /var/www/edusoft_school_management
 
       - name: Install dependencies
