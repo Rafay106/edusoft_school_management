@@ -9,12 +9,8 @@ on:
       - main
 
 jobs:
-  build:
+  deploy:
     runs-on: self-hosted
-
-    strategy:
-      matrix:
-        node-version: [18.x]
 
     steps:
       - name: Checkout code
@@ -23,37 +19,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "18"
 
       - name: Install dependencies
         run: npm install
+        working-directory: /var/www/edusoft_school_management
 
-      - name: Restart application with PM2
-        run: pm2 restart Edusoft
-
-  deploy:
-    needs: build
-    runs-on: self-hosted
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Deploy to Server
-        run: |
-          # Set up SSH key
-          echo "$SSH_PRIVATE_KEY"
-          echo "$SERVER_IP"
-          echo "$SERVER_USER"
-
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-          # Add server to known_hosts
-          ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
-
-          # Pull code to the server
-          ssh $SERVER_USER@$SERVER_IP 'cd /var/www/edusoft_school_management && git pull origin main'
-
-          # Install dependencies and restart application with PM2
-          ssh $SERVER_USER@$SERVER_IP 'cd /var/www/edusoft_school_management && npm install && pm2 restart Edusoft'
+      - name: Restart PM2 process
+        run: sudo pm2 restart Edusoft
+        working-directory: /var/www/edusoft_school_management
