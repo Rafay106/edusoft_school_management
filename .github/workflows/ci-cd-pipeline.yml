@@ -13,13 +13,9 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: "18"
+      - name: Pull lateset code
+        run: git pull origin main
+        working-directory: /var/www/edusoft_school_management
 
       - name: Check working directory
         run: pwd
